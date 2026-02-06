@@ -6,12 +6,15 @@
 #define MyAppPublisher "Xiao Lan"
 #define MyAppURL "https://github.com/isxlan0/Codex_AccountSwitch"
 #define MyAppExeName "Codex_AccountSwitch.exe"
-#define MyAppVersion "1.0.0"
+#ifndef MyAppVersion
+  #define MyAppVersion "0.0.0"
+#endif
 
 [Setup]
 AppId={{0ACAA3F5-9AE4-4E3E-9D0D-7B9A7A7D1C21}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+AppCopyright=Copyright (C) 2026 Xiao Lan. All rights reserved.
 AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
@@ -32,6 +35,12 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+VersionInfoVersion={#MyAppVersion}.0
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription={#MyAppName} Installer
+VersionInfoCopyright=Copyright (C) 2026 Xiao Lan. All rights reserved.
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

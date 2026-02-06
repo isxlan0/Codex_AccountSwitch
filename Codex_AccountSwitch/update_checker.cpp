@@ -6,6 +6,7 @@
 #include <cwctype>
 #include <regex>
 #include <string>
+#include <vector>
 
 #pragma comment(lib, "Winhttp.lib")
 
@@ -181,6 +182,53 @@ std::wstring NormalizeVersion(const std::wstring& version)
     }
     return out;
 }
+
+std::vector<int> ParseVersionNumbers(const std::wstring& version)
+{
+    const std::wstring normalized = NormalizeVersion(version);
+    std::vector<int> numbers;
+    int value = 0;
+    bool inNumber = false;
+
+    for (wchar_t ch : normalized)
+    {
+        if (ch >= L'0' && ch <= L'9')
+        {
+            inNumber = true;
+            value = value * 10 + static_cast<int>(ch - L'0');
+        }
+        else if (inNumber)
+        {
+            numbers.push_back(value);
+            value = 0;
+            inNumber = false;
+        }
+    }
+    if (inNumber)
+    {
+        numbers.push_back(value);
+    }
+    return numbers;
+}
+
+int CompareVersion(const std::wstring& left, const std::wstring& right)
+{
+    const std::vector<int> lv = ParseVersionNumbers(left);
+    const std::vector<int> rv = ParseVersionNumbers(right);
+    const size_t n = lv.size() > rv.size() ? lv.size() : rv.size();
+    for (size_t i = 0; i < n; ++i)
+    {
+        const int l = i < lv.size() ? lv[i] : 0;
+        const int r = i < rv.size() ? rv[i] : 0;
+        if (l < r) return -1;
+        if (l > r) return 1;
+    }
+
+    const std::wstring ln = NormalizeVersion(left);
+    const std::wstring rn = NormalizeVersion(right);
+    if (ln == rn) return 0;
+    return ln < rn ? -1 : 1;
+}
 }
 
 UpdateCheckResult CheckGitHubUpdate(const std::wstring& currentVersion)
@@ -225,7 +273,7 @@ UpdateCheckResult CheckGitHubUpdate(const std::wstring& currentVersion)
 
     result.latestVersion = latest;
     result.ok = true;
-    result.hasUpdate = NormalizeVersion(result.currentVersion) != NormalizeVersion(result.latestVersion);
+    result.hasUpdate = CompareVersion(result.currentVersion, result.latestVersion) < 0;
     if (result.downloadUrl.empty())
     {
         result.downloadUrl = result.releaseUrl;

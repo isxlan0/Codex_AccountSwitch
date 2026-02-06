@@ -89,6 +89,10 @@
     "update.latest":  "Already up to date",
     "update.new":  "New version detected: {latest}",
     "update.dialog.title":  "Update Available",
+    "update.dialog.current_label":  "Current",
+    "update.dialog.latest_label":  "Latest",
+    "update.dialog.notes_label":  "Release Notes",
+    "update.dialog.confirm_question":  "Download and install the latest release now?",
     "update.dialog.message":  "Current: {current}\nLatest: {latest}\n\nRelease Notes:\n{notes}\n\nDownload and install the latest release now?",
     "ide.Code.exe":  "VSCode",
     "ide.Trae.exe":  "Trae",
@@ -219,6 +223,13 @@
     return text;
   }
 
+  function normalizeMultilineText(text) {
+    return String(text || "")
+      .replaceAll("\\r\\n", "\n")
+      .replaceAll("\\n", "\n")
+      .replaceAll("\\r", "\n");
+  }
+
   function initLanguageIndexFallback() {
     state.languageIndex = [{ code: "zh-CN", name: "简体中文", file: "zh-CN.json" }];
   }
@@ -246,14 +257,19 @@
   }
 
   function promptUpdateDialog(info) {
-    const notes = String(info?.notes || "").trim() || "-";
+    const notes = normalizeMultilineText(info?.notes).trim() || "-";
+    const message = [
+      `${t("update.dialog.current_label")}: ${state.appVersion}`,
+      `${t("update.dialog.latest_label")}: ${info?.latest || ""}`,
+      "",
+      `${t("update.dialog.notes_label")}:`,
+      notes,
+      "",
+      t("update.dialog.confirm_question")
+    ].join("\n");
     openConfirm({
       title: t("update.dialog.title"),
-      message: t("update.dialog.message", {
-        current: state.appVersion,
-        latest: info?.latest || "",
-        notes
-      }),
+      message: normalizeMultilineText(message),
       onConfirm: () => {
         const target = info?.downloadUrl || info?.url || `${state.repoUrl}/releases/latest`;
         post("open_external_url", { url: target });

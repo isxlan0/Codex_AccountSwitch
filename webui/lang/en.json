@@ -85,9 +85,16 @@
     "toolbar.import":  "Import",
     "status_code.open_url_failed":  "Failed to open link",
     "update.dialog.title":  "Update Available",
+    "update.dialog.current_label":  "Current",
+    "update.dialog.latest_label":  "Latest",
+    "update.dialog.notes_label":  "Release Notes",
+    "update.dialog.confirm_question":  "Download and install the latest release now?",
     "settings.auto_update_off":  "Disabled",
     "update.dialog.message":  "Current: {current}\\nLatest: {latest}\\n\\nRelease Notes:\\n{notes}\\n\\nDownload and install the latest release now?",
     "settings.auto_update_label":  "Auto Update",
     "settings.auto_update_hint":  "Check update automatically at startup and prompt before downloading.",
     "settings.auto_update_on":  "Enabled"
 }
+
+
+
