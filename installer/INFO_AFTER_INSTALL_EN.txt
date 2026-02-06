@@ -1,0 +1,15 @@
+Codex Account Switch - Installation Completed
+
+Installation finished successfully.
+
+Notes:
+
+1. Launch the app from Start Menu or desktop shortcut.
+2. Account/config data remains under:
+   %LOCALAPPDATA%\Codex Account Switch
+3. During uninstall, you will be asked whether to keep your user data.
+4. For updates and documentation, visit:
+   https://github.com/isxlan0/Codex_AccountSwitch
+
+Thank you for using Codex Account Switch.
+

@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="Codex_AccountSwitch/Codex_AccountSwitch.vcxproj" Id="e21c8e9c-dd8b-4419-8f0b-ebb2a9fccd32" />
+</Solution>

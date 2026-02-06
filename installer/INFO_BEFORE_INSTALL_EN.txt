@@ -1,0 +1,14 @@
+Codex Account Switch - Before Installation
+
+Thank you for choosing Codex Account Switch.
+
+Before installing, please read:
+
+1. This installer deploys only program files and WebUI resources.
+2. Your user data is stored in:
+   %LOCALAPPDATA%\Codex Account Switch
+3. Existing user data will not be overwritten by installation.
+4. You can choose current-user or all-users installation mode in setup.
+
+By continuing, you agree to the LICENSE terms included with this software.
+

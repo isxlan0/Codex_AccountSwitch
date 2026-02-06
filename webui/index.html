@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Codex Account Switch</title>
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <div class="toolbar">
+      <div class="brand" id="brandTitle">Codex Account Switch</div>
+
+      <nav class="top-tabs">
+        <button class="tab-btn active" data-tab="accounts" id="tabBtnAccounts"></button>
+        <button class="tab-btn" data-tab="about" id="tabBtnAbout"></button>
+        <button class="tab-btn" data-tab="settings" id="tabBtnSettings"></button>
+      </nav>
+
+      <div></div>
+
+      <div class="toolbar-actions">
+        <button class="tool-btn" id="refreshBtn"></button>
+        <button class="tool-btn" id="loginNewBtn"></button>
+        <button class="tool-btn primary" id="backupBtnTop"></button>
+        <button class="tool-btn" id="importBtn"></button>
+        <button class="tool-btn" id="exportBtn"></button>
+      </div>
+    </div>
+
+    <main class="content">
+      <section class="tab-panel active" id="tab-accounts">
+        <div class="search-row">
+          <input class="search" id="searchInput" />
+          <div class="group-filter">
+            <button class="group-btn active" data-group-filter="all" id="groupAllBtn"></button>
+            <button class="group-btn" data-group-filter="personal" id="groupPersonalBtn"></button>
+            <button class="group-btn" data-group-filter="business" id="groupBusinessBtn"></button>
+          </div>
+        </div>
+
+        <div class="card">
+          <table class="table">
+            <thead>
+              <tr>
+                <th style="width: 34%;" id="thAccount"></th>
+                <th style="width: 32%;" id="thQuota"></th>
+                <th style="width: 18%;" id="thRecent"></th>
+                <th style="width: 16%;" id="thAction"></th>
+              </tr>
+            </thead>
+            <tbody id="accountsBody"></tbody>
+          </table>
+        </div>
+
+        <div id="log">WebUI ready.</div>
+      </section>
+
+      <section class="tab-panel" id="tab-about">
+        <div class="about-wrap">
+          <div class="about-logo"></div>
+          <div class="about-title" id="aboutTitle"></div>
+          <div class="about-sub" id="aboutSubtitle"></div>
+          <div class="about-grid">
+            <div class="about-item">
+              <div class="about-label" id="aboutAuthorLabel"></div>
+              <div class="about-value" id="aboutAuthorValue"></div>
+            </div>
+            <div class="about-item">
+              <div class="about-label" id="aboutRepoLabel"></div>
+              <div class="about-value">
+                <a class="about-link" href="https://github.com/isxlan0/Codex_AccountSwitch" target="_blank" rel="noopener noreferrer" id="aboutRepoLink"></a>
+              </div>
+            </div>
+          </div>
+          <div class="about-check-row">
+            <button class="tool-btn primary" id="checkUpdateBtn"></button>
+            <span class="about-version" id="versionText">v1.0.0</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-settings">
+        <div class="settings-wrap">
+          <div class="settings-card">
+            <div class="settings-title" id="settingsTitle"></div>
+            <div class="settings-sub" id="settingsSub"></div>
+
+            <div class="settings-group">
+              <div class="settings-label" id="settingsLanguageLabel"></div>
+              <div class="option-row" id="languageOptions"></div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-label" id="settingsIdeLabel"></div>
+              <div class="option-row" id="ideOptions"></div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-label" id="settingsAutoUpdateLabel"></div>
+              <div class="option-row" id="autoUpdateOptions">
+                <button class="option-btn active" data-auto-update-option="true" id="autoUpdateOnBtn"></button>
+                <button class="option-btn" data-auto-update-option="false" id="autoUpdateOffBtn"></button>
+              </div>
+              <div class="settings-sub-note" id="settingsAutoUpdateHint"></div>
+            </div>
+
+            <div class="settings-actions">
+              <button class="tool-btn primary" id="settingsSaveBtn"></button>
+              <span class="settings-note" id="settingsNote"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div id="countText"></div>
+    </footer>
+  </div>
+
+  <div class="toast-wrap" id="toastWrap"></div>
+
+  <div class="modal-mask" id="backupModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
+      <div class="modal-head" id="backupTitle"></div>
+      <div class="modal-body">
+        <div>
+          <div class="modal-label" id="backupNameLabel"></div>
+          <input class="modal-input" id="backupNameInput" maxlength="32" autocomplete="off" />
+        </div>
+        <div>
+          <div class="modal-label" id="backupGroupLabel"></div>
+          <div class="group-filter">
+            <button class="group-btn active" data-group-select="personal" id="backupGroupPersonalBtn"></button>
+            <button class="group-btn" data-group-select="business" id="backupGroupBusinessBtn"></button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="mini" id="backupCancelBtn"></button>
+        <button class="mini primary" id="backupConfirmBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="confirmModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="modal-head" id="confirmTitle"></div>
+      <div class="modal-body">
+        <div class="modal-label" id="confirmMessage"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="mini" id="confirmCancelBtn"></button>
+        <button class="mini primary" id="confirmOkBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./js/app.js"></script>
+</body>
+</html>

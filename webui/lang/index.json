@@ -1,0 +1,69 @@
+﻿{
+    "languages":  [
+                      {
+                          "code":  "zh-CN",
+                          "name":  "简体中文",
+                          "file":  "zh-CN.json"
+                      },
+                      {
+                          "code":  "zh-TW",
+                          "name":  "繁體中文",
+                          "file":  "zh-TW.json"
+                      },
+                      {
+                          "code":  "en",
+                          "name":  "English",
+                          "file":  "en.json"
+                      },
+                      {
+                          "code":  "ja",
+                          "name":  "日本語",
+                          "file":  "ja.json"
+                      },
+                      {
+                          "code":  "ko",
+                          "name":  "한국어",
+                          "file":  "ko.json"
+                      },
+                      {
+                          "code":  "fr",
+                          "name":  "Français",
+                          "file":  "fr.json"
+                      },
+                      {
+                          "code":  "de",
+                          "name":  "Deutsch",
+                          "file":  "de.json"
+                      },
+                      {
+                          "code":  "es",
+                          "name":  "Español",
+                          "file":  "es.json"
+                      },
+                      {
+                          "code":  "ru",
+                          "name":  "Русский",
+                          "file":  "ru.json"
+                      },
+                      {
+                          "code":  "pt-BR",
+                          "name":  "Português (Brasil)",
+                          "file":  "pt-BR.json"
+                      },
+                      {
+                          "code":  "it",
+                          "name":  "Italiano",
+                          "file":  "it.json"
+                      },
+                      {
+                          "code":  "ar",
+                          "name":  "العربية",
+                          "file":  "ar.json"
+                      },
+                      {
+                          "code":  "hi",
+                          "name":  "हिन्दी",
+                          "file":  "hi.json"
+                      }
+                  ]
+}

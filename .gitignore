@@ -1,0 +1,46 @@
+# Required ignore rules from request
+/config.json
+/backups/
+/dist/
+/packages/
+/x64/
+/Codex_AccountSwitch/x64/
+
+# Visual Studio / local IDE state
+/.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build outputs and debug symbols
+*.obj
+*.o
+*.pdb
+*.ipdb
+*.iobj
+*.ilk
+*.exe.recipe
+*.tlog
+*.lastbuildstate
+*.vc.db
+*.VC.db
+*.opendb
+*.db-shm
+*.db-wal
+*.ipch
+*.vsidx
+*.FileListAbsolute.txt
+*.log
+
+# Local environment or secret-like files
+*.env
+*.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+*.secrets.json
+
+# Extra safeguard for account backup auth blobs
+**/auth.json
