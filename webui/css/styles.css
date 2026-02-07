@@ -138,6 +138,30 @@ button { -webkit-tap-highlight-color: transparent; }
   line-height: 1.25;
   text-align: center;
 }
+.tool-btn:disabled,
+.btn-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.tool-btn.loading,
+.btn-action.loading {
+  pointer-events: none;
+}
+
+.tool-btn.loading::before,
+.btn-action.loading::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: btn-spin 0.75s linear infinite;
+}
 
 .tool-btn.primary {
   background: var(--primary);
@@ -288,6 +312,11 @@ button { -webkit-tap-highlight-color: transparent; }
 .btn-action.switch:hover { background: #f1f6ff; border-color: #d5e0f5; }
 .btn-action.refresh:hover { background: #eefaf7; border-color: #cfe9df; color: #1f7a59; }
 .btn-action.delete:hover { background: #fff1f1; border-color: #ffcfd1; color: #b4232f; }
+
+@keyframes btn-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 .group-filter {
   display: inline-flex;

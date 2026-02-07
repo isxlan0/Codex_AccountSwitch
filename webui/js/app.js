@@ -186,7 +186,10 @@
     languageIndex: [],
     i18n: {},
     didAutoCheckUpdate: false,
-    updateCheckContext: "manual"
+    updateCheckContext: "manual",
+    refreshMode: "",
+    refreshTargetKey: "",
+    refreshBusyTimer: null
   };
 
   const mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
@@ -470,6 +473,32 @@
     return String(msg?.message || code);
   }
 
+  function makeAccountKey(name, group) {
+    return `${String(group || "personal").toLowerCase()}::${String(name || "")}`;
+  }
+
+  function setRefreshBusy(mode = "", accountKey = "") {
+    state.refreshMode = mode;
+    state.refreshTargetKey = accountKey || "";
+
+    if (state.refreshBusyTimer) {
+      clearTimeout(state.refreshBusyTimer);
+      state.refreshBusyTimer = null;
+    }
+
+    const isBusy = mode === "all" || mode === "account";
+    dom.refreshBtn.disabled = isBusy;
+    dom.refreshBtn.classList.toggle("loading", mode === "all");
+
+    if (isBusy) {
+      state.refreshBusyTimer = setTimeout(() => {
+        setRefreshBusy("", "");
+      }, 20000);
+    }
+
+    renderAccounts();
+  }
+
   function formatRemain(v) {
     return Number.isFinite(Number(v)) && Number(v) >= 0 ? `${Number(v)}%` : "-";
   }
@@ -490,7 +519,10 @@
       return v.length > 14 ? `${v.slice(0, 14)}...` : v;
     };
 
-    dom.accountsBody.innerHTML = state.filteredAccounts.map((item) => `
+    dom.accountsBody.innerHTML = state.filteredAccounts.map((item) => {
+      const isThisRefreshing = state.refreshMode === "account" && state.refreshTargetKey === makeAccountKey(item.name, item.group);
+      const disableRefreshAction = state.refreshMode === "all" || isThisRefreshing;
+      return `
       <tr>
         <td>
           <div class="account-cell" title="${escapeHtml(item.name)}">
@@ -516,12 +548,13 @@
         <td>
           <div class="actions">
             <button class="btn-action switch" data-action="switch" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.switch_title"))}">${escapeHtml(t("action.switch"))}</button>
-            <button class="btn-action refresh" data-action="refresh" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.refresh_title"))}">${escapeHtml(t("action.refresh"))}</button>
+            <button class="btn-action refresh ${isThisRefreshing ? "loading" : ""}" data-action="refresh" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.refresh_title"))}" ${disableRefreshAction ? "disabled" : ""}>${escapeHtml(t("action.refresh"))}</button>
             <button class="btn-action delete" data-action="delete" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.delete_title"))}">${escapeHtml(t("action.delete"))}</button>
           </div>
         </td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
   }
 
   function applySearch() {
@@ -555,6 +588,7 @@
     dom.accountsBody.addEventListener("click", (e) => {
       const target = e.target.closest("button[data-action]");
       if (!target) return;
+      if (target.disabled) return;
       const action = target.getAttribute("data-action");
       const name = target.getAttribute("data-name");
       const group = target.getAttribute("data-group") || "personal";
@@ -567,6 +601,8 @@
           ideExe: state.currentIdeExe
         });
       } else if (action === "refresh") {
+        if (state.refreshMode) return;
+        setRefreshBusy("account", makeAccountKey(name, group));
         post("refresh_account", { account: name, group });
       } else if (action === "delete") {
         openConfirm({
@@ -638,7 +674,11 @@
       updateSettingsNote();
     });
 
-    dom.refreshBtn.addEventListener("click", () => post("refresh_accounts"));
+    dom.refreshBtn.addEventListener("click", () => {
+      if (state.refreshMode) return;
+      setRefreshBusy("all");
+      post("refresh_accounts");
+    });
     dom.importBtn.addEventListener("click", () => post("import_accounts"));
     dom.exportBtn.addEventListener("click", () => post("export_accounts"));
     dom.checkUpdateBtn.addEventListener("click", () => requestUpdateCheck("manual"));
@@ -677,6 +717,11 @@
 
       if (msg && typeof msg === "object" && msg.type === "status") {
         log(`host status: level=${msg.level || "info"} code=${msg.code || ""}`);
+        if (msg.code === "quota_refreshed" || msg.code === "account_quota_refreshed") {
+          setRefreshBusy("", "");
+        } else if (state.refreshMode && (msg.level === "error" || msg.level === "warning")) {
+          setRefreshBusy("", "");
+        }
         showToast(mapStatusMessage(msg), msg.level || "info");
         return;
       }

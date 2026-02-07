@@ -4,7 +4,6 @@
 #include <winhttp.h>
 
 #include <cwctype>
-#include <regex>
 #include <string>
 #include <vector>
 
@@ -16,6 +15,7 @@ constexpr wchar_t kHost[] = L"api.github.com";
 constexpr wchar_t kReleasePath[] = L"/repos/isxlan0/Codex_AccountSwitch/releases/latest";
 constexpr wchar_t kTagsPath[] = L"/repos/isxlan0/Codex_AccountSwitch/tags?per_page=1";
 constexpr wchar_t kReleaseUrl[] = L"https://github.com/isxlan0/Codex_AccountSwitch/releases/latest";
+std::wstring JsonUnescape(const std::wstring& text);
 
 bool HttpGet(const std::wstring& path, std::wstring& body)
 {
@@ -123,12 +123,98 @@ bool HttpGet(const std::wstring& path, std::wstring& body)
     return ok && !body.empty();
 }
 
-std::wstring ExtractByRegex(const std::wstring& text, const std::wregex& re)
+std::wstring ExtractJsonStringField(const std::wstring& text, const std::wstring& key, size_t startPos = 0)
 {
-    std::wsmatch m;
-    if (std::regex_search(text, m, re) && m.size() > 1)
+    const std::wstring pattern = L"\"" + key + L"\"";
+    const size_t keyPos = text.find(pattern, startPos);
+    if (keyPos == std::wstring::npos)
     {
-        return m[1].str();
+        return L"";
+    }
+
+    const size_t colonPos = text.find(L':', keyPos + pattern.size());
+    if (colonPos == std::wstring::npos)
+    {
+        return L"";
+    }
+
+    size_t p = colonPos + 1;
+    while (p < text.size() && iswspace(text[p]))
+    {
+        ++p;
+    }
+    if (p >= text.size() || text[p] != L'"')
+    {
+        return L"";
+    }
+    ++p;
+
+    std::wstring escaped;
+    escaped.reserve(64);
+    bool escape = false;
+    for (; p < text.size(); ++p)
+    {
+        const wchar_t ch = text[p];
+        if (escape)
+        {
+            escaped.push_back(L'\\');
+            escaped.push_back(ch);
+            escape = false;
+            continue;
+        }
+        if (ch == L'\\')
+        {
+            escape = true;
+            continue;
+        }
+        if (ch == L'"')
+        {
+            return JsonUnescape(escaped);
+        }
+        escaped.push_back(ch);
+    }
+
+    return L"";
+}
+
+bool EndsWithIgnoreCase(const std::wstring& text, const std::wstring& suffix)
+{
+    if (text.size() < suffix.size())
+    {
+        return false;
+    }
+
+    const size_t offset = text.size() - suffix.size();
+    for (size_t i = 0; i < suffix.size(); ++i)
+    {
+        if (towlower(text[offset + i]) != towlower(suffix[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+std::wstring ExtractPreferredDownloadUrl(const std::wstring& text)
+{
+    const std::wstring key = L"browser_download_url";
+    size_t searchPos = 0;
+    while (searchPos < text.size())
+    {
+        const size_t keyPos = text.find(L"\"" + key + L"\"", searchPos);
+        if (keyPos == std::wstring::npos)
+        {
+            return L"";
+        }
+
+        const std::wstring url = ExtractJsonStringField(text, key, keyPos);
+        if (!url.empty() &&
+            (EndsWithIgnoreCase(url, L".exe") || EndsWithIgnoreCase(url, L".msi") || EndsWithIgnoreCase(url, L".zip")))
+        {
+            return url;
+        }
+
+        searchPos = keyPos + key.size() + 2;
     }
     return L"";
 }
@@ -242,13 +328,11 @@ UpdateCheckResult CheckGitHubUpdate(const std::wstring& currentVersion)
 
     if (HttpGet(kReleasePath, body))
     {
-        latest = ExtractByRegex(body, std::wregex(L"\\\"tag_name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\""));
-        const std::wstring notesRaw = ExtractByRegex(body, std::wregex(LR"REGEX(\"body\"\s*:\s*\"((?:\\.|[^"])*)\")REGEX"));
-        result.releaseNotes = JsonUnescape(notesRaw);
+        latest = ExtractJsonStringField(body, L"tag_name");
+        result.releaseNotes = ExtractJsonStringField(body, L"body");
 
         // Prefer installer/binary asset URL from latest release.
-        const std::wregex exeAssetRe(LR"REGEX(\"browser_download_url\"\s*:\s*\"([^\"]+\.(?:exe|msi|zip))\")REGEX", std::regex::icase);
-        std::wstring asset = ExtractByRegex(body, exeAssetRe);
+        std::wstring asset = ExtractPreferredDownloadUrl(body);
         if (!asset.empty())
         {
             result.downloadUrl = asset;
@@ -260,7 +344,7 @@ UpdateCheckResult CheckGitHubUpdate(const std::wstring& currentVersion)
         body.clear();
         if (HttpGet(kTagsPath, body))
         {
-            latest = ExtractByRegex(body, std::wregex(L"\\\"name\\\"\\s*:\\s*\\\"([^\\\"]+)\\\""));
+            latest = ExtractJsonStringField(body, L"name");
         }
     }
 
