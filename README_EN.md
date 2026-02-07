@@ -1,4 +1,4 @@
-﻿# Codex Account Switch
+﻿<h1 align="center"><b>Codex Account Switch</b></h1>
 
 <p align="center">
   <b>A fast, local-first multi-account manager for Codex</b><br/>

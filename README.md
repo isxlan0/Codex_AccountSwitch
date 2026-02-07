@@ -1,4 +1,4 @@
-﻿# Codex Account Switch
+﻿<h1 align="center"><b>Codex Account Switch</b></h1>
 
 <p align="center">
   <b>本地化、多账号、高效率的 Codex 账号管理与切换工具</b><br/>
