@@ -52,8 +52,11 @@
     "tag.group_personal":  "個人版",
     "quota.gpt":  "GPT モデル",
     "quota.placeholder":  "未実装機能",
+    "quota.format":  "5H {q5} | 7D {q7} | リセット {r5}h/{r7}h",
     "action.switch_title":  "このアカウントに切替",
     "action.switch":  "切替",
+    "action.refresh_title":  "配分を更新",
+    "action.refresh":  "更新",
     "action.delete_title":  "アカウント削除",
     "action.delete":  "削除",
     "count.format":  "1 から {total} を表示、合計 {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "操作失敗：ユーザーディレクトリが見つかりません",
     "status_code.restart_failed":  "{ide} の再起動に失敗しました。手動で再起動してください",
     "status_code.save_config_failed":  "設定の保存に失敗しました",
+    "status_code.quota_refreshed":  "配分を更新しました",
+    "status_code.account_quota_refreshed":  "アカウント配分を更新しました",
     "status_code.unknown_action":  "不明な操作です",
     "update.failed":  "更新確認に失敗しました。後でもう一度お試しください",
     "update.latest":  "最新バージョンです",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "起動時に自動で更新を確認し、更新があればダウンロード確認を表示します。",
     "settings.auto_update_on":  "有効"
 }
+
+

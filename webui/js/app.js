@@ -36,6 +36,11 @@
     "settings.subtitle":  "These settings are used on first launch and all future switches.",
     "settings.language_label":  "Language",
     "settings.ide_label":  "IDE Executable",
+    "settings.theme_label":  "Theme",
+    "settings.theme_auto":  "Auto",
+    "settings.theme_light":  "Light",
+    "settings.theme_dark":  "Dark",
+    "settings.theme_hint":  "Auto follows your Windows theme.",
     "settings.auto_update_label":  "Auto Update",
     "settings.auto_update_on":  "Enabled",
     "settings.auto_update_off":  "Disabled",
@@ -46,7 +51,6 @@
     "dialog.backup.title":  "Backup Current Account",
     "dialog.backup.name_label":  "Account Name",
     "dialog.backup.name_placeholder":  "Enter account name",
-    "dialog.backup.group_label":  "Group",
     "dialog.common.cancel":  "Cancel",
     "dialog.common.save":  "Save",
     "dialog.common.confirm":  "Confirm",
@@ -61,9 +65,12 @@
     "tag.group_business":  "Business",
     "tag.group_personal":  "Personal",
     "quota.gpt":  "GPT",
-    "quota.placeholder":  "Feature under development",
+    "quota.placeholder":  "No quota data",
+    "quota.format":  "5H {q5} | 7D {q7} | Reset {r5}h/{r7}h",
     "action.switch_title":  "Switch to this account",
     "action.switch":  "Switch",
+    "action.refresh_title":  "Refresh quota",
+    "action.refresh":  "Refresh",
     "action.delete_title":  "Delete account",
     "action.delete":  "Delete",
     "count.format":  "Showing 1 to {total}, total {total}",
@@ -84,6 +91,8 @@
     "status_code.open_url_failed":  "Failed to open link",
     "status_code.open_url_success":  "Link opened",
     "status_code.save_config_failed":  "Failed to save settings",
+    "status_code.quota_refreshed":  "Quota refreshed",
+    "status_code.account_quota_refreshed":  "Account quota refreshed",
     "status_code.unknown_action":  "Unknown action",
     "update.failed":  "Update check failed, please try again later",
     "update.latest":  "Already up to date",
@@ -131,6 +140,11 @@
     settingsSub: document.getElementById("settingsSub"),
     settingsLanguageLabel: document.getElementById("settingsLanguageLabel"),
     settingsIdeLabel: document.getElementById("settingsIdeLabel"),
+    settingsThemeLabel: document.getElementById("settingsThemeLabel"),
+    settingsThemeHint: document.getElementById("settingsThemeHint"),
+    themeAutoBtn: document.getElementById("themeAutoBtn"),
+    themeLightBtn: document.getElementById("themeLightBtn"),
+    themeDarkBtn: document.getElementById("themeDarkBtn"),
     settingsAutoUpdateLabel: document.getElementById("settingsAutoUpdateLabel"),
     settingsAutoUpdateHint: document.getElementById("settingsAutoUpdateHint"),
     languageOptions: document.getElementById("languageOptions"),
@@ -147,9 +161,6 @@
     backupTitle: document.getElementById("backupTitle"),
     backupNameLabel: document.getElementById("backupNameLabel"),
     backupNameInput: document.getElementById("backupNameInput"),
-    backupGroupLabel: document.getElementById("backupGroupLabel"),
-    backupGroupPersonalBtn: document.getElementById("backupGroupPersonalBtn"),
-    backupGroupBusinessBtn: document.getElementById("backupGroupBusinessBtn"),
     backupCancelBtn: document.getElementById("backupCancelBtn"),
     backupConfirmBtn: document.getElementById("backupConfirmBtn"),
     confirmModal: document.getElementById("confirmModal"),
@@ -166,17 +177,19 @@
     accounts: [],
     filteredAccounts: [],
     groupFilter: "all",
-    backupGroup: "personal",
     confirmAction: null,
     currentLanguage: "zh-CN",
     currentIdeExe: "Code.exe",
     autoUpdate: true,
+    themeMode: "auto",
     firstRun: false,
     languageIndex: [],
     i18n: {},
     didAutoCheckUpdate: false,
     updateCheckContext: "manual"
   };
+
+  const mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
   function log(msg) {
     if (!state.debug) return;
@@ -317,6 +330,26 @@
     });
   }
 
+  function normalizeThemeMode(mode) {
+    const v = String(mode || "").toLowerCase();
+    if (v === "light" || v === "dark" || v === "auto") return v;
+    return "auto";
+  }
+
+  function resolveEffectiveTheme() {
+    if (state.themeMode === "dark") return "dark";
+    if (state.themeMode === "light") return "light";
+    return mediaDark && mediaDark.matches ? "dark" : "light";
+  }
+
+  function applyTheme() {
+    document.documentElement.setAttribute("data-theme", resolveEffectiveTheme());
+  }
+
+  function syncLayoutDensity() {
+    document.body.classList.toggle("compact-ui", window.innerWidth < 1120);
+  }
+
   function renderLanguageOptions() {
     dom.languageOptions.innerHTML = "";
     for (const lang of state.languageIndex) {
@@ -359,6 +392,9 @@
       const val = x.getAttribute("data-auto-update-option") === "true";
       x.classList.toggle("active", val === state.autoUpdate);
     });
+    document.querySelectorAll("[data-theme-option]").forEach((x) => {
+      x.classList.toggle("active", x.getAttribute("data-theme-option") === state.themeMode);
+    });
     updateSettingsNote();
   }
 
@@ -390,6 +426,11 @@
     dom.settingsSub.textContent = t("settings.subtitle");
     dom.settingsLanguageLabel.textContent = t("settings.language_label");
     dom.settingsIdeLabel.textContent = t("settings.ide_label");
+    dom.settingsThemeLabel.textContent = t("settings.theme_label");
+    dom.settingsThemeHint.textContent = t("settings.theme_hint");
+    dom.themeAutoBtn.textContent = t("settings.theme_auto");
+    dom.themeLightBtn.textContent = t("settings.theme_light");
+    dom.themeDarkBtn.textContent = t("settings.theme_dark");
     dom.settingsAutoUpdateLabel.textContent = t("settings.auto_update_label");
     dom.settingsAutoUpdateHint.textContent = t("settings.auto_update_hint");
     dom.autoUpdateOnBtn.textContent = t("settings.auto_update_on");
@@ -398,9 +439,6 @@
     dom.backupTitle.textContent = t("dialog.backup.title");
     dom.backupNameLabel.textContent = t("dialog.backup.name_label");
     dom.backupNameInput.placeholder = t("dialog.backup.name_placeholder");
-    dom.backupGroupLabel.textContent = t("dialog.backup.group_label");
-    dom.backupGroupPersonalBtn.textContent = t("group.personal");
-    dom.backupGroupBusinessBtn.textContent = t("group.business");
     dom.backupCancelBtn.textContent = t("dialog.common.cancel");
     dom.backupConfirmBtn.textContent = t("dialog.common.save");
     dom.confirmCancelBtn.textContent = t("dialog.common.cancel");
@@ -432,6 +470,15 @@
     return String(msg?.message || code);
   }
 
+  function formatRemain(v) {
+    return Number.isFinite(Number(v)) && Number(v) >= 0 ? `${Number(v)}%` : "-";
+  }
+
+  function formatHoursFromSeconds(v) {
+    if (!Number.isFinite(Number(v)) || Number(v) < 0) return "-";
+    return (Number(v) / 3600).toFixed(1);
+  }
+
   function renderAccounts() {
     if (!state.filteredAccounts.length) {
       dom.accountsBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#6b7c93;">${escapeHtml(t("accounts.empty"))}</td></tr>`;
@@ -455,13 +502,21 @@
         <td>
           <div class="quota-box">
             <span class="quota-name">${escapeHtml(t("quota.gpt"))}</span>
-            ${escapeHtml(t("quota.placeholder"))}
+            ${item.usageOk
+              ? escapeHtml(t("quota.format", {
+                  q5: formatRemain(item.quota5hRemainingPercent),
+                  q7: formatRemain(item.quota7dRemainingPercent),
+                  r5: formatHoursFromSeconds(item.quota5hResetAfterSeconds),
+                  r7: formatHoursFromSeconds(item.quota7dResetAfterSeconds)
+                }))
+              : escapeHtml(t("quota.placeholder"))}
           </div>
         </td>
         <td>${escapeHtml(item.updatedAt || "-")}</td>
         <td>
           <div class="actions">
             <button class="btn-action switch" data-action="switch" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.switch_title"))}">${escapeHtml(t("action.switch"))}</button>
+            <button class="btn-action refresh" data-action="refresh" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.refresh_title"))}">${escapeHtml(t("action.refresh"))}</button>
             <button class="btn-action delete" data-action="delete" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.delete_title"))}">${escapeHtml(t("action.delete"))}</button>
           </div>
         </td>
@@ -511,6 +566,8 @@
           language: state.currentLanguage,
           ideExe: state.currentIdeExe
         });
+      } else if (action === "refresh") {
+        post("refresh_account", { account: name, group });
       } else if (action === "delete") {
         openConfirm({
           title: t("dialog.delete.title"),
@@ -522,26 +579,22 @@
 
     dom.backupBtnTop.addEventListener("click", () => {
       dom.backupNameInput.value = "";
-      state.backupGroup = "personal";
-      document.querySelectorAll("[data-group-select]").forEach((x) => {
-        x.classList.toggle("active", x.getAttribute("data-group-select") === state.backupGroup);
-      });
       dom.backupModal.classList.add("show");
       setTimeout(() => dom.backupNameInput.focus(), 10);
-    });
-
-    document.querySelectorAll("[data-group-select]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        state.backupGroup = btn.getAttribute("data-group-select") || "personal";
-        document.querySelectorAll("[data-group-select]").forEach((x) => x.classList.remove("active"));
-        btn.classList.add("active");
-      });
     });
 
     document.querySelectorAll("[data-auto-update-option]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.autoUpdate = btn.getAttribute("data-auto-update-option") === "true";
         refreshSettingsOptions();
+      });
+    });
+
+    document.querySelectorAll("[data-theme-option]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.themeMode = normalizeThemeMode(btn.getAttribute("data-theme-option"));
+        refreshSettingsOptions();
+        applyTheme();
       });
     });
 
@@ -559,7 +612,7 @@
         showToast(t("status_code.name_too_long"), "warning");
         return;
       }
-      post("backup_current", { name, group: state.backupGroup });
+      post("backup_current", { name });
       dom.backupModal.classList.remove("show");
     });
 
@@ -575,12 +628,17 @@
 
     dom.settingsSaveBtn.addEventListener("click", () => {
       const targetLang = state.currentLanguage;
-      post("set_config", { language: targetLang, ideExe: state.currentIdeExe, autoUpdate: state.autoUpdate });
+      post("set_config", {
+        language: targetLang,
+        ideExe: state.currentIdeExe,
+        autoUpdate: state.autoUpdate,
+        theme: state.themeMode
+      });
       requestLanguagePack(targetLang);
       updateSettingsNote();
     });
 
-    dom.refreshBtn.addEventListener("click", () => post("list_accounts"));
+    dom.refreshBtn.addEventListener("click", () => post("refresh_accounts"));
     dom.importBtn.addEventListener("click", () => post("import_accounts"));
     dom.exportBtn.addEventListener("click", () => post("export_accounts"));
     dom.checkUpdateBtn.addEventListener("click", () => requestUpdateCheck("manual"));
@@ -608,7 +666,8 @@
           ? msg.accounts.map((x) => ({
               ...x,
               group: x.group === "business" ? "business" : "personal",
-              isCurrent: x.isCurrent === true || x.isCurrent === "true"
+              isCurrent: x.isCurrent === true || x.isCurrent === "true",
+              usageOk: x.usageOk === true || x.usageOk === "true"
             }))
           : [];
         applySearch();
@@ -638,6 +697,8 @@
         }
         state.currentIdeExe = msg.ideExe || "Code.exe";
         state.autoUpdate = msg.autoUpdate !== false && msg.autoUpdate !== "false";
+        state.themeMode = normalizeThemeMode(msg.theme || "auto");
+        applyTheme();
         state.firstRun = msg.firstRun === true || msg.firstRun === "true";
         post("get_languages", { code: state.currentLanguage });
         if (state.autoUpdate && !state.didAutoCheckUpdate) {
@@ -704,6 +765,19 @@
     renderLanguageOptions();
     bindEvents();
     bindWebViewMessages();
+    window.addEventListener("resize", syncLayoutDensity);
+    if (mediaDark) {
+      const onSystemThemeChange = () => {
+        if (state.themeMode === "auto") applyTheme();
+      };
+      if (typeof mediaDark.addEventListener === "function") {
+        mediaDark.addEventListener("change", onSystemThemeChange);
+      } else if (typeof mediaDark.addListener === "function") {
+        mediaDark.addListener(onSystemThemeChange);
+      }
+    }
+    syncLayoutDensity();
+    applyTheme();
     applyLanguageStrings("zh-CN", DEFAULT_I18N);
     dom.logEl.style.display = state.debug ? "block" : "none";
 

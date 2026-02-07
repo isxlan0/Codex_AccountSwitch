@@ -52,8 +52,11 @@
     "tag.group_personal":  "Personnel",
     "quota.gpt":  "Modele GPT",
     "quota.placeholder":  "Fonction non developpee",
+    "quota.format":  "5H {q5} | 7D {q7} | Reinitialisation {r5}h/{r7}h",
     "action.switch_title":  "Basculer vers ce compte",
     "action.switch":  "Basculer",
+    "action.refresh_title":  "Actualiser le quota",
+    "action.refresh":  "Actualiser",
     "action.delete_title":  "Supprimer le compte",
     "action.delete":  "Supprimer",
     "count.format":  "Affichage de 1 a {total}, total {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "Echec de operation : dossier utilisateur introuvable",
     "status_code.restart_failed":  "Echec du redemarrage de {ide}, redemarrez manuellement",
     "status_code.save_config_failed":  "Echec de enregistrement des parametres",
+    "status_code.quota_refreshed":  "Quota actualise",
+    "status_code.account_quota_refreshed":  "Quota du compte actualise",
     "status_code.unknown_action":  "Action inconnue",
     "update.failed":  "Echec de la verification des mises a jour, reessayez plus tard",
     "update.latest":  "Deja a jour",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "Verifier automatiquement au demarrage et demander avant le telechargement.",
     "settings.auto_update_on":  "Active"
 }
+
+

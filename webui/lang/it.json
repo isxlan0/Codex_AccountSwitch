@@ -52,8 +52,11 @@
     "tag.group_personal":  "Personale",
     "quota.gpt":  "Modello GPT",
     "quota.placeholder":  "Funzione non sviluppata",
+    "quota.format":  "5H {q5} | 7D {q7} | Reimpostazione {r5}h/{r7}h",
     "action.switch_title":  "Passa a questo account",
     "action.switch":  "Cambia",
+    "action.refresh_title":  "Aggiorna quota",
+    "action.refresh":  "Aggiorna",
     "action.delete_title":  "Elimina account",
     "action.delete":  "Elimina",
     "count.format":  "Mostra da 1 a {total}, totale {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "Operazione non riuscita: cartella utente non trovata",
     "status_code.restart_failed":  "Riavvio di {ide} non riuscito, riavvia manualmente",
     "status_code.save_config_failed":  "Salvataggio impostazioni non riuscito",
+    "status_code.quota_refreshed":  "Quota aggiornata",
+    "status_code.account_quota_refreshed":  "Quota account aggiornata",
     "status_code.unknown_action":  "Azione sconosciuta",
     "update.failed":  "Controllo aggiornamenti non riuscito, riprova piu tardi",
     "update.latest":  "Versione gia aggiornata",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "Controlla automaticamente all avvio e chiedi prima del download.",
     "settings.auto_update_on":  "Attivato"
 }
+
+

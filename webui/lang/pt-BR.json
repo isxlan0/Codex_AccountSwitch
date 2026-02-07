@@ -52,8 +52,11 @@
     "tag.group_personal":  "Pessoal",
     "quota.gpt":  "Modelo GPT",
     "quota.placeholder":  "Funcionalidade nao desenvolvida",
+    "quota.format":  "5H {q5} | 7D {q7} | Redefinicao {r5}h/{r7}h",
     "action.switch_title":  "Alternar para esta conta",
     "action.switch":  "Trocar",
+    "action.refresh_title":  "Atualizar cota",
+    "action.refresh":  "Atualizar",
     "action.delete_title":  "Excluir conta",
     "action.delete":  "Excluir",
     "count.format":  "Mostrando 1 a {total}, total {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "Operacao falhou: pasta de usuario nao encontrada",
     "status_code.restart_failed":  "Falha ao reiniciar {ide}, reinicie manualmente",
     "status_code.save_config_failed":  "Falha ao salvar configuracoes",
+    "status_code.quota_refreshed":  "Cota atualizada",
+    "status_code.account_quota_refreshed":  "Cota da conta atualizada",
     "status_code.unknown_action":  "Acao desconhecida",
     "update.failed":  "Falha ao verificar atualizacoes, tente novamente mais tarde",
     "update.latest":  "Ja esta na versao mais recente",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "Verificar atualizacoes automaticamente ao iniciar e perguntar antes de baixar.",
     "settings.auto_update_on":  "Ativado"
 }
+
+

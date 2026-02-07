@@ -22,11 +22,16 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <windows.h>
+#include <dwmapi.h>
+#include <winhttp.h>
 
 using namespace Microsoft::WRL;
 namespace fs = std::filesystem;
 
 #pragma comment(lib, "Comdlg32.lib")
+#pragma comment(lib, "Dwmapi.lib")
+#pragma comment(lib, "Winhttp.lib")
 
 namespace
 {
@@ -36,6 +41,11 @@ std::wstring FormatFileTime(const fs::path& path);
 bool ReadUtf8File(const fs::path& file, std::wstring& out);
 bool WriteUtf8File(const fs::path& file, const std::wstring& content);
 bool OpenExternalUrlByExplorer(const std::wstring& url);
+
+constexpr wchar_t kUsageHost[] = L"chatgpt.com";
+constexpr wchar_t kUsagePath[] = L"/backend-api/wham/usage";
+constexpr wchar_t kUsageDefaultCodexVersion[] = L"0.98.0";
+constexpr wchar_t kUsageVsCodeVersion[] = L"0.4.71";
 
 std::wstring ExtractJsonField(const std::wstring& json, const std::wstring& key)
 {
@@ -218,6 +228,7 @@ struct AppConfig
     std::wstring language = L"zh-CN";
     int languageIndex = 0;
     std::wstring ideExe = L"Code.exe";
+    std::wstring theme = L"auto";
     bool autoUpdate = true;
     std::wstring lastSwitchedAccount;
     std::wstring lastSwitchedGroup;
@@ -377,6 +388,619 @@ bool ExtractJsonBoolField(const std::wstring& json, const std::wstring& key, con
     return fallback;
 }
 
+long long ExtractJsonInt64Field(const std::wstring& json, const std::wstring& key, const long long fallback)
+{
+    const std::wstring pattern = L"\"" + key + L"\"";
+    const size_t keyPos = json.find(pattern);
+    if (keyPos == std::wstring::npos)
+    {
+        return fallback;
+    }
+    const size_t colonPos = json.find(L':', keyPos + pattern.size());
+    if (colonPos == std::wstring::npos)
+    {
+        return fallback;
+    }
+
+    size_t p = colonPos + 1;
+    while (p < json.size() && iswspace(json[p]))
+    {
+        ++p;
+    }
+    bool neg = false;
+    if (p < json.size() && json[p] == L'-')
+    {
+        neg = true;
+        ++p;
+    }
+    long long value = 0;
+    bool hasDigit = false;
+    while (p < json.size() && json[p] >= L'0' && json[p] <= L'9')
+    {
+        hasDigit = true;
+        value = value * 10 + static_cast<long long>(json[p] - L'0');
+        ++p;
+    }
+    if (!hasDigit)
+    {
+        return fallback;
+    }
+    return neg ? -value : value;
+}
+
+bool ExtractJsonObjectField(const std::wstring& json, const std::wstring& key, std::wstring& out)
+{
+    out.clear();
+    const std::wstring pattern = L"\"" + key + L"\"";
+    const size_t keyPos = json.find(pattern);
+    if (keyPos == std::wstring::npos)
+    {
+        return false;
+    }
+
+    const size_t colonPos = json.find(L':', keyPos + pattern.size());
+    if (colonPos == std::wstring::npos)
+    {
+        return false;
+    }
+
+    size_t p = colonPos + 1;
+    while (p < json.size() && iswspace(json[p]))
+    {
+        ++p;
+    }
+    if (p >= json.size() || json[p] != L'{')
+    {
+        return false;
+    }
+
+    size_t end = p;
+    int depth = 0;
+    bool inString = false;
+    bool escape = false;
+    for (; end < json.size(); ++end)
+    {
+        const wchar_t ch = json[end];
+        if (inString)
+        {
+            if (escape)
+            {
+                escape = false;
+            }
+            else if (ch == L'\\')
+            {
+                escape = true;
+            }
+            else if (ch == L'"')
+            {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (ch == L'"')
+        {
+            inString = true;
+            continue;
+        }
+        if (ch == L'{')
+        {
+            ++depth;
+            continue;
+        }
+        if (ch == L'}')
+        {
+            --depth;
+            if (depth == 0)
+            {
+                out = json.substr(p, end - p + 1);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool ExtractJsonArrayField(const std::wstring& json, const std::wstring& key, std::wstring& out)
+{
+    out.clear();
+    const std::wstring pattern = L"\"" + key + L"\"";
+    const size_t keyPos = json.find(pattern);
+    if (keyPos == std::wstring::npos)
+    {
+        return false;
+    }
+
+    const size_t colonPos = json.find(L':', keyPos + pattern.size());
+    if (colonPos == std::wstring::npos)
+    {
+        return false;
+    }
+
+    size_t p = colonPos + 1;
+    while (p < json.size() && iswspace(json[p]))
+    {
+        ++p;
+    }
+    if (p >= json.size() || json[p] != L'[')
+    {
+        return false;
+    }
+
+    size_t end = p;
+    int depth = 0;
+    bool inString = false;
+    bool escape = false;
+    for (; end < json.size(); ++end)
+    {
+        const wchar_t ch = json[end];
+        if (inString)
+        {
+            if (escape)
+            {
+                escape = false;
+            }
+            else if (ch == L'\\')
+            {
+                escape = true;
+            }
+            else if (ch == L'"')
+            {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (ch == L'"')
+        {
+            inString = true;
+            continue;
+        }
+        if (ch == L'[')
+        {
+            ++depth;
+            continue;
+        }
+        if (ch == L']')
+        {
+            --depth;
+            if (depth == 0)
+            {
+                out = json.substr(p, end - p + 1);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+std::vector<std::wstring> ExtractTopLevelObjectsFromArray(const std::wstring& arrayText)
+{
+    std::vector<std::wstring> objects;
+    if (arrayText.empty())
+    {
+        return objects;
+    }
+
+    bool inString = false;
+    bool escape = false;
+    int depth = 0;
+    size_t objStart = std::wstring::npos;
+
+    for (size_t i = 0; i < arrayText.size(); ++i)
+    {
+        const wchar_t ch = arrayText[i];
+        if (inString)
+        {
+            if (escape)
+            {
+                escape = false;
+            }
+            else if (ch == L'\\')
+            {
+                escape = true;
+            }
+            else if (ch == L'"')
+            {
+                inString = false;
+            }
+            continue;
+        }
+
+        if (ch == L'"')
+        {
+            inString = true;
+            continue;
+        }
+        if (ch == L'{')
+        {
+            if (depth == 0)
+            {
+                objStart = i;
+            }
+            ++depth;
+            continue;
+        }
+        if (ch == L'}')
+        {
+            --depth;
+            if (depth == 0 && objStart != std::wstring::npos)
+            {
+                objects.push_back(arrayText.substr(objStart, i - objStart + 1));
+                objStart = std::wstring::npos;
+            }
+        }
+    }
+
+    return objects;
+}
+
+std::wstring ToLowerCopy(const std::wstring& value)
+{
+    std::wstring out = value;
+    std::transform(out.begin(), out.end(), out.begin(), [](wchar_t ch) {
+        return static_cast<wchar_t>(towlower(ch));
+    });
+    return out;
+}
+
+std::wstring DetectCpuArchTag()
+{
+    SYSTEM_INFO si{};
+    GetNativeSystemInfo(&si);
+    switch (si.wProcessorArchitecture)
+    {
+    case PROCESSOR_ARCHITECTURE_AMD64:
+        return L"x86_64";
+    case PROCESSOR_ARCHITECTURE_INTEL:
+        return L"x86";
+    case PROCESSOR_ARCHITECTURE_ARM64:
+        return L"arm64";
+    case PROCESSOR_ARCHITECTURE_ARM:
+        return L"arm";
+    default:
+        return L"unknown";
+    }
+}
+
+std::wstring DetectWindowsVersionTag()
+{
+    struct RtlOsVersionInfo
+    {
+        ULONG dwOSVersionInfoSize;
+        ULONG dwMajorVersion;
+        ULONG dwMinorVersion;
+        ULONG dwBuildNumber;
+        ULONG dwPlatformId;
+        WCHAR szCSDVersion[128];
+    };
+
+    using RtlGetVersionFn = LONG(WINAPI*)(RtlOsVersionInfo*);
+    HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
+    if (ntdll != nullptr)
+    {
+        const auto rtlGetVersion = reinterpret_cast<RtlGetVersionFn>(GetProcAddress(ntdll, "RtlGetVersion"));
+        if (rtlGetVersion != nullptr)
+        {
+            RtlOsVersionInfo vi{};
+            vi.dwOSVersionInfoSize = sizeof(vi);
+            if (rtlGetVersion(&vi) == 0)
+            {
+                return std::to_wstring(vi.dwMajorVersion) + L"." +
+                    std::to_wstring(vi.dwMinorVersion) + L"." +
+                    std::to_wstring(vi.dwBuildNumber);
+            }
+        }
+    }
+
+    return L"10.0.0";
+}
+
+std::wstring ReadCodexLatestVersion()
+{
+    wchar_t* userProfile = nullptr;
+    size_t required = 0;
+    if (_wdupenv_s(&userProfile, &required, L"USERPROFILE") != 0 || userProfile == nullptr || *userProfile == L'\0')
+    {
+        free(userProfile);
+        return kUsageDefaultCodexVersion;
+    }
+
+    const fs::path versionPath = fs::path(userProfile) / L".codex" / L"version.json";
+    free(userProfile);
+
+    std::wstring json;
+    if (!ReadUtf8File(versionPath, json))
+    {
+        return kUsageDefaultCodexVersion;
+    }
+
+    const std::wstring latest = ExtractJsonField(json, L"latest_version");
+    return latest.empty() ? std::wstring(kUsageDefaultCodexVersion) : latest;
+}
+
+std::wstring BuildUsageUserAgent()
+{
+    return L"codex_vscode/" + ReadCodexLatestVersion() +
+        L" (Windows " + DetectWindowsVersionTag() + L"; " + DetectCpuArchTag() +
+        L") unknown (VS Code; " + std::wstring(kUsageVsCodeVersion) + L")";
+}
+
+std::wstring FromUtf8(const std::string& text)
+{
+    if (text.empty())
+    {
+        return {};
+    }
+    const int size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+    if (size <= 0)
+    {
+        return {};
+    }
+    std::wstring out(static_cast<size_t>(size), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), out.data(), size);
+    return out;
+}
+
+struct UsageSnapshot
+{
+    bool ok = false;
+    std::wstring error;
+    std::wstring planType;
+    std::wstring email;
+    int primaryUsedPercent = -1;
+    int secondaryUsedPercent = -1;
+    long long primaryResetAfterSeconds = -1;
+    long long secondaryResetAfterSeconds = -1;
+    long long primaryResetAt = -1;
+    long long secondaryResetAt = -1;
+};
+
+int RemainingPercentFromUsed(const int usedPercent)
+{
+    if (usedPercent < 0 || usedPercent > 100)
+    {
+        return -1;
+    }
+    return 100 - usedPercent;
+}
+
+std::wstring GroupFromPlanType(const std::wstring& planType)
+{
+    const std::wstring lower = ToLowerCopy(planType);
+    if (lower == L"team" || lower == L"business" || lower == L"enterprise")
+    {
+        return L"business";
+    }
+    return L"personal";
+}
+
+bool ParseUsagePayload(const std::wstring& body, UsageSnapshot& out)
+{
+    out.planType = ExtractJsonField(body, L"plan_type");
+    out.email = ExtractJsonField(body, L"email");
+
+    std::wstring rateLimitObj;
+    if (!ExtractJsonObjectField(body, L"rate_limit", rateLimitObj))
+    {
+        out.error = L"rate_limit_missing";
+        return false;
+    }
+
+    std::wstring primaryObj;
+    if (ExtractJsonObjectField(rateLimitObj, L"primary_window", primaryObj))
+    {
+        out.primaryUsedPercent = ExtractJsonIntField(primaryObj, L"used_percent", -1);
+        out.primaryResetAfterSeconds = ExtractJsonInt64Field(primaryObj, L"reset_after_seconds", -1);
+        out.primaryResetAt = ExtractJsonInt64Field(primaryObj, L"reset_at", -1);
+    }
+
+    std::wstring secondaryObj;
+    if (ExtractJsonObjectField(rateLimitObj, L"secondary_window", secondaryObj))
+    {
+        out.secondaryUsedPercent = ExtractJsonIntField(secondaryObj, L"used_percent", -1);
+        out.secondaryResetAfterSeconds = ExtractJsonInt64Field(secondaryObj, L"reset_after_seconds", -1);
+        out.secondaryResetAt = ExtractJsonInt64Field(secondaryObj, L"reset_at", -1);
+    }
+
+    out.ok = true;
+    return true;
+}
+
+bool RequestUsageByToken(const std::wstring& accessToken, const std::wstring& accountId, std::wstring& responseBody, std::wstring& error)
+{
+    responseBody.clear();
+    error.clear();
+    if (accessToken.empty() || accountId.empty())
+    {
+        error = L"missing_token_or_account_id";
+        return false;
+    }
+
+    const std::wstring userAgent = BuildUsageUserAgent();
+
+    HINTERNET hSession = WinHttpOpen(
+        userAgent.c_str(),
+        WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+        WINHTTP_NO_PROXY_NAME,
+        WINHTTP_NO_PROXY_BYPASS,
+        0);
+    if (hSession == nullptr)
+    {
+        error = L"WinHttpOpen_failed";
+        return false;
+    }
+
+    HINTERNET hConnect = WinHttpConnect(hSession, kUsageHost, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (hConnect == nullptr)
+    {
+        WinHttpCloseHandle(hSession);
+        error = L"WinHttpConnect_failed";
+        return false;
+    }
+
+    HINTERNET hRequest = WinHttpOpenRequest(
+        hConnect,
+        L"GET",
+        kUsagePath,
+        nullptr,
+        WINHTTP_NO_REFERER,
+        WINHTTP_DEFAULT_ACCEPT_TYPES,
+        WINHTTP_FLAG_SECURE);
+    if (hRequest == nullptr)
+    {
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        error = L"WinHttpOpenRequest_failed";
+        return false;
+    }
+
+    DWORD decompression = WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
+    WinHttpSetOption(hRequest, WINHTTP_OPTION_DECOMPRESSION, &decompression, sizeof(decompression));
+
+    const std::wstring headers =
+        L"host: chatgpt.com\r\n"
+        L"connection: keep-alive\r\n"
+        L"Authorization: Bearer " + accessToken + L"\r\n"
+        L"ChatGPT-Account-Id: " + accountId + L"\r\n"
+        L"originator: codex_vscode\r\n"
+        L"User-Agent: " + userAgent + L"\r\n"
+        L"accept: */*\r\n"
+        L"accept-language: *\r\n"
+        L"sec-fetch-mode: cors\r\n"
+        L"accept-encoding: gzip, deflate\r\n";
+
+    bool ok = WinHttpSendRequest(
+        hRequest,
+        headers.c_str(),
+        static_cast<DWORD>(-1L),
+        WINHTTP_NO_REQUEST_DATA,
+        0,
+        0,
+        0) == TRUE;
+    if (ok)
+    {
+        ok = WinHttpReceiveResponse(hRequest, nullptr) == TRUE;
+    }
+
+    DWORD statusCode = 0;
+    DWORD statusSize = sizeof(statusCode);
+    if (ok)
+    {
+        ok = WinHttpQueryHeaders(
+                 hRequest,
+                 WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                 WINHTTP_HEADER_NAME_BY_INDEX,
+                 &statusCode,
+                 &statusSize,
+                 WINHTTP_NO_HEADER_INDEX) == TRUE &&
+             statusCode >= 200 && statusCode < 300;
+    }
+    if (!ok)
+    {
+        error = L"http_status_not_ok";
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        return false;
+    }
+
+    std::string payload;
+    while (ok)
+    {
+        DWORD size = 0;
+        if (!WinHttpQueryDataAvailable(hRequest, &size))
+        {
+            ok = false;
+            break;
+        }
+        if (size == 0)
+        {
+            break;
+        }
+
+        std::string chunk(size, '\0');
+        DWORD read = 0;
+        if (!WinHttpReadData(hRequest, chunk.data(), size, &read))
+        {
+            ok = false;
+            break;
+        }
+        chunk.resize(read);
+        payload += chunk;
+    }
+
+    if (!ok || payload.empty())
+    {
+        error = L"empty_response";
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        return false;
+    }
+
+    responseBody = FromUtf8(payload);
+    if (responseBody.empty())
+    {
+        error = L"response_utf8_decode_failed";
+        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
+        WinHttpCloseHandle(hSession);
+        return false;
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+    return true;
+}
+
+bool ReadAuthTokenInfo(const fs::path& authPath, std::wstring& accessToken, std::wstring& accountId)
+{
+    accessToken.clear();
+    accountId.clear();
+    std::wstring authJson;
+    if (!ReadUtf8File(authPath, authJson))
+    {
+        return false;
+    }
+    accessToken = ExtractJsonField(authJson, L"access_token");
+    accountId = ExtractJsonField(authJson, L"account_id");
+    return !accessToken.empty() && !accountId.empty();
+}
+
+bool QueryUsageFromAuthFile(const fs::path& authPath, UsageSnapshot& out)
+{
+    out = UsageSnapshot{};
+    std::wstring accessToken;
+    std::wstring accountId;
+    if (!ReadAuthTokenInfo(authPath, accessToken, accountId))
+    {
+        out.error = L"auth_token_missing";
+        return false;
+    }
+
+    std::wstring body;
+    std::wstring requestError;
+    if (!RequestUsageByToken(accessToken, accountId, body, requestError))
+    {
+        out.error = requestError;
+        return false;
+    }
+
+    if (!ParseUsagePayload(body, out))
+    {
+        if (out.error.empty())
+        {
+            out.error = L"usage_parse_failed";
+        }
+        return false;
+    }
+
+    out.ok = true;
+    return true;
+}
+
 bool LoadLanguageStrings(const std::wstring& code, std::vector<std::pair<std::wstring, std::wstring>>& outPairs, std::wstring& resolvedCode)
 {
     outPairs.clear();
@@ -438,6 +1062,54 @@ std::wstring NormalizeIdeExe(const std::wstring& ideExe)
         }
     }
     return L"Code.exe";
+}
+
+std::wstring NormalizeTheme(const std::wstring& theme)
+{
+    if (_wcsicmp(theme.c_str(), L"light") == 0)
+    {
+        return L"light";
+    }
+    if (_wcsicmp(theme.c_str(), L"dark") == 0)
+    {
+        return L"dark";
+    }
+    return L"auto";
+}
+
+#ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
+#define DWMWA_USE_IMMERSIVE_DARK_MODE 20
+#endif
+
+bool IsWindowsAppsDarkModeEnabled()
+{
+    DWORD value = 1;
+    DWORD size = sizeof(value);
+    const LSTATUS status = RegGetValueW(
+        HKEY_CURRENT_USER,
+        L"Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        L"AppsUseLightTheme",
+        RRF_RT_REG_DWORD,
+        nullptr,
+        &value,
+        &size);
+    if (status != ERROR_SUCCESS)
+    {
+        return false;
+    }
+    return value == 0;
+}
+
+void ApplyWindowTitleTheme(const HWND hwnd, const std::wstring& themeMode)
+{
+    if (hwnd == nullptr)
+    {
+        return;
+    }
+
+    const std::wstring mode = NormalizeTheme(themeMode);
+    const BOOL useDark = (mode == L"dark" || (mode == L"auto" && IsWindowsAppsDarkModeEnabled())) ? TRUE : FALSE;
+    DwmSetWindowAttribute(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, &useDark, sizeof(useDark));
 }
 
 std::wstring Utf8ToWide(const std::string& text)
@@ -536,6 +1208,7 @@ bool LoadConfig(AppConfig& out)
     const std::wstring language = ExtractJsonField(json, L"language");
     const int languageIndex = ExtractJsonIntField(json, L"languageIndex", 0);
     const std::wstring ide = ExtractJsonField(json, L"ideExe");
+    const std::wstring theme = ExtractJsonField(json, L"theme");
     const bool autoUpdate = ExtractJsonBoolField(json, L"autoUpdate", true);
     const std::wstring lastAccount = ExtractJsonField(json, L"lastSwitchedAccount");
     const std::wstring lastGroup = ExtractJsonField(json, L"lastSwitchedGroup");
@@ -554,6 +1227,7 @@ bool LoadConfig(AppConfig& out)
     const auto langs = LoadLanguageIndexList();
     out.languageIndex = FindLanguageIndexByCode(langs, out.language);
     out.ideExe = NormalizeIdeExe(ide);
+    out.theme = NormalizeTheme(theme);
     out.autoUpdate = autoUpdate;
     out.lastSwitchedAccount = lastAccount;
     out.lastSwitchedGroup = NormalizeGroup(lastGroup);
@@ -572,6 +1246,7 @@ bool SaveConfig(const AppConfig& in)
         const auto langs = LoadLanguageIndexList();
         tmp.languageIndex = FindLanguageIndexByCode(langs, tmp.language);
         tmp.ideExe = NormalizeIdeExe(tmp.ideExe);
+        tmp.theme = NormalizeTheme(tmp.theme);
         tmp.lastSwitchedGroup = NormalizeGroup(tmp.lastSwitchedGroup);
         return tmp;
     }();
@@ -581,6 +1256,7 @@ bool SaveConfig(const AppConfig& in)
     ss << L"  \"language\": \"" << EscapeJsonString(cfg.language) << L"\",\n";
     ss << L"  \"languageIndex\": " << cfg.languageIndex << L",\n";
     ss << L"  \"ideExe\": \"" << EscapeJsonString(cfg.ideExe) << L"\",\n";
+    ss << L"  \"theme\": \"" << EscapeJsonString(cfg.theme) << L"\",\n";
     ss << L"  \"autoUpdate\": " << (cfg.autoUpdate ? L"true" : L"false") << L",\n";
     ss << L"  \"lastSwitchedAccount\": \"" << EscapeJsonString(cfg.lastSwitchedAccount) << L"\",\n";
     ss << L"  \"lastSwitchedGroup\": \"" << EscapeJsonString(cfg.lastSwitchedGroup) << L"\",\n";
@@ -915,6 +1591,15 @@ struct IndexEntry
     std::wstring group;
     std::wstring path;
     std::wstring updatedAt;
+    bool quotaUsageOk = false;
+    std::wstring quotaPlanType;
+    std::wstring quotaEmail;
+    int quota5hRemainingPercent = -1;
+    int quota7dRemainingPercent = -1;
+    long long quota5hResetAfterSeconds = -1;
+    long long quota7dResetAfterSeconds = -1;
+    long long quota5hResetAt = -1;
+    long long quota7dResetAt = -1;
 };
 
 struct IndexData
@@ -963,17 +1648,30 @@ bool LoadIndex(IndexData& out)
         }
     }
 
-    const std::wregex itemRe(LR"INDEX(\{\s*"name"\s*:\s*"((?:\\.|[^"])*)"\s*,\s*"group"\s*:\s*"((?:\\.|[^"])*)"\s*,\s*"path"\s*:\s*"((?:\\.|[^"])*)"\s*,\s*"updatedAt"\s*:\s*"((?:\\.|[^"])*)"\s*\})INDEX");
-    for (std::wsregex_iterator it(json.begin(), json.end(), itemRe), end; it != end; ++it)
+    std::wstring accountsArray;
+    if (ExtractJsonArrayField(json, L"accounts", accountsArray))
     {
-        IndexEntry row;
-        row.name = UnescapeJsonString((*it)[1].str());
-        row.group = NormalizeGroup(UnescapeJsonString((*it)[2].str()));
-        row.path = UnescapeJsonString((*it)[3].str());
-        row.updatedAt = UnescapeJsonString((*it)[4].str());
-        if (!row.name.empty() && !row.path.empty())
+        const auto objects = ExtractTopLevelObjectsFromArray(accountsArray);
+        for (const auto& itemJson : objects)
         {
-            out.accounts.push_back(row);
+            IndexEntry row;
+            row.name = UnescapeJsonString(ExtractJsonField(itemJson, L"name"));
+            row.group = NormalizeGroup(UnescapeJsonString(ExtractJsonField(itemJson, L"group")));
+            row.path = UnescapeJsonString(ExtractJsonField(itemJson, L"path"));
+            row.updatedAt = UnescapeJsonString(ExtractJsonField(itemJson, L"updatedAt"));
+            row.quotaUsageOk = ExtractJsonBoolField(itemJson, L"usageOk", false);
+            row.quotaPlanType = UnescapeJsonString(ExtractJsonField(itemJson, L"planType"));
+            row.quotaEmail = UnescapeJsonString(ExtractJsonField(itemJson, L"email"));
+            row.quota5hRemainingPercent = ExtractJsonIntField(itemJson, L"quota5hRemainingPercent", -1);
+            row.quota7dRemainingPercent = ExtractJsonIntField(itemJson, L"quota7dRemainingPercent", -1);
+            row.quota5hResetAfterSeconds = ExtractJsonInt64Field(itemJson, L"quota5hResetAfterSeconds", -1);
+            row.quota7dResetAfterSeconds = ExtractJsonInt64Field(itemJson, L"quota7dResetAfterSeconds", -1);
+            row.quota5hResetAt = ExtractJsonInt64Field(itemJson, L"quota5hResetAt", -1);
+            row.quota7dResetAt = ExtractJsonInt64Field(itemJson, L"quota7dResetAt", -1);
+            if (!row.name.empty() && !row.path.empty())
+            {
+                out.accounts.push_back(row);
+            }
         }
     }
 
@@ -1001,7 +1699,17 @@ bool SaveIndex(const IndexData& data)
         ss << L"    {\"name\":\"" << EscapeJsonString(row.name)
             << L"\",\"group\":\"" << EscapeJsonString(NormalizeGroup(row.group))
             << L"\",\"path\":\"" << EscapeJsonString(row.path)
-            << L"\",\"updatedAt\":\"" << EscapeJsonString(row.updatedAt) << L"\"}";
+            << L"\",\"updatedAt\":\"" << EscapeJsonString(row.updatedAt)
+            << L"\",\"usageOk\":" << (row.quotaUsageOk ? L"true" : L"false")
+            << L",\"planType\":\"" << EscapeJsonString(row.quotaPlanType)
+            << L"\",\"email\":\"" << EscapeJsonString(row.quotaEmail)
+            << L"\",\"quota5hRemainingPercent\":" << row.quota5hRemainingPercent
+            << L",\"quota7dRemainingPercent\":" << row.quota7dRemainingPercent
+            << L",\"quota5hResetAfterSeconds\":" << row.quota5hResetAfterSeconds
+            << L",\"quota7dResetAfterSeconds\":" << row.quota7dResetAfterSeconds
+            << L",\"quota5hResetAt\":" << row.quota5hResetAt
+            << L",\"quota7dResetAt\":" << row.quota7dResetAt
+            << L"}";
         if (i + 1 < data.accounts.size())
         {
             ss << L",";
@@ -1127,11 +1835,10 @@ void EnsureIndexExists()
     SaveIndex(generated);
 }
 
-bool BackupCurrentAccount(const std::wstring& name, const std::wstring& group, std::wstring& status, std::wstring& code)
+bool BackupCurrentAccount(const std::wstring& name, std::wstring& status, std::wstring& code)
 {
     EnsureIndexExists();
 
-    const std::wstring safeGroup = NormalizeGroup(group);
     const std::wstring safeName = SanitizeAccountName(name);
     if (safeName.empty())
     {
@@ -1154,6 +1861,13 @@ bool BackupCurrentAccount(const std::wstring& name, const std::wstring& group, s
         return false;
     }
 
+    std::wstring detectedGroup = L"personal";
+    UsageSnapshot currentUsage;
+    if (QueryUsageFromAuthFile(userAuth, currentUsage) && !currentUsage.planType.empty())
+    {
+        detectedGroup = GroupFromPlanType(currentUsage.planType);
+    }
+
     IndexData idx;
     LoadIndex(idx);
     const auto duplicated = std::find_if(idx.accounts.begin(), idx.accounts.end(), [&](const IndexEntry& row) {
@@ -1166,7 +1880,7 @@ bool BackupCurrentAccount(const std::wstring& name, const std::wstring& group, s
         return false;
     }
 
-    const fs::path backupDir = GetGroupDir(safeGroup) / safeName;
+    const fs::path backupDir = GetGroupDir(detectedGroup) / safeName;
     std::error_code ec;
     fs::create_directories(backupDir, ec);
     if (ec)
@@ -1186,13 +1900,25 @@ bool BackupCurrentAccount(const std::wstring& name, const std::wstring& group, s
 
     IndexEntry row;
     row.name = safeName;
-    row.group = safeGroup;
-    row.path = MakeRelativeAuthPath(safeGroup, safeName);
+    row.group = detectedGroup;
+    row.path = MakeRelativeAuthPath(detectedGroup, safeName);
     row.updatedAt = NowText();
+    if (currentUsage.ok)
+    {
+        row.quotaUsageOk = true;
+        row.quotaPlanType = currentUsage.planType;
+        row.quotaEmail = currentUsage.email;
+        row.quota5hRemainingPercent = RemainingPercentFromUsed(currentUsage.primaryUsedPercent);
+        row.quota7dRemainingPercent = RemainingPercentFromUsed(currentUsage.secondaryUsedPercent);
+        row.quota5hResetAfterSeconds = currentUsage.primaryResetAfterSeconds;
+        row.quota7dResetAfterSeconds = currentUsage.secondaryResetAfterSeconds;
+        row.quota5hResetAt = currentUsage.primaryResetAt;
+        row.quota7dResetAt = currentUsage.secondaryResetAt;
+    }
     idx.accounts.push_back(row);
     SaveIndex(idx);
 
-    status = L"保存成功：[" + safeGroup + L"] " + safeName;
+    status = L"保存成功：[" + detectedGroup + L"] " + safeName;
     code = L"backup_saved";
     return true;
 }
@@ -1534,16 +2260,31 @@ struct AccountEntry
     std::wstring group;
     std::wstring updatedAt;
     bool isCurrent = false;
+    bool usageOk = false;
+    std::wstring usageError;
+    std::wstring planType;
+    std::wstring email;
+    int quota5hRemainingPercent = -1;
+    int quota7dRemainingPercent = -1;
+    long long quota5hResetAfterSeconds = -1;
+    long long quota7dResetAfterSeconds = -1;
+    long long quota5hResetAt = -1;
+    long long quota7dResetAt = -1;
 };
 
-std::vector<AccountEntry> CollectAccounts()
+std::vector<AccountEntry> CollectAccounts(const bool refreshUsage, const std::wstring& targetName, const std::wstring& targetGroup)
 {
     EnsureIndexExists();
 
     std::vector<AccountEntry> result;
     IndexData idx;
     LoadIndex(idx);
-    for (const auto& row : idx.accounts)
+    bool indexChanged = false;
+    const std::wstring safeTargetName = SanitizeAccountName(targetName);
+    const std::wstring safeTargetGroup = targetGroup.empty() ? L"" : NormalizeGroup(targetGroup);
+    const bool hasTarget = !safeTargetName.empty();
+
+    for (auto& row : idx.accounts)
     {
         const fs::path backupAuth = ResolveAuthPathFromIndex(row);
         if (!fs::exists(backupAuth))
@@ -1557,10 +2298,113 @@ std::vector<AccountEntry> CollectAccounts()
         item.updatedAt = row.updatedAt.empty() ? FormatFileTime(backupAuth) : row.updatedAt;
         item.isCurrent = EqualsIgnoreCase(idx.currentName, row.name) &&
             NormalizeGroup(idx.currentGroup) == NormalizeGroup(row.group);
+        item.usageOk = row.quotaUsageOk;
+        item.planType = row.quotaPlanType;
+        item.email = row.quotaEmail;
+        item.quota5hRemainingPercent = row.quota5hRemainingPercent;
+        item.quota7dRemainingPercent = row.quota7dRemainingPercent;
+        item.quota5hResetAfterSeconds = row.quota5hResetAfterSeconds;
+        item.quota7dResetAfterSeconds = row.quota7dResetAfterSeconds;
+        item.quota5hResetAt = row.quota5hResetAt;
+        item.quota7dResetAt = row.quota7dResetAt;
+
+        const bool shouldRefresh = refreshUsage &&
+            (!hasTarget || (EqualsIgnoreCase(row.name, safeTargetName) &&
+                (safeTargetGroup.empty() || NormalizeGroup(row.group) == safeTargetGroup)));
+        if (shouldRefresh)
+        {
+            UsageSnapshot usage;
+            if (QueryUsageFromAuthFile(backupAuth, usage))
+            {
+                item.usageOk = true;
+                item.planType = usage.planType;
+                item.email = usage.email;
+                item.quota5hRemainingPercent = RemainingPercentFromUsed(usage.primaryUsedPercent);
+                item.quota7dRemainingPercent = RemainingPercentFromUsed(usage.secondaryUsedPercent);
+                item.quota5hResetAfterSeconds = usage.primaryResetAfterSeconds;
+                item.quota7dResetAfterSeconds = usage.secondaryResetAfterSeconds;
+                item.quota5hResetAt = usage.primaryResetAt;
+                item.quota7dResetAt = usage.secondaryResetAt;
+                row.quotaUsageOk = true;
+                row.quotaPlanType = item.planType;
+                row.quotaEmail = item.email;
+                row.quota5hRemainingPercent = item.quota5hRemainingPercent;
+                row.quota7dRemainingPercent = item.quota7dRemainingPercent;
+                row.quota5hResetAfterSeconds = item.quota5hResetAfterSeconds;
+                row.quota7dResetAfterSeconds = item.quota7dResetAfterSeconds;
+                row.quota5hResetAt = item.quota5hResetAt;
+                row.quota7dResetAt = item.quota7dResetAt;
+                indexChanged = true;
+
+                const std::wstring refreshedGroup = GroupFromPlanType(usage.planType);
+                if (NormalizeGroup(row.group) != refreshedGroup)
+                {
+                    row.group = refreshedGroup;
+                    indexChanged = true;
+                }
+                if (item.isCurrent && NormalizeGroup(idx.currentGroup) != refreshedGroup)
+                {
+                    idx.currentGroup = refreshedGroup;
+                    indexChanged = true;
+                }
+            }
+            else
+            {
+                item.usageError = usage.error;
+            }
+        }
+
+        item.group = NormalizeGroup(row.group);
         result.push_back(item);
     }
 
+    if (indexChanged)
+    {
+        SaveIndex(idx);
+    }
+
     return result;
+}
+
+std::wstring BuildAccountsListJson(const bool refreshUsage, const std::wstring& targetName, const std::wstring& targetGroup)
+{
+    const std::vector<AccountEntry> accounts = CollectAccounts(refreshUsage, targetName, targetGroup);
+    std::wstringstream ss;
+    ss << L"{\"type\":\"accounts_list\",\"accounts\":[";
+    for (size_t i = 0; i < accounts.size(); ++i)
+    {
+        const auto& item = accounts[i];
+        if (i != 0)
+        {
+            ss << L",";
+        }
+        ss << L"{\"name\":\"" << EscapeJsonString(item.name)
+            << L"\",\"group\":\"" << EscapeJsonString(item.group)
+            << L"\",\"updatedAt\":\"" << EscapeJsonString(item.updatedAt)
+            << L"\",\"isCurrent\":" << (item.isCurrent ? L"true" : L"false")
+            << L",\"usageOk\":" << (item.usageOk ? L"true" : L"false")
+            << L",\"usageError\":\"" << EscapeJsonString(item.usageError)
+            << L"\",\"planType\":\"" << EscapeJsonString(item.planType)
+            << L"\",\"email\":\"" << EscapeJsonString(item.email)
+            << L"\",\"quota5hRemainingPercent\":" << item.quota5hRemainingPercent
+            << L",\"quota7dRemainingPercent\":" << item.quota7dRemainingPercent
+            << L",\"quota5hResetAfterSeconds\":" << item.quota5hResetAfterSeconds
+            << L",\"quota7dResetAfterSeconds\":" << item.quota7dResetAfterSeconds
+            << L",\"quota5hResetAt\":" << item.quota5hResetAt
+            << L",\"quota7dResetAt\":" << item.quota7dResetAt
+            << L"}";
+    }
+    ss << L"]}";
+    return ss.str();
+}
+
+void PostAsyncWebJson(const HWND hwnd, const std::wstring& json)
+{
+    std::wstring* heapJson = new std::wstring(json);
+    if (!PostMessageW(hwnd, WebViewHost::kMsgAsyncWebJson, 0, reinterpret_cast<LPARAM>(heapJson)))
+    {
+        delete heapJson;
+    }
 }
 }
 
@@ -1618,25 +2462,9 @@ void WebViewHost::SendWebStatus(const std::wstring& text, const std::wstring& le
         L"\",\"message\":\"" + EscapeJsonString(text) + L"\"}");
 }
 
-void WebViewHost::SendAccountsList() const
+void WebViewHost::SendAccountsList(const bool refreshUsage, const std::wstring& targetName, const std::wstring& targetGroup) const
 {
-    const std::vector<AccountEntry> accounts = CollectAccounts();
-    std::wstringstream ss;
-    ss << L"{\"type\":\"accounts_list\",\"accounts\":[";
-    for (size_t i = 0; i < accounts.size(); ++i)
-    {
-        const auto& item = accounts[i];
-        if (i != 0)
-        {
-            ss << L",";
-        }
-        ss << L"{\"name\":\"" << EscapeJsonString(item.name)
-            << L"\",\"group\":\"" << EscapeJsonString(item.group)
-            << L"\",\"updatedAt\":\"" << EscapeJsonString(item.updatedAt)
-            << L"\",\"isCurrent\":" << (item.isCurrent ? L"true" : L"false") << L"}";
-    }
-    ss << L"]}";
-    SendWebJson(ss.str());
+    SendWebJson(BuildAccountsListJson(refreshUsage, targetName, targetGroup));
 }
 
 void WebViewHost::SendAppInfo() const
@@ -1731,6 +2559,7 @@ void WebViewHost::SendConfig(bool firstRun) const
         L",\"language\":\"" + EscapeJsonString(cfg.language) +
         L"\",\"languageIndex\":" + std::to_wstring(cfg.languageIndex) +
         L",\"ideExe\":\"" + EscapeJsonString(cfg.ideExe) +
+        L"\",\"theme\":\"" + EscapeJsonString(cfg.theme) +
         L"\",\"autoUpdate\":" + std::wstring(cfg.autoUpdate ? L"true" : L"false") +
         L",\"lastSwitchedAccount\":\"" + EscapeJsonString(cfg.lastSwitchedAccount) +
         L"\",\"lastSwitchedGroup\":\"" + EscapeJsonString(cfg.lastSwitchedGroup) +
@@ -1798,7 +2627,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         SendWebStatus(status, ok ? L"success" : L"error", code);
         if (ok)
         {
-            SendAccountsList();
+            SendAccountsList(false, L"", L"");
         }
         return;
     }
@@ -1806,15 +2635,18 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
     if (action == L"backup_current")
     {
         const std::wstring name = ExtractJsonField(rawMessage, L"name");
-        const std::wstring group = ExtractJsonField(rawMessage, L"group");
         std::wstring status;
         std::wstring code;
-        const bool ok = BackupCurrentAccount(name, group, status, code);
+        const bool ok = BackupCurrentAccount(name, status, code);
         const std::wstring level = (code == L"duplicate_name") ? L"warning" : (ok ? L"success" : L"error");
         SendWebStatus(status, level, code);
         if (ok)
         {
-            SendAccountsList();
+            const HWND targetHwnd = hwnd_;
+            std::thread([targetHwnd, name]() {
+                PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, name, L""));
+                PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"account_quota_refreshed\",\"message\":\"账号额度已刷新\"}");
+            }).detach();
         }
         return;
     }
@@ -1829,14 +2661,36 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         SendWebStatus(status, ok ? L"success" : L"error", code);
         if (ok)
         {
-            SendAccountsList();
+            SendAccountsList(false, L"", L"");
         }
         return;
     }
 
     if (action == L"list_accounts")
     {
-        SendAccountsList();
+        SendAccountsList(false, L"", L"");
+        return;
+    }
+
+    if (action == L"refresh_accounts")
+    {
+        const HWND targetHwnd = hwnd_;
+        std::thread([targetHwnd]() {
+            PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, L"", L""));
+            PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"quota_refreshed\",\"message\":\"额度已刷新\"}");
+        }).detach();
+        return;
+    }
+
+    if (action == L"refresh_account")
+    {
+        const std::wstring account = ExtractJsonField(rawMessage, L"account");
+        const std::wstring group = ExtractJsonField(rawMessage, L"group");
+        const HWND targetHwnd = hwnd_;
+        std::thread([targetHwnd, account, group]() {
+            PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, account, group));
+            PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"account_quota_refreshed\",\"message\":\"账号额度已刷新\"}");
+        }).detach();
         return;
     }
 
@@ -1875,6 +2729,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
     {
         const std::wstring language = ExtractJsonField(rawMessage, L"language");
         const std::wstring ideExe = ExtractJsonField(rawMessage, L"ideExe");
+        const std::wstring theme = ExtractJsonField(rawMessage, L"theme");
         const bool autoUpdate = ExtractJsonBoolField(rawMessage, L"autoUpdate", true);
         AppConfig cfg;
         LoadConfig(cfg);
@@ -1886,8 +2741,16 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         {
             cfg.ideExe = NormalizeIdeExe(ideExe);
         }
+        if (!theme.empty())
+        {
+            cfg.theme = NormalizeTheme(theme);
+        }
         cfg.autoUpdate = autoUpdate;
         const bool saved = SaveConfig(cfg);
+        if (saved)
+        {
+            ApplyWindowTitleTheme(hwnd_, cfg.theme);
+        }
         SendWebStatus(saved ? L"设置已保存" : L"设置保存失败", saved ? L"success" : L"error", saved ? L"config_saved" : L"save_config_failed");
         SendConfig(false);
         return;
@@ -1920,7 +2783,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         SendWebStatus(status, level, code);
         if (ok)
         {
-            SendAccountsList();
+            SendAccountsList(false, L"", L"");
         }
         return;
     }
@@ -1934,7 +2797,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         SendWebStatus(status, level, code);
         if (ok)
         {
-            SendAccountsList();
+            SendAccountsList(false, L"", L"");
         }
         return;
     }
@@ -1954,6 +2817,11 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
 void WebViewHost::Initialize(HWND hwnd)
 {
     hwnd_ = hwnd;
+    AppConfig startCfg;
+    if (LoadConfig(startCfg))
+    {
+        ApplyWindowTitleTheme(hwnd_, startCfg.theme);
+    }
     userDataFolder_ = MakeTempUserDataFolder();
     if (userDataFolder_.empty())
     {

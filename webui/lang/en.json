@@ -3,7 +3,7 @@
     "tab.accounts":  "Accounts",
     "tab.about":  "About",
     "tab.settings":  "Settings",
-    "toolbar.refresh":  "Refresh",
+    "toolbar.refresh":  "Refresh Quota",
     "toolbar.login_new":  "Login New",
     "toolbar.backup_current":  "Backup Current",
     "search.placeholder":  "Search accounts...",
@@ -30,6 +30,11 @@
     "settings.subtitle":  "These settings are used on first launch and all future switches.",
     "settings.language_label":  "Language",
     "settings.ide_label":  "IDE Executable",
+    "settings.theme_label":  "Theme",
+    "settings.theme_auto":  "Auto",
+    "settings.theme_light":  "Light",
+    "settings.theme_dark":  "Dark",
+    "settings.theme_hint":  "Auto follows your Windows theme.",
     "settings.save":  "Save Settings",
     "settings.current_note":  "Current: {lang} / {ide}",
     "settings.first_run_toast":  "Please confirm default settings for first launch",
@@ -51,9 +56,12 @@
     "tag.group_business":  "Business",
     "tag.group_personal":  "Personal",
     "quota.gpt":  "GPT",
-    "quota.placeholder":  "Feature under development",
+    "quota.placeholder":  "No quota data",
+    "quota.format":  "5H {q5} | 7D {q7} | Reset {r5}h/{r7}h",
     "action.switch_title":  "Switch to this account",
     "action.switch":  "Switch",
+    "action.refresh_title":  "Refresh quota",
+    "action.refresh":  "Refresh",
     "action.delete_title":  "Delete account",
     "action.delete":  "Delete",
     "count.format":  "Showing 1 to {total}, total {total}",
@@ -68,6 +76,8 @@
     "status_code.userprofile_missing":  "Operation failed: user directory not found",
     "status_code.restart_failed":  "Failed to restart {ide}, please restart manually",
     "status_code.save_config_failed":  "Failed to save settings",
+    "status_code.quota_refreshed":  "Quota refreshed",
+    "status_code.account_quota_refreshed":  "Account quota refreshed",
     "status_code.unknown_action":  "Unknown action",
     "update.failed":  "Update check failed, please try again later",
     "update.latest":  "Already up to date",
@@ -95,6 +105,7 @@
     "settings.auto_update_hint":  "Check update automatically at startup and prompt before downloading.",
     "settings.auto_update_on":  "Enabled"
 }
+
 
 
 

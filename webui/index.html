@@ -43,10 +43,10 @@
           <table class="table">
             <thead>
               <tr>
-                <th style="width: 34%;" id="thAccount"></th>
+                <th style="width: 30%;" id="thAccount"></th>
                 <th style="width: 32%;" id="thQuota"></th>
-                <th style="width: 18%;" id="thRecent"></th>
-                <th style="width: 16%;" id="thAction"></th>
+                <th style="width: 16%;" id="thRecent"></th>
+                <th style="width: 22%;" id="thAction"></th>
               </tr>
             </thead>
             <tbody id="accountsBody"></tbody>
@@ -97,6 +97,16 @@
             </div>
 
             <div class="settings-group">
+              <div class="settings-label" id="settingsThemeLabel"></div>
+              <div class="option-row" id="themeOptions">
+                <button class="option-btn active" data-theme-option="auto" id="themeAutoBtn"></button>
+                <button class="option-btn" data-theme-option="light" id="themeLightBtn"></button>
+                <button class="option-btn" data-theme-option="dark" id="themeDarkBtn"></button>
+              </div>
+              <div class="settings-sub-note" id="settingsThemeHint"></div>
+            </div>
+
+            <div class="settings-group">
               <div class="settings-label" id="settingsAutoUpdateLabel"></div>
               <div class="option-row" id="autoUpdateOptions">
                 <button class="option-btn active" data-auto-update-option="true" id="autoUpdateOnBtn"></button>
@@ -128,13 +138,6 @@
         <div>
           <div class="modal-label" id="backupNameLabel"></div>
           <input class="modal-input" id="backupNameInput" maxlength="32" autocomplete="off" />
-        </div>
-        <div>
-          <div class="modal-label" id="backupGroupLabel"></div>
-          <div class="group-filter">
-            <button class="group-btn active" data-group-select="personal" id="backupGroupPersonalBtn"></button>
-            <button class="group-btn" data-group-select="business" id="backupGroupBusinessBtn"></button>
-          </div>
         </div>
       </div>
       <div class="modal-actions">

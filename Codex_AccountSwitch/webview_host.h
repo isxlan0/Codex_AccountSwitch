@@ -23,7 +23,7 @@ private:
     void HandleWebAction(HWND hwnd, const std::wstring& action, const std::wstring& rawMessage);
     void SendWebJson(const std::wstring& json) const;
     void SendWebStatus(const std::wstring& text, const std::wstring& level = L"info", const std::wstring& code = L"") const;
-    void SendAccountsList() const;
+    void SendAccountsList(bool refreshUsage = false, const std::wstring& targetName = L"", const std::wstring& targetGroup = L"") const;
     void SendAppInfo() const;
     void SendUpdateInfo() const;
     void SendConfig(bool firstRun) const;

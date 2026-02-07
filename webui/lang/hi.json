@@ -52,8 +52,11 @@
     "tag.group_personal":  "व्यक्तिगत",
     "quota.gpt":  "जीपीटी",
     "quota.placeholder":  "फीचर विकासाधीन",
+    "quota.format":  "5H {q5} | 7D {q7} | रीसेट {r5}h/{r7}h",
     "action.switch_title":  "इस खाते पर स्विच करें",
     "action.switch":  "स्विच",
+    "action.refresh_title":  "कोटा रीफ्रेश करें",
+    "action.refresh":  "रीफ्रेश",
     "action.delete_title":  "खाता हटाएं",
     "action.delete":  "हटाएं",
     "count.format":  "1 से {total} दिखाए जा रहे हैं, कुल {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "कार्रवाई विफल: उपयोगकर्ता फ़ोल्डर नहीं मिला",
     "status_code.restart_failed":  "{ide} पुनः प्रारंभ नहीं हुआ, कृपया मैन्युअली करें",
     "status_code.save_config_failed":  "सेटिंग सहेजना विफल",
+    "status_code.quota_refreshed":  "कोटा रीफ्रेश हो गया",
+    "status_code.account_quota_refreshed":  "खाते का कोटा रीफ्रेश हो गया",
     "status_code.unknown_action":  "अज्ञात कार्रवाई",
     "update.failed":  "अपडेट जांच विफल, बाद में पुनः प्रयास करें",
     "update.latest":  "आप नवीनतम संस्करण पर हैं",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "स्टार्टअप पर स्वतः अपडेट जांचें और डाउनलोड से पहले पूछें।",
     "settings.auto_update_on":  "चालू"
 }
+
+

@@ -52,8 +52,11 @@
     "tag.group_personal":  "Privat",
     "quota.gpt":  "GPT-Modell",
     "quota.placeholder":  "Noch nicht entwickelt",
+    "quota.format":  "5H {q5} | 7D {q7} | Zurucksetzen {r5}h/{r7}h",
     "action.switch_title":  "Zu diesem Konto wechseln",
     "action.switch":  "Wechseln",
+    "action.refresh_title":  "Kontingent aktualisieren",
+    "action.refresh":  "Aktualisieren",
     "action.delete_title":  "Konto loeschen",
     "action.delete":  "Loeschen",
     "count.format":  "Zeige 1 bis {total}, insgesamt {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "Vorgang fehlgeschlagen: Benutzerordner nicht gefunden",
     "status_code.restart_failed":  "{ide} konnte nicht neu gestartet werden, bitte manuell neu starten",
     "status_code.save_config_failed":  "Speichern der Einstellungen fehlgeschlagen",
+    "status_code.quota_refreshed":  "Kontingent aktualisiert",
+    "status_code.account_quota_refreshed":  "Kontingent des Kontos aktualisiert",
     "status_code.unknown_action":  "Unbekannte Aktion",
     "update.failed":  "Update-Pruefung fehlgeschlagen, bitte spaeter erneut versuchen",
     "update.latest":  "Bereits aktuell",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "Beim Start automatisch nach Updates suchen und vor dem Download bestaetigen lassen.",
     "settings.auto_update_on":  "Ein"
 }
+
+

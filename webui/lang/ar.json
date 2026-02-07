@@ -52,8 +52,11 @@
     "tag.group_personal":  "شخصي",
     "quota.gpt":  "جي بي تي",
     "quota.placeholder":  "ميزة قيد التطوير",
+    "quota.format":  "5H {q5} | 7D {q7} | إعادة التعيين {r5}h/{r7}h",
     "action.switch_title":  "التبديل الى هذا الحساب",
     "action.switch":  "تبديل",
+    "action.refresh_title":  "تحديث الحصة",
+    "action.refresh":  "تحديث",
     "action.delete_title":  "حذف الحساب",
     "action.delete":  "حذف",
     "count.format":  "عرض 1 الى {total}، المجموع {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "فشلت العملية: لم يتم العثور على مجلد المستخدم",
     "status_code.restart_failed":  "فشل اعادة تشغيل {ide}، يرجى اعادة التشغيل يدويا",
     "status_code.save_config_failed":  "فشل حفظ الاعدادات",
+    "status_code.quota_refreshed":  "تم تحديث الحصة",
+    "status_code.account_quota_refreshed":  "تم تحديث حصة الحساب",
     "status_code.unknown_action":  "اجراء غير معروف",
     "update.failed":  "فشل التحقق من التحديث، حاول لاحقا",
     "update.latest":  "هذا هو احدث اصدار",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "التحقق من التحديث تلقائيا عند التشغيل والسؤال قبل التنزيل.",
     "settings.auto_update_on":  "تشغيل"
 }
+
+

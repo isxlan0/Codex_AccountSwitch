@@ -52,8 +52,11 @@
     "tag.group_personal":  "Cuenta personal",
     "quota.gpt":  "Modelo GPT",
     "quota.placeholder":  "Funcion no desarrollada",
+    "quota.format":  "5H {q5} | 7D {q7} | Reinicio {r5}h/{r7}h",
     "action.switch_title":  "Cambiar a esta cuenta",
     "action.switch":  "Cambiar",
+    "action.refresh_title":  "Actualizar cuota",
+    "action.refresh":  "Actualizar",
     "action.delete_title":  "Eliminar cuenta",
     "action.delete":  "Eliminar",
     "count.format":  "Mostrando 1 a {total}, total {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "Operacion fallida: no se encontro la carpeta de usuario",
     "status_code.restart_failed":  "No se pudo reiniciar {ide}, reinicie manualmente",
     "status_code.save_config_failed":  "Error al guardar configuracion",
+    "status_code.quota_refreshed":  "Cuota actualizada",
+    "status_code.account_quota_refreshed":  "Cuota de la cuenta actualizada",
     "status_code.unknown_action":  "Accion desconocida",
     "update.failed":  "Fallo al comprobar actualizaciones, intente mas tarde",
     "update.latest":  "Ya es la version mas reciente",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "Comprobar actualizaciones al iniciar y pedir confirmacion antes de descargar.",
     "settings.auto_update_on":  "Activado"
 }
+
+

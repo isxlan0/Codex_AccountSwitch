@@ -52,8 +52,11 @@
     "tag.group_personal":  "Личный",
     "quota.gpt":  "Модель GPT",
     "quota.placeholder":  "Функция в разработке",
+    "quota.format":  "5H {q5} | 7D {q7} | Сброс {r5}h/{r7}h",
     "action.switch_title":  "Переключиться на этот аккаунт",
     "action.switch":  "Переключить",
+    "action.refresh_title":  "Обновить квоту",
+    "action.refresh":  "Обновить",
     "action.delete_title":  "Удалить аккаунт",
     "action.delete":  "Удалить",
     "count.format":  "Показано 1 до {total}, всего {total}",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "Ошибка операции: папка пользователя не найдена",
     "status_code.restart_failed":  "Не удалось перезапустить {ide}, перезапустите вручную",
     "status_code.save_config_failed":  "Не удалось сохранить настройки",
+    "status_code.quota_refreshed":  "Квота обновлена",
+    "status_code.account_quota_refreshed":  "Квота аккаунта обновлена",
     "status_code.unknown_action":  "Неизвестное действие",
     "update.failed":  "Проверка обновлений не удалась, попробуйте позже",
     "update.latest":  "Уже актуальная версия",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "Автоматически проверять обновления при запуске и спрашивать перед загрузкой.",
     "settings.auto_update_on":  "Вкл"
 }
+
+

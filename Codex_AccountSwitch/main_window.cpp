@@ -25,6 +25,17 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         g_webviewHost.Resize(hwnd);
         return 0;
 
+    case WM_GETMINMAXINFO:
+    {
+        auto* mm = reinterpret_cast<MINMAXINFO*>(lParam);
+        if (mm != nullptr)
+        {
+            mm->ptMinTrackSize.x = 1024;
+            mm->ptMinTrackSize.y = 700;
+        }
+        return 0;
+    }
+
     case WM_DESTROY:
         g_webviewHost.Cleanup();
         PostQuitMessage(0);

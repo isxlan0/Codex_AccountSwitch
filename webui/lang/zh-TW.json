@@ -52,8 +52,11 @@
     "tag.group_personal":  "個人版",
     "quota.gpt":  "GPT 模型",
     "quota.placeholder":  "未開發功能",
+    "quota.format":  "5H {q5} | 7D {q7} | 重置 {r5}h/{r7}h",
     "action.switch_title":  "切換到此帳號",
     "action.switch":  "切換",
+    "action.refresh_title":  "刷新額度",
+    "action.refresh":  "刷新",
     "action.delete_title":  "刪除帳號",
     "action.delete":  "刪除",
     "count.format":  "顯示第 1 到 {total} 筆，共 {total} 筆",
@@ -68,6 +71,8 @@
     "status_code.userprofile_missing":  "操作失敗：找不到使用者目錄",
     "status_code.restart_failed":  "重新啟動 {ide} 失敗，請手動重啟",
     "status_code.save_config_failed":  "設定儲存失敗",
+    "status_code.quota_refreshed":  "額度已刷新",
+    "status_code.account_quota_refreshed":  "帳號額度已刷新",
     "status_code.unknown_action":  "未知操作",
     "update.failed":  "檢查更新失敗，請稍後重試",
     "update.latest":  "目前已是最新版本",
@@ -95,3 +100,5 @@
     "settings.auto_update_hint":  "啟動時自動檢查更新，偵測到新版本後提示是否下載。",
     "settings.auto_update_on":  "開啟"
 }
+
+
