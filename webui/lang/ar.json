@@ -1,4 +1,4 @@
-﻿{
+{
     "app.brand":  "Codex Account Switch",
     "tab.accounts":  "ادارة الحسابات",
     "tab.about":  "حول",
@@ -83,6 +83,11 @@
     "ide.Antigravity.exe":  "انتي جرافيتي",
     "status_code.config_saved":  "تم حفظ الاعدادات",
     "status_code.backup_saved":  "تم حفظ نسخة الحساب الاحتياطية",
+    "status_code.switch_success":  "تم التبديل بنجاح، تتم اعادة تشغيل {ide}",
+    "status_code.delete_success":  "تم الحذف بنجاح",
+    "status_code.login_new_success":  "تم تنظيف ملفات تسجيل الدخول، تتم اعادة تشغيل {ide}",
+    "status_code.export_success":  "تم التصدير بنجاح",
+    "status_code.import_success":  "تم الاستيراد بنجاح",
     "status_code.import_cancelled":  "تم الغاء الاستيراد",
     "status_code.export_cancelled":  "تم الغاء التصدير",
     "status_code.open_url_success":  "تم فتح الرابط",

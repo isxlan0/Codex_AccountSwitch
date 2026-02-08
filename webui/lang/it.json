@@ -1,4 +1,4 @@
-﻿{
+{
     "app.brand":  "Codex Account Switch",
     "tab.accounts":  "Account",
     "tab.about":  "Informazioni",
@@ -83,6 +83,11 @@
     "ide.Antigravity.exe":  "Editor Antigravity",
     "status_code.config_saved":  "Impostazioni salvate",
     "status_code.backup_saved":  "Backup account salvato",
+    "status_code.switch_success":  "Cambio riuscito, riavvio di {ide}",
+    "status_code.delete_success":  "Eliminazione completata",
+    "status_code.login_new_success":  "File di accesso puliti, riavvio di {ide}",
+    "status_code.export_success":  "Esportazione completata",
+    "status_code.import_success":  "Importazione completata",
     "status_code.import_cancelled":  "Importazione annullata",
     "status_code.export_cancelled":  "Esportazione annullata",
     "status_code.open_url_success":  "Link aperto",

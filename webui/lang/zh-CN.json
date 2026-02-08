@@ -1,4 +1,4 @@
-﻿{
+{
     "app.brand":  "Codex Account Switch",
     "tab.accounts":  "账号管理",
     "tab.about":  "关于",
@@ -88,6 +88,11 @@
     "ide.Antigravity.exe":  "Antigravity 编辑器",
     "status_code.config_saved":  "设置已保存",
     "status_code.backup_saved":  "账号备份已保存",
+    "status_code.switch_success":  "切换成功，正在重启 {ide}",
+    "status_code.delete_success":  "删除成功",
+    "status_code.login_new_success":  "已清理登录文件，正在重启 {ide}",
+    "status_code.export_success":  "导出成功",
+    "status_code.import_success":  "导入成功",
     "status_code.import_cancelled":  "导入已取消",
     "status_code.export_cancelled":  "导出已取消",
     "status_code.open_url_success":  "已打开链接",

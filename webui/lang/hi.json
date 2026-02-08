@@ -1,4 +1,4 @@
-﻿{
+{
     "app.brand":  "Codex Account Switch",
     "tab.accounts":  "खाता प्रबंधन",
     "tab.about":  "परिचय",
@@ -83,6 +83,11 @@
     "ide.Antigravity.exe":  "एंटीग्रैविटी",
     "status_code.config_saved":  "सेटिंग्स सहेजी गईं",
     "status_code.backup_saved":  "खाते का बैकअप सहेज लिया गया",
+    "status_code.switch_success":  "स्विच सफल, {ide} पुनः प्रारंभ हो रहा है",
+    "status_code.delete_success":  "सफलतापूर्वक हटाया गया",
+    "status_code.login_new_success":  "लॉगिन फाइलें साफ की गईं, {ide} पुनः प्रारंभ हो रहा है",
+    "status_code.export_success":  "निर्यात सफल",
+    "status_code.import_success":  "आयात सफल",
     "status_code.import_cancelled":  "आयात रद्द किया गया",
     "status_code.export_cancelled":  "निर्यात रद्द किया गया",
     "status_code.open_url_success":  "लिंक खोल दिया गया",

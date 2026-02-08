@@ -1,4 +1,4 @@
-﻿{
+{
     "app.brand":  "Codex Account Switch",
     "tab.accounts":  "Управление аккаунтами",
     "tab.about":  "О программе",
@@ -83,6 +83,11 @@
     "ide.Antigravity.exe":  "Редактор Antigravity",
     "status_code.config_saved":  "Настройки сохранены",
     "status_code.backup_saved":  "Резервная копия аккаунта сохранена",
+    "status_code.switch_success":  "Переключение выполнено, перезапуск {ide}",
+    "status_code.delete_success":  "Удаление выполнено",
+    "status_code.login_new_success":  "Файлы входа очищены, перезапуск {ide}",
+    "status_code.export_success":  "Экспорт выполнен",
+    "status_code.import_success":  "Импорт выполнен",
     "status_code.import_cancelled":  "Импорт отменен",
     "status_code.export_cancelled":  "Экспорт отменен",
     "status_code.open_url_success":  "Ссылка открыта",

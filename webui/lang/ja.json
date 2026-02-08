@@ -1,4 +1,4 @@
-﻿{
+{
     "app.brand":  "Codex Account Switch",
     "tab.accounts":  "アカウント管理",
     "tab.about":  "概要",
@@ -83,6 +83,11 @@
     "ide.Antigravity.exe":  "Antigravity エディター",
     "status_code.config_saved":  "設定を保存しました",
     "status_code.backup_saved":  "アカウントのバックアップを保存しました",
+    "status_code.switch_success":  "切り替え成功、{ide} を再起動中",
+    "status_code.delete_success":  "削除しました",
+    "status_code.login_new_success":  "ログインファイルを削除し、{ide} を再起動中",
+    "status_code.export_success":  "エクスポートしました",
+    "status_code.import_success":  "インポートしました",
     "status_code.import_cancelled":  "インポートをキャンセルしました",
     "status_code.export_cancelled":  "エクスポートをキャンセルしました",
     "status_code.open_url_success":  "リンクを開きました",

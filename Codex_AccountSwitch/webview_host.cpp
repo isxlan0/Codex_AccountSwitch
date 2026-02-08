@@ -1996,7 +1996,7 @@ bool SwitchToAccount(const std::wstring& account, const std::wstring& group, std
     }
 
     status = L"切换成功，正在重启 " + ideDisplay;
-    code = L"";
+    code = L"switch_success";
     return true;
 }
 
@@ -2049,7 +2049,7 @@ bool DeleteAccountBackup(const std::wstring& account, const std::wstring& group,
     }
 
     status = L"删除成功：[" + safeGroup + L"] " + safeName;
-    code = L"";
+    code = L"delete_success";
     return true;
 }
 
@@ -2079,7 +2079,7 @@ bool LoginNewAccount(std::wstring& status, std::wstring& code)
     }
 
     status = L"已清理登录文件，正在重启 " + ideDisplay;
-    code = L"";
+    code = L"login_new_success";
     return true;
 }
 
@@ -2109,7 +2109,7 @@ bool ExportAccountsZip(HWND hwnd, std::wstring& status, std::wstring& code)
     }
 
     status = L"导出成功：" + saveZipPath;
-    code = L"";
+    code = L"export_success";
     return true;
 }
 
@@ -2138,7 +2138,7 @@ bool ImportAccountsZip(HWND hwnd, std::wstring& status, std::wstring& code)
     }
 
     status = L"导入成功：" + zipPath;
-    code = L"";
+    code = L"import_success";
     return true;
 }
 

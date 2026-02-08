@@ -1,4 +1,4 @@
-﻿{
+{
     "app.brand":  "Codex Account Switch",
     "tab.accounts":  "Konten",
     "tab.about":  "Info",
@@ -83,6 +83,11 @@
     "ide.Antigravity.exe":  "Antigravity Editor",
     "status_code.config_saved":  "Einstellungen gespeichert",
     "status_code.backup_saved":  "Kontosicherung gespeichert",
+    "status_code.switch_success":  "Wechsel erfolgreich, Neustart von {ide}",
+    "status_code.delete_success":  "Loeschen erfolgreich",
+    "status_code.login_new_success":  "Anmeldedateien bereinigt, Neustart von {ide}",
+    "status_code.export_success":  "Export erfolgreich",
+    "status_code.import_success":  "Import erfolgreich",
     "status_code.import_cancelled":  "Import abgebrochen",
     "status_code.export_cancelled":  "Export abgebrochen",
     "status_code.open_url_success":  "Link geoeffnet",
