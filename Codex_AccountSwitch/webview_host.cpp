@@ -1916,6 +1916,8 @@ bool BackupCurrentAccount(const std::wstring& name, std::wstring& status, std::w
         row.quota7dResetAt = currentUsage.secondaryResetAt;
     }
     idx.accounts.push_back(row);
+    idx.currentName = safeName;
+    idx.currentGroup = detectedGroup;
     SaveIndex(idx);
 
     status = L"保存成功：[" + detectedGroup + L"] " + safeName;
