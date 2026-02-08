@@ -393,6 +393,21 @@ button { -webkit-tap-highlight-color: transparent; }
   gap: 8px;
   padding: 0 14px 14px;
 }
+
+#confirmModal .modal {
+  max-height: min(82vh, 680px);
+  display: flex;
+  flex-direction: column;
+}
+
+#confirmModal .modal-body {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+#confirmModal .modal-actions {
+  flex-shrink: 0;
+}
 .mini {
   border: 1px solid var(--line);
   background: #fff;
@@ -496,7 +511,12 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 .settings-actions { margin-top: 16px; display: flex; gap: 10px; align-items: center; }
 .settings-note { color: #6f819a; font-size: 13px; }
-#confirmMessage { white-space: pre-wrap; line-height: 1.45; }
+#confirmMessage {
+  white-space: pre-wrap;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
 
 #log {
   margin-top: 12px;
@@ -507,6 +527,8 @@ button { -webkit-tap-highlight-color: transparent; }
   color: #4a5d7d;
   font-size: 12px;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   user-select: text;
   max-height: 130px;
   overflow: auto;

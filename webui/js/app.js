@@ -278,10 +278,10 @@
       `${t("update.dialog.current_label")}: ${state.appVersion}`,
       `${t("update.dialog.latest_label")}: ${info?.latest || ""}`,
       "",
-      `${t("update.dialog.notes_label")}:`,
-      notes,
+      t("update.dialog.confirm_question"),
       "",
-      t("update.dialog.confirm_question")
+      `${t("update.dialog.notes_label")}:`,
+      notes
     ].join("\n");
     openConfirm({
       title: t("update.dialog.title"),
