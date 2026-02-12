@@ -2,6 +2,7 @@
 
 #include "app_version.h"
 #include "file_utils.h"
+#include "resource.h"
 #include "update_checker.h"
 
 #include <commdlg.h>
@@ -46,6 +47,31 @@ constexpr wchar_t kUsageHost[] = L"chatgpt.com";
 constexpr wchar_t kUsagePath[] = L"/backend-api/wham/usage";
 constexpr wchar_t kUsageDefaultCodexVersion[] = L"0.98.0";
 constexpr wchar_t kUsageVsCodeVersion[] = L"0.4.71";
+constexpr UINT_PTR kTimerAutoRefresh = 8201;
+constexpr int kDefaultAllRefreshMinutes = 15;
+constexpr int kDefaultCurrentRefreshMinutes = 5;
+constexpr int kMinRefreshMinutes = 1;
+constexpr int kMaxRefreshMinutes = 240;
+constexpr int kLowQuotaThresholdPercent = 20;
+constexpr int kLowQuotaPromptCooldownSeconds = 30 * 60;
+
+int ClampRefreshMinutes(const int v, const int fallback)
+{
+    int x = v;
+    if (x < kMinRefreshMinutes || x > kMaxRefreshMinutes)
+    {
+        x = fallback;
+    }
+    if (x < kMinRefreshMinutes)
+    {
+        x = kMinRefreshMinutes;
+    }
+    if (x > kMaxRefreshMinutes)
+    {
+        x = kMaxRefreshMinutes;
+    }
+    return x;
+}
 
 std::wstring ExtractJsonField(const std::wstring& json, const std::wstring& key)
 {
@@ -230,6 +256,10 @@ struct AppConfig
     std::wstring ideExe = L"Code.exe";
     std::wstring theme = L"auto";
     bool autoUpdate = true;
+    bool autoRefreshCurrent = true;
+    bool lowQuotaAutoPrompt = true;
+    int autoRefreshAllMinutes = kDefaultAllRefreshMinutes;
+    int autoRefreshCurrentMinutes = kDefaultCurrentRefreshMinutes;
     std::wstring lastSwitchedAccount;
     std::wstring lastSwitchedGroup;
     std::wstring lastSwitchedAt;
@@ -1001,6 +1031,174 @@ bool QueryUsageFromAuthFile(const fs::path& authPath, UsageSnapshot& out)
     return true;
 }
 
+bool ReadJsonStringToken(const std::wstring& text, size_t& i, std::wstring& outRaw)
+{
+    outRaw.clear();
+    if (i >= text.size() || text[i] != L'"')
+    {
+        return false;
+    }
+    ++i;
+    bool escape = false;
+    while (i < text.size())
+    {
+        const wchar_t ch = text[i++];
+        if (escape)
+        {
+            outRaw.push_back(ch);
+            escape = false;
+            continue;
+        }
+        if (ch == L'\\')
+        {
+            outRaw.push_back(ch);
+            escape = true;
+            continue;
+        }
+        if (ch == L'"')
+        {
+            return true;
+        }
+        outRaw.push_back(ch);
+    }
+    return false;
+}
+
+void SkipJsonValue(const std::wstring& text, size_t& i)
+{
+    if (i >= text.size())
+    {
+        return;
+    }
+    if (text[i] == L'"')
+    {
+        std::wstring ignored;
+        ReadJsonStringToken(text, i, ignored);
+        return;
+    }
+
+    const wchar_t open = text[i];
+    wchar_t close = 0;
+    if (open == L'{') close = L'}';
+    if (open == L'[') close = L']';
+    if (close == 0)
+    {
+        while (i < text.size() && text[i] != L',' && text[i] != L'}')
+        {
+            ++i;
+        }
+        return;
+    }
+
+    int depth = 0;
+    bool inString = false;
+    bool escape = false;
+    while (i < text.size())
+    {
+        const wchar_t ch = text[i++];
+        if (inString)
+        {
+            if (escape)
+            {
+                escape = false;
+            }
+            else if (ch == L'\\')
+            {
+                escape = true;
+            }
+            else if (ch == L'"')
+            {
+                inString = false;
+            }
+            continue;
+        }
+        if (ch == L'"')
+        {
+            inString = true;
+            continue;
+        }
+        if (ch == open)
+        {
+            ++depth;
+            continue;
+        }
+        if (ch == close)
+        {
+            --depth;
+            if (depth <= 0)
+            {
+                return;
+            }
+        }
+    }
+}
+
+bool ParseFlatJsonStringMap(const std::wstring& json, std::vector<std::pair<std::wstring, std::wstring>>& outPairs)
+{
+    outPairs.clear();
+    size_t i = 0;
+    while (i < json.size() && json[i] != L'{')
+    {
+        ++i;
+    }
+    if (i >= json.size())
+    {
+        return false;
+    }
+    ++i;
+
+    while (i < json.size())
+    {
+        while (i < json.size() && (iswspace(json[i]) || json[i] == L','))
+        {
+            ++i;
+        }
+        if (i >= json.size() || json[i] == L'}')
+        {
+            break;
+        }
+
+        std::wstring keyRaw;
+        if (!ReadJsonStringToken(json, i, keyRaw))
+        {
+            ++i;
+            continue;
+        }
+        while (i < json.size() && iswspace(json[i]))
+        {
+            ++i;
+        }
+        if (i >= json.size() || json[i] != L':')
+        {
+            continue;
+        }
+        ++i;
+        while (i < json.size() && iswspace(json[i]))
+        {
+            ++i;
+        }
+        if (i >= json.size())
+        {
+            break;
+        }
+
+        if (json[i] != L'"')
+        {
+            SkipJsonValue(json, i);
+            continue;
+        }
+
+        std::wstring valueRaw;
+        if (!ReadJsonStringToken(json, i, valueRaw))
+        {
+            continue;
+        }
+        outPairs.emplace_back(UnescapeJsonString(keyRaw), UnescapeJsonString(valueRaw));
+    }
+
+    return !outPairs.empty();
+}
+
 bool LoadLanguageStrings(const std::wstring& code, std::vector<std::pair<std::wstring, std::wstring>>& outPairs, std::wstring& resolvedCode)
 {
     outPairs.clear();
@@ -1026,14 +1224,7 @@ bool LoadLanguageStrings(const std::wstring& code, std::vector<std::pair<std::ws
         return false;
     }
 
-    const std::wregex kvRe(LR"KV("((?:\\.|[^"])*)"\s*:\s*"((?:\\.|[^"])*)")KV");
-    for (std::wsregex_iterator it(json.begin(), json.end(), kvRe), end; it != end; ++it)
-    {
-        outPairs.emplace_back(
-            UnescapeJsonString((*it)[1].str()),
-            UnescapeJsonString((*it)[2].str()));
-    }
-    return !outPairs.empty();
+    return ParseFlatJsonStringMap(json, outPairs);
 }
 
 const std::vector<std::wstring>& GetSupportedIdeList()
@@ -1210,6 +1401,10 @@ bool LoadConfig(AppConfig& out)
     const std::wstring ide = ExtractJsonField(json, L"ideExe");
     const std::wstring theme = ExtractJsonField(json, L"theme");
     const bool autoUpdate = ExtractJsonBoolField(json, L"autoUpdate", true);
+    const bool autoRefreshCurrent = ExtractJsonBoolField(json, L"autoRefreshCurrent", true);
+    const bool lowQuotaAutoPrompt = ExtractJsonBoolField(json, L"lowQuotaAutoPrompt", true);
+    const int autoRefreshAllMinutes = ExtractJsonIntField(json, L"autoRefreshAllMinutes", kDefaultAllRefreshMinutes);
+    const int autoRefreshCurrentMinutes = ExtractJsonIntField(json, L"autoRefreshCurrentMinutes", kDefaultCurrentRefreshMinutes);
     const std::wstring lastAccount = ExtractJsonField(json, L"lastSwitchedAccount");
     const std::wstring lastGroup = ExtractJsonField(json, L"lastSwitchedGroup");
     const std::wstring lastAt = ExtractJsonField(json, L"lastSwitchedAt");
@@ -1229,6 +1424,10 @@ bool LoadConfig(AppConfig& out)
     out.ideExe = NormalizeIdeExe(ide);
     out.theme = NormalizeTheme(theme);
     out.autoUpdate = autoUpdate;
+    out.autoRefreshCurrent = autoRefreshCurrent;
+    out.lowQuotaAutoPrompt = lowQuotaAutoPrompt;
+    out.autoRefreshAllMinutes = ClampRefreshMinutes(autoRefreshAllMinutes, kDefaultAllRefreshMinutes);
+    out.autoRefreshCurrentMinutes = ClampRefreshMinutes(autoRefreshCurrentMinutes, kDefaultCurrentRefreshMinutes);
     out.lastSwitchedAccount = lastAccount;
     out.lastSwitchedGroup = NormalizeGroup(lastGroup);
     out.lastSwitchedAt = lastAt;
@@ -1247,6 +1446,8 @@ bool SaveConfig(const AppConfig& in)
         tmp.languageIndex = FindLanguageIndexByCode(langs, tmp.language);
         tmp.ideExe = NormalizeIdeExe(tmp.ideExe);
         tmp.theme = NormalizeTheme(tmp.theme);
+        tmp.autoRefreshAllMinutes = ClampRefreshMinutes(tmp.autoRefreshAllMinutes, kDefaultAllRefreshMinutes);
+        tmp.autoRefreshCurrentMinutes = ClampRefreshMinutes(tmp.autoRefreshCurrentMinutes, kDefaultCurrentRefreshMinutes);
         tmp.lastSwitchedGroup = NormalizeGroup(tmp.lastSwitchedGroup);
         return tmp;
     }();
@@ -1258,6 +1459,10 @@ bool SaveConfig(const AppConfig& in)
     ss << L"  \"ideExe\": \"" << EscapeJsonString(cfg.ideExe) << L"\",\n";
     ss << L"  \"theme\": \"" << EscapeJsonString(cfg.theme) << L"\",\n";
     ss << L"  \"autoUpdate\": " << (cfg.autoUpdate ? L"true" : L"false") << L",\n";
+    ss << L"  \"autoRefreshCurrent\": " << (cfg.autoRefreshCurrent ? L"true" : L"false") << L",\n";
+    ss << L"  \"lowQuotaAutoPrompt\": " << (cfg.lowQuotaAutoPrompt ? L"true" : L"false") << L",\n";
+    ss << L"  \"autoRefreshAllMinutes\": " << cfg.autoRefreshAllMinutes << L",\n";
+    ss << L"  \"autoRefreshCurrentMinutes\": " << cfg.autoRefreshCurrentMinutes << L",\n";
     ss << L"  \"lastSwitchedAccount\": \"" << EscapeJsonString(cfg.lastSwitchedAccount) << L"\",\n";
     ss << L"  \"lastSwitchedGroup\": \"" << EscapeJsonString(cfg.lastSwitchedGroup) << L"\",\n";
     ss << L"  \"lastSwitchedAt\": \"" << EscapeJsonString(cfg.lastSwitchedAt) << L"\"\n";
@@ -1545,22 +1750,28 @@ bool RestartConfiguredIde(std::wstring& ideDisplay)
 
 bool PickOpenZipPath(HWND hwnd, std::wstring& outPath)
 {
-    wchar_t fileName[MAX_PATH]{};
+    std::vector<wchar_t> fileName(32768, L'\0');
+    static constexpr wchar_t kZipFilter[] = L"Zip Files (*.zip)\0*.zip\0All Files (*.*)\0*.*\0\0";
     OPENFILENAMEW ofn{};
     ofn.lStructSize = sizeof(ofn);
-    ofn.hwndOwner = hwnd;
-    ofn.lpstrFile = fileName;
-    ofn.nMaxFile = MAX_PATH;
-    ofn.lpstrFilter = L"Zip Files (*.zip)\0*.zip\0All Files (*.*)\0*.*\0";
-    ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+    ofn.hwndOwner = IsWindow(hwnd) ? hwnd : nullptr;
+    ofn.lpstrFile = fileName.data();
+    ofn.nMaxFile = static_cast<DWORD>(fileName.size());
+    ofn.lpstrFilter = kZipFilter;
+    ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
     ofn.lpstrDefExt = L"zip";
 
     if (!GetOpenFileNameW(&ofn))
     {
+        const DWORD dlgErr = CommDlgExtendedError();
+        if (dlgErr != 0)
+        {
+            OutputDebugStringW((L"[PickOpenZipPath] CommDlgExtendedError=" + std::to_wstring(dlgErr) + L"\n").c_str());
+        }
         return false;
     }
 
-    outPath = fileName;
+    outPath = fileName.data();
     return true;
 }
 
@@ -2000,6 +2211,60 @@ bool SwitchToAccount(const std::wstring& account, const std::wstring& group, std
     return true;
 }
 
+bool PickOpenJsonPath(HWND hwnd, std::wstring& outPath)
+{
+    std::vector<wchar_t> fileName(32768, L'\0');
+    static constexpr wchar_t kJsonFilter[] = L"JSON Files (*.json)\0*.json\0All Files (*.*)\0*.*\0\0";
+    OPENFILENAMEW ofn{};
+    ofn.lStructSize = sizeof(ofn);
+    ofn.hwndOwner = IsWindow(hwnd) ? hwnd : nullptr;
+    ofn.lpstrFile = fileName.data();
+    ofn.nMaxFile = static_cast<DWORD>(fileName.size());
+    ofn.lpstrFilter = kJsonFilter;
+    ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
+    ofn.lpstrDefExt = L"json";
+
+    if (!GetOpenFileNameW(&ofn))
+    {
+        const DWORD dlgErr = CommDlgExtendedError();
+        if (dlgErr != 0)
+        {
+            OutputDebugStringW((L"[PickOpenJsonPath] CommDlgExtendedError=" + std::to_wstring(dlgErr) + L"\n").c_str());
+        }
+        return false;
+    }
+
+    outPath = fileName.data();
+    return true;
+}
+
+bool JsonContainsField(const std::wstring& json, const std::wstring& key)
+{
+    if (key.empty())
+    {
+        return false;
+    }
+    return json.find(L"\"" + key + L"\"") != std::wstring::npos;
+}
+
+bool IsLikelyValidAuthJson(const std::wstring& json)
+{
+    if (!JsonContainsField(json, L"auth_mode") ||
+        !JsonContainsField(json, L"OPENAI_API_KEY") ||
+        !JsonContainsField(json, L"tokens") ||
+        !JsonContainsField(json, L"id_token") ||
+        !JsonContainsField(json, L"access_token") ||
+        !JsonContainsField(json, L"refresh_token") ||
+        !JsonContainsField(json, L"account_id") ||
+        !JsonContainsField(json, L"last_refresh"))
+    {
+        return false;
+    }
+
+    const std::wstring authMode = ExtractJsonField(json, L"auth_mode");
+    return authMode.empty() || _wcsicmp(authMode.c_str(), L"chatgpt") == 0;
+}
+
 bool DeleteAccountBackup(const std::wstring& account, const std::wstring& group, std::wstring& status, std::wstring& code)
 {
     EnsureIndexExists();
@@ -2083,6 +2348,100 @@ bool LoginNewAccount(std::wstring& status, std::wstring& code)
     return true;
 }
 
+bool ImportAuthJsonFile(const std::wstring& jsonPath, const std::wstring& preferredName, std::wstring& status, std::wstring& code)
+{
+    std::wstring json;
+    if (!ReadUtf8File(jsonPath, json))
+    {
+        status = L"导入失败：无法读取 auth.json 文件";
+        code = L"write_failed";
+        return false;
+    }
+    if (!IsLikelyValidAuthJson(json))
+    {
+        status = L"该文件可能不是有效 auth.json，缺少必要字段";
+        code = L"auth_json_invalid";
+        return false;
+    }
+
+    EnsureIndexExists();
+    IndexData idx;
+    LoadIndex(idx);
+
+    UsageSnapshot usage;
+    QueryUsageFromAuthFile(jsonPath, usage);
+    std::wstring detectedGroup = L"personal";
+    if (usage.ok && !usage.planType.empty())
+    {
+        detectedGroup = GroupFromPlanType(usage.planType);
+    }
+
+    const std::wstring accountName = SanitizeAccountName(preferredName);
+    if (accountName.empty())
+    {
+        status = L"导入失败：请先输入有效账号名";
+        code = L"invalid_name";
+        return false;
+    }
+    if (accountName.size() > 32)
+    {
+        status = L"导入失败：账号名最多 32 个字符";
+        code = L"name_too_long";
+        return false;
+    }
+    const auto duplicated = std::find_if(idx.accounts.begin(), idx.accounts.end(), [&](const IndexEntry& row) {
+        return EqualsIgnoreCase(row.name, accountName);
+    });
+    if (duplicated != idx.accounts.end())
+    {
+        status = L"导入失败：名字重复，请修改后再导入";
+        code = L"duplicate_name";
+        return false;
+    }
+
+    const fs::path backupDir = GetGroupDir(detectedGroup) / accountName;
+    std::error_code ec;
+    fs::create_directories(backupDir, ec);
+    if (ec)
+    {
+        status = L"导入失败：无法创建备份目录";
+        code = L"create_dir_failed";
+        return false;
+    }
+
+    fs::copy_file(fs::path(jsonPath), backupDir / L"auth.json", fs::copy_options::overwrite_existing, ec);
+    if (ec)
+    {
+        status = L"导入失败：无法写入备份文件";
+        code = L"write_failed";
+        return false;
+    }
+
+    IndexEntry row;
+    row.name = accountName;
+    row.group = detectedGroup;
+    row.path = MakeRelativeAuthPath(detectedGroup, accountName);
+    row.updatedAt = NowText();
+    if (usage.ok)
+    {
+        row.quotaUsageOk = true;
+        row.quotaPlanType = usage.planType;
+        row.quotaEmail = usage.email;
+        row.quota5hRemainingPercent = RemainingPercentFromUsed(usage.primaryUsedPercent);
+        row.quota7dRemainingPercent = RemainingPercentFromUsed(usage.secondaryUsedPercent);
+        row.quota5hResetAfterSeconds = usage.primaryResetAfterSeconds;
+        row.quota7dResetAfterSeconds = usage.secondaryResetAfterSeconds;
+        row.quota5hResetAt = usage.primaryResetAt;
+        row.quota7dResetAt = usage.secondaryResetAt;
+    }
+    idx.accounts.push_back(row);
+    SaveIndex(idx);
+
+    status = L"auth.json 导入成功：[" + detectedGroup + L"] " + accountName;
+    code = L"auth_json_imported";
+    return true;
+}
+
 bool ExportAccountsZip(HWND hwnd, std::wstring& status, std::wstring& code)
 {
     std::wstring saveZipPath;
@@ -2163,6 +2522,34 @@ std::wstring EscapeJsonString(const std::wstring& input)
 
 std::wstring UnescapeJsonString(const std::wstring& input)
 {
+    auto hexValue = [](const wchar_t ch) -> int
+    {
+        if (ch >= L'0' && ch <= L'9') return static_cast<int>(ch - L'0');
+        if (ch >= L'a' && ch <= L'f') return 10 + static_cast<int>(ch - L'a');
+        if (ch >= L'A' && ch <= L'F') return 10 + static_cast<int>(ch - L'A');
+        return -1;
+    };
+
+    auto readHex4 = [&](size_t pos, unsigned int& outCode) -> bool
+    {
+        if (pos + 4 > input.size())
+        {
+            return false;
+        }
+        unsigned int value = 0;
+        for (size_t j = 0; j < 4; ++j)
+        {
+            const int hv = hexValue(input[pos + j]);
+            if (hv < 0)
+            {
+                return false;
+            }
+            value = (value << 4) | static_cast<unsigned int>(hv);
+        }
+        outCode = value;
+        return true;
+    };
+
     std::wstring out;
     out.reserve(input.size());
 
@@ -2176,9 +2563,41 @@ std::wstring UnescapeJsonString(const std::wstring& input)
             {
             case L'\\': out.push_back(L'\\'); break;
             case L'"': out.push_back(L'"'); break;
+            case L'/': out.push_back(L'/'); break;
+            case L'b': out.push_back(L'\b'); break;
+            case L'f': out.push_back(L'\f'); break;
             case L'n': out.push_back(L'\n'); break;
             case L'r': out.push_back(L'\r'); break;
             case L't': out.push_back(L'\t'); break;
+            case L'u':
+            {
+                unsigned int code = 0;
+                if (!readHex4(i + 1, code))
+                {
+                    out.push_back(L'u');
+                    break;
+                }
+                i += 4;
+
+                // Decode surrogate pair if present.
+                if (code >= 0xD800 && code <= 0xDBFF && (i + 6) < input.size() && input[i + 1] == L'\\' && input[i + 2] == L'u')
+                {
+                    unsigned int low = 0;
+                    if (readHex4(i + 3, low) && low >= 0xDC00 && low <= 0xDFFF)
+                    {
+                        const unsigned int codePoint = 0x10000 + (((code - 0xD800) << 10) | (low - 0xDC00));
+                        const wchar_t highSur = static_cast<wchar_t>(0xD800 + ((codePoint - 0x10000) >> 10));
+                        const wchar_t lowSur = static_cast<wchar_t>(0xDC00 + ((codePoint - 0x10000) & 0x3FF));
+                        out.push_back(highSur);
+                        out.push_back(lowSur);
+                        i += 6;
+                        break;
+                    }
+                }
+
+                out.push_back(static_cast<wchar_t>(code));
+                break;
+            }
             default: out.push_back(next); break;
             }
         }
@@ -2366,6 +2785,41 @@ std::vector<AccountEntry> CollectAccounts(const bool refreshUsage, const std::ws
     }
 
     return result;
+}
+
+const AccountEntry* FindCurrentAccountEntry(const std::vector<AccountEntry>& accounts)
+{
+    for (const auto& item : accounts)
+    {
+        if (item.isCurrent)
+        {
+            return &item;
+        }
+    }
+    return nullptr;
+}
+
+const AccountEntry* FindBestSwitchCandidate(const std::vector<AccountEntry>& accounts, const AccountEntry* current)
+{
+    const AccountEntry* best = nullptr;
+    for (const auto& item : accounts)
+    {
+        if (!item.usageOk || item.quota5hRemainingPercent < 0)
+        {
+            continue;
+        }
+        if (current != nullptr &&
+            EqualsIgnoreCase(item.name, current->name) &&
+            NormalizeGroup(item.group) == NormalizeGroup(current->group))
+        {
+            continue;
+        }
+        if (best == nullptr || item.quota5hRemainingPercent > best->quota5hRemainingPercent)
+        {
+            best = &item;
+        }
+    }
+    return best;
 }
 
 std::wstring BuildAccountsListJson(const bool refreshUsage, const std::wstring& targetName, const std::wstring& targetGroup)
@@ -2563,9 +3017,237 @@ void WebViewHost::SendConfig(bool firstRun) const
         L",\"ideExe\":\"" + EscapeJsonString(cfg.ideExe) +
         L"\",\"theme\":\"" + EscapeJsonString(cfg.theme) +
         L"\",\"autoUpdate\":" + std::wstring(cfg.autoUpdate ? L"true" : L"false") +
+        L",\"autoRefreshAll\":true" +
+        L",\"autoRefreshCurrent\":" + std::wstring(cfg.autoRefreshCurrent ? L"true" : L"false") +
+        L",\"lowQuotaAutoPrompt\":" + std::wstring(cfg.lowQuotaAutoPrompt ? L"true" : L"false") +
+        L",\"autoRefreshAllMinutes\":" + std::to_wstring(cfg.autoRefreshAllMinutes) +
+        L",\"autoRefreshCurrentMinutes\":" + std::to_wstring(cfg.autoRefreshCurrentMinutes) +
         L",\"lastSwitchedAccount\":\"" + EscapeJsonString(cfg.lastSwitchedAccount) +
         L"\",\"lastSwitchedGroup\":\"" + EscapeJsonString(cfg.lastSwitchedGroup) +
         L"\",\"lastSwitchedAt\":\"" + EscapeJsonString(cfg.lastSwitchedAt) + L"\"}");
+}
+
+void WebViewHost::SendRefreshTimerState() const
+{
+    const int allRemain = allRefreshRemainingSec_ < 0 ? 0 : allRefreshRemainingSec_;
+    const int currentRemain = currentRefreshRemainingSec_ < 0 ? 0 : currentRefreshRemainingSec_;
+    SendWebJson(
+        L"{\"type\":\"refresh_timers\",\"allIntervalSec\":" + std::to_wstring(allRefreshIntervalSec_) +
+        L",\"currentIntervalSec\":" + std::to_wstring(currentRefreshIntervalSec_) +
+        L",\"allEnabled\":true" +
+        L",\"currentEnabled\":" + std::wstring(currentAutoRefreshEnabled_ ? L"true" : L"false") +
+        L",\"allRemainingSec\":" + std::to_wstring(allRemain) +
+        L",\"currentRemainingSec\":" + std::to_wstring(currentRemain) +
+        L"}");
+}
+
+void WebViewHost::EnsureTrayIcon()
+{
+    if (hwnd_ == nullptr || trayIconAdded_)
+    {
+        return;
+    }
+
+    NOTIFYICONDATAW nid{};
+    nid.cbSize = sizeof(nid);
+    nid.hWnd = hwnd_;
+    nid.uID = 1;
+    nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+    nid.uCallbackMessage = kMsgTrayNotify;
+    nid.hIcon = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
+    if (nid.hIcon == nullptr)
+    {
+        nid.hIcon = LoadIconW(nullptr, IDI_INFORMATION);
+    }
+    wcscpy_s(nid.szTip, L"Codex Account Switch");
+    if (Shell_NotifyIconW(NIM_ADD, &nid))
+    {
+        nid.uVersion = NOTIFYICON_VERSION_4;
+        Shell_NotifyIconW(NIM_SETVERSION, &nid);
+        trayIconAdded_ = true;
+    }
+}
+
+void WebViewHost::RemoveTrayIcon()
+{
+    if (hwnd_ == nullptr || !trayIconAdded_)
+    {
+        return;
+    }
+    NOTIFYICONDATAW nid{};
+    nid.cbSize = sizeof(nid);
+    nid.hWnd = hwnd_;
+    nid.uID = 1;
+    Shell_NotifyIconW(NIM_DELETE, &nid);
+    trayIconAdded_ = false;
+}
+
+void WebViewHost::ShowLowQuotaBalloon(const std::wstring& currentName, const int currentQuota, const std::wstring& bestName, const std::wstring& bestGroup, const int bestQuota)
+{
+    EnsureTrayIcon();
+    if (!trayIconAdded_ || hwnd_ == nullptr)
+    {
+        return;
+    }
+
+    pendingLowQuotaPrompt_ = true;
+    pendingBestAccountName_ = bestName;
+    pendingBestAccountGroup_ = NormalizeGroup(bestGroup);
+    pendingCurrentAccountName_ = currentName;
+    pendingCurrentQuota_ = currentQuota;
+    pendingBestQuota_ = bestQuota;
+
+    std::wstring title = L"Codex额度提醒";
+    std::wstring message = L"当前账号 " + currentName + L" 的5小时额度已降至 " + std::to_wstring(currentQuota) + L"%";
+    if (!bestName.empty() && bestQuota >= 0)
+    {
+        message += L"，可切换到 " + bestName + L"（" + std::to_wstring(bestQuota) + L"%）";
+    }
+    message += L"。点击此通知可选择是否切换并重启IDE。";
+
+    NOTIFYICONDATAW nid{};
+    nid.cbSize = sizeof(nid);
+    nid.hWnd = hwnd_;
+    nid.uID = 1;
+    nid.uFlags = NIF_INFO;
+    nid.dwInfoFlags = NIIF_WARNING;
+    wcsncpy_s(nid.szInfoTitle, title.c_str(), _TRUNCATE);
+    wcsncpy_s(nid.szInfo, message.c_str(), _TRUNCATE);
+    Shell_NotifyIconW(NIM_MODIFY, &nid);
+    SendWebStatus(message, L"warning", L"low_quota_notification");
+    // Always surface the in-app confirm prompt, tray click becomes optional.
+    HandleLowQuotaPromptClick();
+}
+
+void WebViewHost::HandleLowQuotaPromptClick()
+{
+    if (!pendingLowQuotaPrompt_ || pendingBestAccountName_.empty())
+    {
+        pendingLowQuotaPrompt_ = false;
+        return;
+    }
+    std::wstringstream ss;
+    ss << L"{\"type\":\"low_quota_prompt\""
+       << L",\"currentName\":\"" << EscapeJsonString(pendingCurrentAccountName_) << L"\""
+       << L",\"currentQuota\":" << pendingCurrentQuota_
+       << L",\"bestName\":\"" << EscapeJsonString(pendingBestAccountName_) << L"\""
+       << L",\"bestGroup\":\"" << EscapeJsonString(pendingBestAccountGroup_) << L"\""
+       << L",\"bestQuota\":" << pendingBestQuota_
+       << L"}";
+    SendWebJson(ss.str());
+}
+
+void WebViewHost::TriggerRefreshAll(const bool notifyStatus)
+{
+    if (allRefreshRunning_.exchange(true))
+    {
+        return;
+    }
+    allRefreshRemainingSec_ = allRefreshIntervalSec_;
+    SendRefreshTimerState();
+
+    const HWND targetHwnd = hwnd_;
+    std::thread([this, targetHwnd, notifyStatus]() {
+        const std::vector<AccountEntry> accounts = CollectAccounts(true, L"", L"");
+        PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L""));
+        if (notifyStatus)
+        {
+            PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"quota_refreshed\",\"message\":\"额度已刷新\"}");
+        }
+
+        const AccountEntry* current = FindCurrentAccountEntry(accounts);
+        if (lowQuotaPromptEnabled_ &&
+            current != nullptr && current->usageOk && current->quota5hRemainingPercent >= 0 &&
+            current->quota5hRemainingPercent <= kLowQuotaThresholdPercent)
+        {
+            const AccountEntry* best = FindBestSwitchCandidate(accounts, current);
+            const std::wstring currentKey = NormalizeGroup(current->group) + L"::" + current->name;
+            const auto now = std::chrono::steady_clock::now();
+            const bool cooledDown = lastLowQuotaPromptAt_.time_since_epoch().count() == 0 ||
+                std::chrono::duration_cast<std::chrono::seconds>(now - lastLowQuotaPromptAt_).count() >= kLowQuotaPromptCooldownSeconds;
+            if (best != nullptr && (!EqualsIgnoreCase(lastLowQuotaPromptAccountKey_, currentKey) || cooledDown))
+            {
+                lastLowQuotaPromptAt_ = now;
+                lastLowQuotaPromptAccountKey_ = currentKey;
+                ShowLowQuotaBalloon(current->name, current->quota5hRemainingPercent, best->name, best->group, best->quota5hRemainingPercent);
+            }
+        }
+
+        allRefreshRunning_.store(false);
+    }).detach();
+}
+
+void WebViewHost::TriggerRefreshCurrent()
+{
+    if (!currentAutoRefreshEnabled_)
+    {
+        currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
+        SendRefreshTimerState();
+        return;
+    }
+    if (currentRefreshRunning_.exchange(true))
+    {
+        return;
+    }
+    currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
+    SendRefreshTimerState();
+
+    IndexData idx;
+    LoadIndex(idx);
+    const std::wstring account = idx.currentName;
+    const std::wstring group = idx.currentGroup;
+    if (account.empty())
+    {
+        currentRefreshRunning_.store(false);
+        SendRefreshTimerState();
+        return;
+    }
+
+    const HWND targetHwnd = hwnd_;
+    std::thread([this, targetHwnd, account, group]() {
+        PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, account, group));
+        const std::vector<AccountEntry> accounts = CollectAccounts(false, L"", L"");
+        const AccountEntry* current = FindCurrentAccountEntry(accounts);
+        if (lowQuotaPromptEnabled_ &&
+            current != nullptr && current->usageOk && current->quota5hRemainingPercent >= 0 &&
+            current->quota5hRemainingPercent <= kLowQuotaThresholdPercent)
+        {
+            const AccountEntry* best = FindBestSwitchCandidate(accounts, current);
+            const std::wstring currentKey = NormalizeGroup(current->group) + L"::" + current->name;
+            const auto now = std::chrono::steady_clock::now();
+            const bool cooledDown = lastLowQuotaPromptAt_.time_since_epoch().count() == 0 ||
+                std::chrono::duration_cast<std::chrono::seconds>(now - lastLowQuotaPromptAt_).count() >= kLowQuotaPromptCooldownSeconds;
+            if (best != nullptr && (!EqualsIgnoreCase(lastLowQuotaPromptAccountKey_, currentKey) || cooledDown))
+            {
+                lastLowQuotaPromptAt_ = now;
+                lastLowQuotaPromptAccountKey_ = currentKey;
+                ShowLowQuotaBalloon(current->name, current->quota5hRemainingPercent, best->name, best->group, best->quota5hRemainingPercent);
+            }
+        }
+        currentRefreshRunning_.store(false);
+    }).detach();
+}
+
+void WebViewHost::HandleAutoRefreshTick()
+{
+    if (allRefreshRemainingSec_ > 0)
+    {
+        --allRefreshRemainingSec_;
+    }
+    if (currentAutoRefreshEnabled_ && currentRefreshRemainingSec_ > 0)
+    {
+        --currentRefreshRemainingSec_;
+    }
+
+    if (allRefreshRemainingSec_ <= 0)
+    {
+        TriggerRefreshAll();
+    }
+    if (currentAutoRefreshEnabled_ && currentRefreshRemainingSec_ <= 0)
+    {
+        TriggerRefreshCurrent();
+    }
+    SendRefreshTimerState();
 }
 
 void WebViewHost::SendWebJson(const std::wstring& json) const
@@ -2671,16 +3353,13 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
     if (action == L"list_accounts")
     {
         SendAccountsList(false, L"", L"");
+        SendRefreshTimerState();
         return;
     }
 
     if (action == L"refresh_accounts")
     {
-        const HWND targetHwnd = hwnd_;
-        std::thread([targetHwnd]() {
-            PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, L"", L""));
-            PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"quota_refreshed\",\"message\":\"额度已刷新\"}");
-        }).detach();
+        TriggerRefreshAll(true);
         return;
     }
 
@@ -2688,11 +3367,14 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
     {
         const std::wstring account = ExtractJsonField(rawMessage, L"account");
         const std::wstring group = ExtractJsonField(rawMessage, L"group");
-        const HWND targetHwnd = hwnd_;
-        std::thread([targetHwnd, account, group]() {
-            PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, account, group));
-            PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"account_quota_refreshed\",\"message\":\"账号额度已刷新\"}");
-        }).detach();
+        if (!account.empty())
+        {
+            const HWND targetHwnd = hwnd_;
+            std::thread([targetHwnd, account, group]() {
+                PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, account, group));
+                PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"account_quota_refreshed\",\"message\":\"账号额度已刷新\"}");
+            }).detach();
+        }
         return;
     }
 
@@ -2706,7 +3388,24 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
     {
         bool created = false;
         EnsureConfigExists(created);
+        AppConfig cfg;
+        if (LoadConfig(cfg))
+        {
+            currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
+            lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
+            allRefreshIntervalSec_ = ClampRefreshMinutes(cfg.autoRefreshAllMinutes, kDefaultAllRefreshMinutes) * 60;
+            currentRefreshIntervalSec_ = ClampRefreshMinutes(cfg.autoRefreshCurrentMinutes, kDefaultCurrentRefreshMinutes) * 60;
+            if (allRefreshRemainingSec_ <= 0 || allRefreshRemainingSec_ > allRefreshIntervalSec_)
+            {
+                allRefreshRemainingSec_ = allRefreshIntervalSec_;
+            }
+            if (currentRefreshRemainingSec_ <= 0 || currentRefreshRemainingSec_ > currentRefreshIntervalSec_)
+            {
+                currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
+            }
+        }
         SendConfig(created);
+        SendRefreshTimerState();
         return;
     }
 
@@ -2733,6 +3432,10 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         const std::wstring ideExe = ExtractJsonField(rawMessage, L"ideExe");
         const std::wstring theme = ExtractJsonField(rawMessage, L"theme");
         const bool autoUpdate = ExtractJsonBoolField(rawMessage, L"autoUpdate", true);
+        const bool autoRefreshCurrent = ExtractJsonBoolField(rawMessage, L"autoRefreshCurrent", true);
+        const bool lowQuotaAutoPrompt = ExtractJsonBoolField(rawMessage, L"lowQuotaAutoPrompt", true);
+        const int autoRefreshAllMinutes = ExtractJsonIntField(rawMessage, L"autoRefreshAllMinutes", kDefaultAllRefreshMinutes);
+        const int autoRefreshCurrentMinutes = ExtractJsonIntField(rawMessage, L"autoRefreshCurrentMinutes", kDefaultCurrentRefreshMinutes);
         AppConfig cfg;
         LoadConfig(cfg);
         if (!language.empty())
@@ -2748,13 +3451,28 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
             cfg.theme = NormalizeTheme(theme);
         }
         cfg.autoUpdate = autoUpdate;
+        cfg.autoRefreshCurrent = autoRefreshCurrent;
+        cfg.lowQuotaAutoPrompt = lowQuotaAutoPrompt;
+        cfg.autoRefreshAllMinutes = ClampRefreshMinutes(autoRefreshAllMinutes, kDefaultAllRefreshMinutes);
+        cfg.autoRefreshCurrentMinutes = ClampRefreshMinutes(autoRefreshCurrentMinutes, kDefaultCurrentRefreshMinutes);
         const bool saved = SaveConfig(cfg);
         if (saved)
         {
             ApplyWindowTitleTheme(hwnd_, cfg.theme);
+            currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
+            lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
+            if (!lowQuotaPromptEnabled_)
+            {
+                pendingLowQuotaPrompt_ = false;
+            }
+            allRefreshIntervalSec_ = cfg.autoRefreshAllMinutes * 60;
+            currentRefreshIntervalSec_ = cfg.autoRefreshCurrentMinutes * 60;
+            allRefreshRemainingSec_ = allRefreshIntervalSec_;
+            currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
         }
         SendWebStatus(saved ? L"设置已保存" : L"设置保存失败", saved ? L"success" : L"error", saved ? L"config_saved" : L"save_config_failed");
         SendConfig(false);
+        SendRefreshTimerState();
         return;
     }
 
@@ -2804,6 +3522,54 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         return;
     }
 
+    if (action == L"import_auth_json")
+    {
+        const std::wstring preferredName = ExtractJsonField(rawMessage, L"name");
+        if (preferredName.empty())
+        {
+            std::wstring jsonPath;
+            if (!PickOpenJsonPath(hwnd, jsonPath))
+            {
+                SendWebStatus(L"导入已取消", L"warning", L"import_cancelled");
+                return;
+            }
+
+            std::wstring json;
+            if (!ReadUtf8File(jsonPath, json))
+            {
+                SendWebStatus(L"导入失败：无法读取 auth.json 文件", L"error", L"write_failed");
+                return;
+            }
+            if (!IsLikelyValidAuthJson(json))
+            {
+                SendWebStatus(L"该文件可能不是有效 auth.json，缺少必要字段", L"error", L"auth_json_invalid");
+                return;
+            }
+
+            pendingImportAuthPath_ = jsonPath;
+            SendWebJson(L"{\"type\":\"import_auth_need_name\"}");
+            return;
+        }
+
+        if (pendingImportAuthPath_.empty())
+        {
+            SendWebStatus(L"请先选择要导入的 auth.json 文件", L"warning", L"import_cancelled");
+            return;
+        }
+
+        std::wstring status;
+        std::wstring code;
+        const bool ok = ImportAuthJsonFile(pendingImportAuthPath_, preferredName, status, code);
+        pendingImportAuthPath_.clear();
+        const std::wstring level = (code == L"import_cancelled") ? L"warning" : (ok ? L"success" : L"error");
+        SendWebStatus(status, level, code);
+        if (ok)
+        {
+            SendAccountsList(false, L"", L"");
+        }
+        return;
+    }
+
     if (action == L"login_new_account")
     {
         std::wstring status;
@@ -2813,16 +3579,96 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         return;
     }
 
+    if (action == L"debug_force_refresh_all")
+    {
+#ifdef _DEBUG
+        TriggerRefreshAll();
+        SendWebStatus(L"已触发调试：刷新全部额度", L"success", L"debug_action_ok");
+#else
+        SendWebStatus(L"仅 Debug 构建支持此操作", L"warning", L"debug_action_unsupported");
+#endif
+        return;
+    }
+
+    if (action == L"debug_force_refresh_current")
+    {
+#ifdef _DEBUG
+        TriggerRefreshCurrent();
+        SendWebStatus(L"已触发调试：刷新当前账号额度", L"success", L"debug_action_ok");
+#else
+        SendWebStatus(L"仅 Debug 构建支持此操作", L"warning", L"debug_action_unsupported");
+#endif
+        return;
+    }
+
+    if (action == L"debug_test_low_quota_notify")
+    {
+#ifdef _DEBUG
+        ShowLowQuotaBalloon(L"当前账号", 18, L"测试账号", L"personal", 86);
+        SendWebStatus(L"已触发调试：托盘低额度提醒", L"success", L"debug_action_ok");
+#else
+        SendWebStatus(L"仅 Debug 构建支持此操作", L"warning", L"debug_action_unsupported");
+#endif
+        return;
+    }
+
+    if (action == L"confirm_low_quota_switch")
+    {
+        if (!pendingLowQuotaPrompt_ || pendingBestAccountName_.empty())
+        {
+            SendWebStatus(L"低额度切换提示已过期", L"warning", L"not_found");
+            return;
+        }
+        pendingLowQuotaPrompt_ = false;
+        std::wstring status;
+        std::wstring code;
+        const std::wstring targetName = pendingBestAccountName_;
+        const std::wstring targetGroup = pendingBestAccountGroup_;
+        pendingBestAccountName_.clear();
+        pendingBestAccountGroup_.clear();
+        pendingCurrentAccountName_.clear();
+        const bool ok = SwitchToAccount(targetName, targetGroup, status, code);
+        SendWebStatus(status, ok ? L"success" : L"error", code);
+        SendAccountsList(false, L"", L"");
+        return;
+    }
+
+    if (action == L"cancel_low_quota_switch")
+    {
+        pendingLowQuotaPrompt_ = false;
+        pendingBestAccountName_.clear();
+        pendingBestAccountGroup_.clear();
+        pendingCurrentAccountName_.clear();
+        return;
+    }
+
     SendWebStatus(L"未知操作: " + action, L"error", L"unknown_action");
 }
 
 void WebViewHost::Initialize(HWND hwnd)
 {
     hwnd_ = hwnd;
+    allRefreshIntervalSec_ = kDefaultAllRefreshMinutes * 60;
+    currentRefreshIntervalSec_ = kDefaultCurrentRefreshMinutes * 60;
+    allRefreshRemainingSec_ = allRefreshIntervalSec_;
+    currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
+    if (!timerInitialized_)
+    {
+        SetTimer(hwnd_, kTimerAutoRefresh, 1000, nullptr);
+        timerInitialized_ = true;
+    }
+    EnsureTrayIcon();
+
     AppConfig startCfg;
     if (LoadConfig(startCfg))
     {
         ApplyWindowTitleTheme(hwnd_, startCfg.theme);
+        currentAutoRefreshEnabled_ = startCfg.autoRefreshCurrent;
+        lowQuotaPromptEnabled_ = startCfg.lowQuotaAutoPrompt;
+        allRefreshIntervalSec_ = ClampRefreshMinutes(startCfg.autoRefreshAllMinutes, kDefaultAllRefreshMinutes) * 60;
+        currentRefreshIntervalSec_ = ClampRefreshMinutes(startCfg.autoRefreshCurrentMinutes, kDefaultCurrentRefreshMinutes) * 60;
+        allRefreshRemainingSec_ = allRefreshIntervalSec_;
+        currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
     }
     userDataFolder_ = MakeTempUserDataFolder();
     if (userDataFolder_.empty())
@@ -2922,6 +3768,13 @@ void WebViewHost::Resize(HWND hwnd) const
 
 void WebViewHost::Cleanup()
 {
+    if (timerInitialized_ && hwnd_ != nullptr)
+    {
+        KillTimer(hwnd_, kTimerAutoRefresh);
+        timerInitialized_ = false;
+    }
+    RemoveTrayIcon();
+
     if (webview_ != nullptr)
     {
         webview_->remove_WebMessageReceived(webMessageToken_);
@@ -2936,11 +3789,39 @@ void WebViewHost::Cleanup()
         DeleteDirectoryRecursive(userDataFolder_);
         userDataFolder_.clear();
     }
+    pendingLowQuotaPrompt_ = false;
+    pendingBestAccountName_.clear();
+    pendingBestAccountGroup_.clear();
+    pendingCurrentAccountName_.clear();
+    pendingImportAuthPath_.clear();
     hwnd_ = nullptr;
 }
 
-bool WebViewHost::HandleWindowMessage(UINT msg, WPARAM, LPARAM lParam)
+bool WebViewHost::HandleWindowMessage(UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    if (msg == WM_TIMER)
+    {
+        if (wParam == kTimerAutoRefresh)
+        {
+            HandleAutoRefreshTick();
+            return true;
+        }
+        return false;
+    }
+
+    if (msg == kMsgTrayNotify)
+    {
+        const UINT evt = static_cast<UINT>(lParam);
+        const UINT evtLo = LOWORD(lParam);
+        const UINT evtHi = HIWORD(lParam);
+        if (evt == NIN_BALLOONUSERCLICK || evtLo == NIN_BALLOONUSERCLICK || evtHi == NIN_BALLOONUSERCLICK ||
+            evt == WM_LBUTTONUP || evtLo == WM_LBUTTONUP || evtHi == WM_LBUTTONUP)
+        {
+            HandleLowQuotaPromptClick();
+        }
+        return true;
+    }
+
     if (msg != kMsgAsyncWebJson)
     {
         return false;

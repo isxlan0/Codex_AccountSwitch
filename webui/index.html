@@ -12,7 +12,8 @@
       <div class="brand" id="brandTitle">Codex Account Switch</div>
 
       <nav class="top-tabs">
-        <button class="tab-btn active" data-tab="accounts" id="tabBtnAccounts"></button>
+        <button class="tab-btn active" data-tab="dashboard" id="tabBtnDashboard"></button>
+        <button class="tab-btn" data-tab="accounts" id="tabBtnAccounts"></button>
         <button class="tab-btn" data-tab="about" id="tabBtnAbout"></button>
         <button class="tab-btn" data-tab="settings" id="tabBtnSettings"></button>
       </nav>
@@ -20,16 +21,69 @@
       <div></div>
 
       <div class="toolbar-actions">
+        <button class="tool-btn primary" id="addCurrentBtn"></button>
         <button class="tool-btn" id="refreshBtn"></button>
-        <button class="tool-btn" id="loginNewBtn"></button>
-        <button class="tool-btn primary" id="backupBtnTop"></button>
         <button class="tool-btn" id="importBtn"></button>
         <button class="tool-btn" id="exportBtn"></button>
       </div>
     </div>
 
     <main class="content">
-      <section class="tab-panel active" id="tab-accounts">
+      <section class="tab-panel active" id="tab-dashboard">
+        <div class="dashboard-wrap">
+          <div class="dashboard-head">
+            <h2 class="dashboard-title" id="dashboardTitle"></h2>
+            <p class="dashboard-subtitle" id="dashboardSubtitle"></p>
+          </div>
+          <div class="dashboard-cards">
+            <article class="dashboard-card">
+              <div class="dashboard-card-label" id="dashTotalLabel"></div>
+              <div class="dashboard-card-value" id="dashTotalValue">0</div>
+            </article>
+            <article class="dashboard-card">
+              <div class="dashboard-card-label" id="dashAvg5Label"></div>
+              <div class="dashboard-card-value" id="dashAvg5Value">-</div>
+            </article>
+            <article class="dashboard-card">
+              <div class="dashboard-card-label" id="dashAvg7Label"></div>
+              <div class="dashboard-card-value" id="dashAvg7Value">-</div>
+            </article>
+            <article class="dashboard-card low">
+              <div class="dashboard-card-label" id="dashLowLabel"></div>
+              <div class="dashboard-card-value" id="dashLowValue">0</div>
+            </article>
+          </div>
+
+          <div class="dashboard-current-card">
+            <div class="dashboard-current-head">
+              <div class="dashboard-current-title" id="dashCurrentTitle"></div>
+              <button class="tool-btn" id="dashboardSwitchBtn"></button>
+            </div>
+            <div class="dashboard-current-name" id="dashCurrentName">-</div>
+            <div class="dashboard-metric-row">
+              <span class="dashboard-metric-label" id="dashCurrent5Label"></span>
+              <span class="dashboard-metric-value" id="dashCurrent5Value">-</span>
+            </div>
+            <div class="dashboard-progress">
+              <div class="dashboard-progress-fill" id="dashCurrent5Bar"></div>
+            </div>
+            <div class="dashboard-metric-row">
+              <span class="dashboard-metric-label" id="dashCurrent7Label"></span>
+              <span class="dashboard-metric-value" id="dashCurrent7Value">-</span>
+            </div>
+            <div class="dashboard-progress">
+              <div class="dashboard-progress-fill alt" id="dashCurrent7Bar"></div>
+            </div>
+          </div>
+
+          <div class="dashboard-low-card">
+            <div class="dashboard-current-title" id="dashLowListTitle"></div>
+            <div class="dashboard-low-list" id="dashLowList"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-accounts">
         <div class="search-row">
           <input class="search" id="searchInput" />
           <div class="group-filter">
@@ -54,6 +108,14 @@
         </div>
 
         <div id="log">WebUI ready.</div>
+
+        <div class="debug-panel" id="debugPanel">
+          <div class="debug-title" id="debugTitle"></div>
+          <div class="debug-actions">
+            <button class="tool-btn" id="debugNotifyBtn"></button>
+          </div>
+        </div>
+
       </section>
 
       <section class="tab-panel" id="tab-about">
@@ -86,38 +148,83 @@
             <div class="settings-title" id="settingsTitle"></div>
             <div class="settings-sub" id="settingsSub"></div>
 
-            <div class="settings-group">
-              <div class="settings-label" id="settingsLanguageLabel"></div>
-              <div class="option-row" id="languageOptions"></div>
+            <div class="settings-tabs">
+              <button class="settings-tab-btn active" data-settings-tab="general" id="settingsTabGeneralBtn"></button>
+              <button class="settings-tab-btn" data-settings-tab="account" id="settingsTabAccountBtn"></button>
             </div>
 
-            <div class="settings-group">
-              <div class="settings-label" id="settingsIdeLabel"></div>
-              <div class="option-row" id="ideOptions"></div>
-            </div>
-
-            <div class="settings-group">
-              <div class="settings-label" id="settingsThemeLabel"></div>
-              <div class="option-row" id="themeOptions">
-                <button class="option-btn active" data-theme-option="auto" id="themeAutoBtn"></button>
-                <button class="option-btn" data-theme-option="light" id="themeLightBtn"></button>
-                <button class="option-btn" data-theme-option="dark" id="themeDarkBtn"></button>
+            <div class="settings-pane active" id="settingsPaneGeneral">
+              <div class="settings-group">
+                <div class="settings-label" id="settingsLanguageLabel"></div>
+                <div class="option-row" id="languageOptions"></div>
               </div>
-              <div class="settings-sub-note" id="settingsThemeHint"></div>
-            </div>
 
-            <div class="settings-group">
-              <div class="settings-label" id="settingsAutoUpdateLabel"></div>
-              <div class="option-row" id="autoUpdateOptions">
-                <button class="option-btn active" data-auto-update-option="true" id="autoUpdateOnBtn"></button>
-                <button class="option-btn" data-auto-update-option="false" id="autoUpdateOffBtn"></button>
+              <div class="settings-group">
+                <div class="settings-label" id="settingsIdeLabel"></div>
+                <div class="option-row" id="ideOptions"></div>
               </div>
-              <div class="settings-sub-note" id="settingsAutoUpdateHint"></div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsThemeLabel"></div>
+                <div class="option-row" id="themeOptions">
+                  <button class="option-btn active" data-theme-option="auto" id="themeAutoBtn"></button>
+                  <button class="option-btn" data-theme-option="light" id="themeLightBtn"></button>
+                  <button class="option-btn" data-theme-option="dark" id="themeDarkBtn"></button>
+                </div>
+                <div class="settings-sub-note" id="settingsThemeHint"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsAutoUpdateLabel"></div>
+                <div class="toggle-row">
+                  <label class="switch-toggle" for="autoUpdateToggle">
+                    <input type="checkbox" id="autoUpdateToggle" />
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+                <div class="settings-sub-note" id="settingsAutoUpdateHint"></div>
+              </div>
             </div>
 
-            <div class="settings-actions">
-              <button class="tool-btn primary" id="settingsSaveBtn"></button>
-              <span class="settings-note" id="settingsNote"></span>
+            <div class="settings-pane" id="settingsPaneAccount">
+              <div class="settings-section-title" id="settingsQuotaSectionTitle"></div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsAutoRefreshAllLabel"></div>
+                <div class="settings-inline">
+                  <label class="settings-inline-label" for="autoRefreshAllMinutesInput" id="settingsAllMinutesLabel"></label>
+                  <input class="settings-number-input" id="autoRefreshAllMinutesInput" type="number" min="1" max="240" />
+                </div>
+                <div class="settings-sub-note" id="settingsAutoRefreshAllHint"></div>
+                <div class="settings-countdown" id="settingsAllRefreshCountdown"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsAutoRefreshCurrentLabel"></div>
+                <div class="toggle-row">
+                  <label class="switch-toggle" for="autoRefreshCurrentToggle">
+                    <input type="checkbox" id="autoRefreshCurrentToggle" />
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+                <div class="settings-inline">
+                  <label class="settings-inline-label" for="autoRefreshCurrentMinutesInput" id="settingsCurrentMinutesLabel"></label>
+                  <input class="settings-number-input" id="autoRefreshCurrentMinutesInput" type="number" min="1" max="240" />
+                </div>
+                <div class="settings-sub-note" id="settingsAutoRefreshCurrentHint"></div>
+                <div class="settings-countdown" id="settingsCurrentRefreshCountdown"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsLowQuotaPromptLabel"></div>
+                <div class="toggle-row">
+                  <label class="switch-toggle" for="lowQuotaAutoPromptToggle">
+                    <input type="checkbox" id="lowQuotaAutoPromptToggle" />
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+                <div class="settings-sub-note" id="settingsLowQuotaPromptHint"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -156,6 +263,36 @@
       <div class="modal-actions">
         <button class="mini" id="confirmCancelBtn"></button>
         <button class="mini primary" id="confirmOkBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="importAuthModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="importAuthTitle">
+      <div class="modal-head" id="importAuthTitle"></div>
+      <div class="modal-body">
+        <div>
+          <div class="modal-label" id="importAuthNameLabel"></div>
+          <input class="modal-input" id="importAuthNameInput" maxlength="32" autocomplete="off" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="mini" id="importAuthCancelBtn"></button>
+        <button class="mini primary" id="importAuthConfirmBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="addAccountModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addAccountTitle">
+      <div class="modal-head" id="addAccountTitle"></div>
+      <div class="modal-body">
+        <button class="tool-btn" id="addAccountImportCurrentBtn"></button>
+        <button class="tool-btn" id="addAccountImportOAuthBtn"></button>
+        <button class="tool-btn" id="addAccountLoginNewBtn"></button>
+      </div>
+      <div class="modal-actions">
+        <button class="mini" id="addAccountCancelBtn"></button>
       </div>
     </div>
   </div>
