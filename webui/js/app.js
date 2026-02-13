@@ -21,8 +21,10 @@
     "refresh.countdown_default": "--:--",
     "search.placeholder":  "Search accounts...",
     "group.all":  "All",
-    "group.personal":  "Personal",
-    "group.business":  "Business",
+    "group.free": "Free",
+    "group.plus": "Plus",
+    "group.team": "Team",
+    "group.pro": "Pro",
     "table.account":  "Account",
     "table.quota":  "Model Quota",
     "table.recent":  "Last Used",
@@ -99,9 +101,15 @@
     "tag.current":  "Current",
     "tag.group_business":  "Business",
     "tag.group_personal":  "Personal",
-    "quota.gpt":  "GPT",
+    "tag.plan_free": "Free",
+    "tag.plan_plus": "Plus",
+    "tag.plan_team": "Team",
+    "tag.plan_pro": "Pro",
+    "tag.plan_unknown": "Unknown",
+    "quota.gpt":  "Codex",
     "quota.placeholder":  "No quota data",
     "quota.format":  "5H {q5} | 7D {q7} | Reset {r5}h/{r7}h",
+    "quota.format_free": "7D {q7} | Reset {r7}h",
     "action.switch_title":  "Switch to this account",
     "action.switch":  "Switch",
     "action.refresh_title":  "Refresh quota",
@@ -170,6 +178,10 @@
     "settings.auto_refresh_current_hint": "每 {minutes} 分钟自动刷新一次当前账号额度。",
     "settings.low_quota_prompt_label": "低额度自动提示切换账号",
     "settings.low_quota_prompt_hint": "开启后，额度过低时会自动弹出切换账号确认与提示信息窗口。",
+    "group.free": "Free",
+    "group.plus": "Plus",
+    "group.team": "Team",
+    "group.pro": "Pro",
     "settings.auto_refresh_current_on": "开启",
     "settings.auto_refresh_current_off": "关闭",
     "settings.countdown_prefix": "剩余时间：",
@@ -189,7 +201,13 @@
     "dialog.add_account.title": "添加新账号",
     "dialog.add_account.import_current": "导入当前登录账号",
     "dialog.add_account.import_oauth": "快速导入已有OAuth",
-    "dialog.add_account.login_new": "登录新账号"
+    "dialog.add_account.login_new": "登录新账号",
+    "tag.plan_free": "Free",
+    "tag.plan_plus": "Plus",
+    "tag.plan_team": "Team",
+    "tag.plan_pro": "Pro",
+    "tag.plan_unknown": "未知类型",
+    "quota.format_free": "7D {q7} | 重置 {r7}h"
   };
 
   const dom = {
@@ -204,8 +222,10 @@
     exportBtn: document.getElementById("exportBtn"),
     searchInput: document.getElementById("searchInput"),
     groupAllBtn: document.getElementById("groupAllBtn"),
-    groupPersonalBtn: document.getElementById("groupPersonalBtn"),
-    groupBusinessBtn: document.getElementById("groupBusinessBtn"),
+    groupFreeBtn: document.getElementById("groupFreeBtn"),
+    groupPlusBtn: document.getElementById("groupPlusBtn"),
+    groupTeamBtn: document.getElementById("groupTeamBtn"),
+    groupProBtn: document.getElementById("groupProBtn"),
     thAccount: document.getElementById("thAccount"),
     thQuota: document.getElementById("thQuota"),
     thRecent: document.getElementById("thRecent"),
@@ -265,8 +285,10 @@
     dashLowList: document.getElementById("dashLowList"),
     dashCurrentTitle: document.getElementById("dashCurrentTitle"),
     dashCurrentName: document.getElementById("dashCurrentName"),
+    dashCurrent5Row: document.getElementById("dashCurrent5Row"),
     dashCurrent5Label: document.getElementById("dashCurrent5Label"),
     dashCurrent7Label: document.getElementById("dashCurrent7Label"),
+    dashCurrent5Progress: document.getElementById("dashCurrent5Progress"),
     dashCurrent5Value: document.getElementById("dashCurrent5Value"),
     dashCurrent7Value: document.getElementById("dashCurrent7Value"),
     dashCurrent5Bar: document.getElementById("dashCurrent5Bar"),
@@ -579,8 +601,10 @@
     dom.exportBtn.textContent = t("toolbar.export");
     dom.searchInput.placeholder = t("search.placeholder");
     dom.groupAllBtn.textContent = t("group.all");
-    dom.groupPersonalBtn.textContent = t("group.personal");
-    dom.groupBusinessBtn.textContent = t("group.business");
+    dom.groupFreeBtn.textContent = "Free";
+    dom.groupPlusBtn.textContent = "Plus";
+    dom.groupTeamBtn.textContent = "Team";
+    dom.groupProBtn.textContent = "Pro";
     dom.thAccount.textContent = t("table.account");
     dom.thQuota.textContent = t("table.quota");
     dom.thRecent.textContent = t("table.recent");
@@ -706,6 +730,44 @@
     return Number.isFinite(Number(v)) && Number(v) >= 0 ? `${Number(v)}%` : "-";
   }
 
+  function normalizePlanType(planType) {
+    const value = String(planType || "").toLowerCase();
+    if (value === "free" || value === "plus" || value === "team" || value === "pro") {
+      return value;
+    }
+    return "";
+  }
+
+  function normalizeGroupValue(group) {
+    const value = String(group || "").toLowerCase();
+    if (value === "personal" || value === "business" ||
+        value === "free" || value === "plus" || value === "team" || value === "pro") {
+      return value;
+    }
+    return "personal";
+  }
+
+  function formatPlanTypeLabel(planType) {
+    const normalized = normalizePlanType(planType);
+    if (normalized) {
+      if (normalized === "free") return "Free";
+      if (normalized === "plus") return "Plus";
+      if (normalized === "team") return "Team";
+      if (normalized === "pro") return "Pro";
+    }
+    const raw = String(planType || "");
+    return raw ? `${t("tag.plan_unknown")}: ${raw}` : t("tag.plan_unknown");
+  }
+
+  function formatUsageErrorMessage(usageError) {
+    const raw = String(usageError || "");
+    if (raw.startsWith("unknown_plan_type:")) {
+      const value = raw.slice("unknown_plan_type:".length) || "(empty)";
+      return `${t("tag.plan_unknown")}：${value}`;
+    }
+    return "";
+  }
+
   function toPercentNumber(v) {
     const n = Number(v);
     if (!Number.isFinite(n)) return null;
@@ -719,21 +781,36 @@
     return n === null ? "-" : `${Math.round(n)}%`;
   }
 
+  function getPlanMetrics(item) {
+    const plan = normalizePlanType(item?.planType);
+    const q5 = toPercentNumber(item?.quota5hRemainingPercent);
+    const q7Raw = toPercentNumber(item?.quota7dRemainingPercent);
+    const q7 = plan === "free" ? (q7Raw ?? q5) : q7Raw;
+    return { plan, q5, q7 };
+  }
+
   function renderDashboard() {
     const accounts = Array.isArray(state.accounts) ? state.accounts : [];
     const usable = accounts.filter((x) => x && x.usageOk);
-    const sum5 = usable.reduce((acc, x) => acc + (toPercentNumber(x.quota5hRemainingPercent) ?? 0), 0);
-    const sum7 = usable.reduce((acc, x) => acc + (toPercentNumber(x.quota7dRemainingPercent) ?? 0), 0);
-    const avg5 = usable.length > 0 ? sum5 / usable.length : null;
-    const avg7 = usable.length > 0 ? sum7 / usable.length : null;
+    const metrics = usable.map((x) => ({ name: String(x.name || ""), ...getPlanMetrics(x) }));
+    const fiveHourMetrics = metrics.filter((x) => x.plan !== "free" && x.q5 !== null);
+    const sevenDayMetrics = metrics.filter((x) => x.q7 !== null);
+    const sum5 = fiveHourMetrics.reduce((acc, x) => acc + x.q5, 0);
+    const sum7 = sevenDayMetrics.reduce((acc, x) => acc + x.q7, 0);
+    const avg5 = fiveHourMetrics.length > 0 ? sum5 / fiveHourMetrics.length : null;
+    const avg7 = sevenDayMetrics.length > 0 ? sum7 / sevenDayMetrics.length : null;
     const lowCount = usable.filter((x) => {
-      const q5 = toPercentNumber(x.quota5hRemainingPercent);
-      return q5 !== null && q5 < 20;
+      const m = getPlanMetrics(x);
+      const value = m.plan === "free" ? m.q7 : m.q5;
+      return value !== null && value < 20;
     }).length;
     const lowAccounts = usable
-      .map((x) => ({ name: String(x.name || ""), q5: toPercentNumber(x.quota5hRemainingPercent) }))
-      .filter((x) => x.q5 !== null && x.q5 < 20)
-      .sort((a, b) => a.q5 - b.q5);
+      .map((x) => {
+        const m = getPlanMetrics(x);
+        return { name: String(x.name || ""), lowValue: m.plan === "free" ? m.q7 : m.q5 };
+      })
+      .filter((x) => x.lowValue !== null && x.lowValue < 20)
+      .sort((a, b) => a.lowValue - b.lowValue);
 
     dom.dashTotalValue.textContent = String(accounts.length);
     dom.dashAvg5Value.textContent = formatPercentValue(avg5);
@@ -743,7 +820,7 @@
       dom.dashLowList.innerHTML = lowAccounts.slice(0, 8).map((x) => `
         <div class="dashboard-low-item">
           <span class="dashboard-low-name">${escapeHtml(x.name || "-")}</span>
-          <span class="dashboard-low-quota">${escapeHtml(formatPercentValue(x.q5))}</span>
+          <span class="dashboard-low-quota">${escapeHtml(formatPercentValue(x.lowValue))}</span>
         </div>
       `).join("");
     } else {
@@ -757,15 +834,21 @@
       dom.dashCurrent7Value.textContent = "-";
       dom.dashCurrent5Bar.style.width = "0%";
       dom.dashCurrent7Bar.style.width = "0%";
+      dom.dashCurrent5Row.style.display = "";
+      dom.dashCurrent5Progress.style.display = "";
       return;
     }
 
-    const q5 = toPercentNumber(current.quota5hRemainingPercent);
-    const q7 = toPercentNumber(current.quota7dRemainingPercent);
+    const currentMetrics = getPlanMetrics(current);
+    const q5 = currentMetrics.q5;
+    const q7 = currentMetrics.q7;
+    const isCurrentFree = currentMetrics.plan === "free";
     dom.dashCurrentName.textContent = current.name || t("dashboard.current_name_empty");
-    dom.dashCurrent5Value.textContent = formatPercentValue(q5);
+    dom.dashCurrent5Row.style.display = isCurrentFree ? "none" : "";
+    dom.dashCurrent5Progress.style.display = isCurrentFree ? "none" : "";
+    dom.dashCurrent5Value.textContent = isCurrentFree ? "-" : formatPercentValue(q5);
     dom.dashCurrent7Value.textContent = formatPercentValue(q7);
-    dom.dashCurrent5Bar.style.width = `${q5 === null ? 0 : q5}%`;
+    dom.dashCurrent5Bar.style.width = `${isCurrentFree || q5 === null ? 0 : q5}%`;
     dom.dashCurrent7Bar.style.width = `${q7 === null ? 0 : q7}%`;
   }
 
@@ -888,26 +971,46 @@
     dom.accountsBody.innerHTML = state.filteredAccounts.map((item) => {
       const isThisRefreshing = state.refreshMode === "account" && state.refreshTargetKey === makeAccountKey(item.name, item.group);
       const disableRefreshAction = state.refreshMode === "all" || isThisRefreshing;
+      const normalizedPlanType = normalizePlanType(item.planType);
+      const planClass = normalizedPlanType || "unknown";
+      const isFreePlan = normalizedPlanType === "free";
+      const freeQ7Value = Number(item.quota7dRemainingPercent) >= 0
+        ? item.quota7dRemainingPercent
+        : item.quota5hRemainingPercent;
+      const freeR7Value = Number(item.quota7dResetAfterSeconds) >= 0
+        ? item.quota7dResetAfterSeconds
+        : item.quota5hResetAfterSeconds;
+      const usageErrorText = formatUsageErrorMessage(item.usageError);
+      const quotaErrorText = usageErrorText
+        ? usageErrorText
+        : t("quota.placeholder");
       return `
       <tr>
         <td>
           <div class="account-cell" title="${escapeHtml(item.name)}">
             <span class="account-name">${escapeHtml(shortName(item.name))}</span>
             ${item.isCurrent ? `<span class="tag">${escapeHtml(t("tag.current"))}</span>` : ""}
-            <span class="tag group ${item.group === "business" ? "business" : "personal"}">${escapeHtml(item.group === "business" ? t("tag.group_business") : t("tag.group_personal"))}</span>
+            <span class="tag plan ${escapeHtml(planClass)}">${escapeHtml(formatPlanTypeLabel(item.planType))}</span>
           </div>
         </td>
         <td>
           <div class="quota-box">
-            <span class="quota-name">${escapeHtml(t("quota.gpt"))}</span>
+            <span class="quota-name">Codex</span>
             ${item.usageOk
-              ? escapeHtml(t("quota.format", {
-                  q5: formatRemain(item.quota5hRemainingPercent),
-                  q7: formatRemain(item.quota7dRemainingPercent),
-                  r5: formatHoursFromSeconds(item.quota5hResetAfterSeconds),
-                  r7: formatHoursFromSeconds(item.quota7dResetAfterSeconds)
-                }))
-              : escapeHtml(t("quota.placeholder"))}
+                ? escapeHtml(
+                  isFreePlan
+                    ? t("quota.format_free", {
+                        q7: formatRemain(freeQ7Value),
+                        r7: formatHoursFromSeconds(freeR7Value)
+                      })
+                    : t("quota.format", {
+                        q5: formatRemain(item.quota5hRemainingPercent),
+                        q7: formatRemain(item.quota7dRemainingPercent),
+                        r5: formatHoursFromSeconds(item.quota5hResetAfterSeconds),
+                        r7: formatHoursFromSeconds(item.quota7dResetAfterSeconds)
+                      })
+                )
+              : escapeHtml(quotaErrorText)}
           </div>
         </td>
         <td>${escapeHtml(item.updatedAt || "-")}</td>
@@ -926,7 +1029,7 @@
   function applySearch() {
     const q = dom.searchInput.value.trim().toLowerCase();
     let list = [...state.accounts];
-    if (state.groupFilter !== "all") list = list.filter((x) => x.group === state.groupFilter);
+    if (state.groupFilter !== "all") list = list.filter((x) => normalizePlanType(x.planType) === state.groupFilter);
     state.filteredAccounts = !q ? list : list.filter((x) => String(x.name || "").toLowerCase().includes(q));
     applyCountText();
     renderAccounts();
@@ -1129,7 +1232,9 @@
         state.accounts = Array.isArray(msg.accounts)
           ? msg.accounts.map((x) => ({
               ...x,
-              group: x.group === "business" ? "business" : "personal",
+              group: normalizeGroupValue(x.group),
+              planType: String(x.planType || ""),
+              usageError: String(x.usageError || ""),
               isCurrent: x.isCurrent === true || x.isCurrent === "true",
               usageOk: x.usageOk === true || x.usageOk === "true"
             }))

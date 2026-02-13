@@ -1,4 +1,4 @@
-﻿<h1 align="center"><b>Codex Account Switch</b></h1>
+<h1 align="center"><b>Codex Account Switch</b></h1>
 
 <p align="center">
   <b>本地化、多账号、高效率的 Codex 账号管理与切换工具</b><br/>
@@ -13,35 +13,42 @@
 
 - 账号备份/切换/删除，一站式管理
 - 支持导入/导出账号备份包（ZIP）
-- 支持额度刷新（5H / 7D 额度与重置信息）
-- 支持账号套餐自动识别（个人/团队）
+- 支持快速导入已有 OAuth 授权文件
+- 支持额度自动刷新（5H / 7D 额度与重置信息）
+- 支持账号套餐自动识别 Free/Plus/Team/Pro
 - 支持主题模式：自动 / 浅色 / 深色
 - 支持多语言 UI（`webui/lang/*.json`）
 
-## 界面导览
+## 界面预览
 
-1. 账号管理页：批量操作账号、刷新额度、快速切换
-2. 关于页：版本信息、更新检查、项目链接
-3. 设置页：语言、IDE、主题、自动更新等配置
-
-## 使用案例 (Usage Examples)
-
-### 1. 账号管理主页 / Accounts
+### 1. 仪表盘
 <p align="center">
-  <img src="./image/1_CN.png" alt="账号管理主页 CN" width="46%" />
-  <img src="./image/1_EN.png" alt="Accounts EN" width="46%" />
+  <img src="./image/1cn.png" alt="仪表盘" width="70%" />
 </p>
 
-### 2. 关于页 / About
+### 2.1 账号管理-添加账号
 <p align="center">
-  <img src="./image/2_CN.png" alt="关于页 CN" width="46%" />
-  <img src="./image/2_EN.png" alt="About EN" width="46%" />
+  <img src="./image/2.1cn.png" alt="账号管理-添加账号" width="70%" />
 </p>
 
-### 3. 设置页 / Settings
+### 2. 账号管理
 <p align="center">
-  <img src="./image/3_CN.png" alt="设置页 CN" width="46%" />
-  <img src="./image/3_EN.png" alt="Settings EN" width="46%" />
+  <img src="./image/2cn.png" alt="账号管理" width="70%" />
+</p>
+
+### 3. 关于
+<p align="center">
+  <img src="./image/3cn.png" alt="关于" width="70%" />
+</p>
+
+### 4. 设置-通用
+<p align="center">
+  <img src="./image/4cn.png" alt="设置-通用" width="70%" />
+</p>
+
+### 5. 设置-账号
+<p align="center">
+  <img src="./image/5cn.png" alt="设置-账号" width="70%" />
 </p>
 
 ## 技术架构
@@ -87,6 +94,15 @@
 - `installer/build_installer.ps1`
 
 输出目录：`dist/`
+
+## 感谢
+
+- 感谢 `Microsoft Edge WebView2` 团队提供稳定高性能的嵌入式 Web 运行时支持。
+- 感谢所有参与测试、反馈问题和提出建议的用户与开发者。
+
+## 贡献者
+
+- [isxlan0](https://github.com/isxlan0)
 
 ## 许可证
 

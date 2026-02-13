@@ -1,4 +1,4 @@
-{
+﻿{
     "app.brand": "Codex Account Switch",
     "tab.accounts": "账号管理",
     "tab.about": "关于",
@@ -32,7 +32,7 @@
     "settings.ide_label": "IDE 可执行文件",
     "settings.theme_label": "主题",
     "settings.theme_auto": "自动",
-    "settings.theme_light": "ǳɫ",
+    "settings.theme_light": "浅色",
     "settings.theme_dark": "深色",
     "settings.theme_hint": "自动模式会跟随 Windows 主题。",
     "settings.save": "保存设置",

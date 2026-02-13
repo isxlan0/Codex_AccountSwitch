@@ -1,4 +1,4 @@
-﻿<h1 align="center"><b>Codex Account Switch</b></h1>
+<h1 align="center"><b>Codex Account Switch</b></h1>
 
 <p align="center">
   <b>A fast, local-first multi-account manager for Codex</b><br/>
@@ -13,35 +13,42 @@
 
 - One-stop account backup / switch / delete workflow
 - Import / export backup bundles (ZIP)
+- Fast import for existing OAuth auth files
 - Quota refresh support (5H / 7D windows and reset info)
-- Automatic account plan detection (Personal / Team)
+- Automatic account plan detection (Free / Plus / Team / Pro)
 - Theme modes: Auto / Light / Dark
 - Multi-language UI via `webui/lang/*.json`
 
-## UI Overview
+## UI Preview
 
-1. Accounts: manage backups, refresh quota, quick switching
-2. About: version info, update check, repository link
-3. Settings: language, IDE, theme, auto-update
-
-## Usage Examples
-
-### 1. Accounts Home
+### 1. Dashboard
 <p align="center">
-  <img src="./image/1_CN.png" alt="Accounts CN" width="46%" />
-  <img src="./image/1_EN.png" alt="Accounts EN" width="46%" />
+  <img src="./image/1en.png" alt="Dashboard" width="70%" />
 </p>
 
-### 2. About
+### 2.1 Account Management - Add Account
 <p align="center">
-  <img src="./image/2_CN.png" alt="About CN" width="46%" />
-  <img src="./image/2_EN.png" alt="About EN" width="46%" />
+  <img src="./image/2.1en.png" alt="Account Management - Add Account" width="70%" />
 </p>
 
-### 3. Settings
+### 2. Account Management
 <p align="center">
-  <img src="./image/3_CN.png" alt="Settings CN" width="46%" />
-  <img src="./image/3_EN.png" alt="Settings EN" width="46%" />
+  <img src="./image/2en.png" alt="Account Management" width="70%" />
+</p>
+
+### 3. About
+<p align="center">
+  <img src="./image/3en.png" alt="About" width="70%" />
+</p>
+
+### 4. Settings - General
+<p align="center">
+  <img src="./image/4en.png" alt="Settings - General" width="70%" />
+</p>
+
+### 5. Settings - Account
+<p align="center">
+  <img src="./image/5en.png" alt="Settings - Account" width="70%" />
 </p>
 
 ## Technical Architecture
@@ -87,6 +94,15 @@ Runtime data is stored in:
 - `installer/build_installer.ps1`
 
 Output folder: `dist/`
+
+## Thanks
+
+- Thanks to the `Microsoft Edge WebView2` team for the stable, high-performance embedded web runtime.
+- Thanks to all users and contributors who reported issues and shared feedback.
+
+## Contributors
+
+- [isxlan0](https://github.com/isxlan0)
 
 ## License
 

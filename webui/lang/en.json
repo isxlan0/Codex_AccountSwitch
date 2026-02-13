@@ -1,4 +1,4 @@
-{
+﻿{
     "app.brand": "Codex Account Switch",
     "tab.accounts": "Accounts",
     "tab.about": "About",
@@ -10,6 +10,10 @@
     "group.all": "All",
     "group.personal": "Personal",
     "group.business": "Business",
+    "group.free": "Free",
+    "group.plus": "Plus",
+    "group.team": "Team",
+    "group.pro": "Pro",
     "table.account": "Account",
     "table.quota": "Model Quota",
     "table.recent": "Last Used",
@@ -55,9 +59,15 @@
     "tag.current": "Current",
     "tag.group_business": "Business",
     "tag.group_personal": "Personal",
-    "quota.gpt": "GPT",
+    "tag.plan_free": "Free",
+    "tag.plan_plus": "Plus",
+    "tag.plan_team": "Team",
+    "tag.plan_pro": "Pro",
+    "tag.plan_unknown": "Unknown",
+    "quota.gpt": "Codex",
     "quota.placeholder": "No quota data",
     "quota.format": "5H {q5} | 7D {q7} | Reset {r5}h/{r7}h",
+    "quota.format_free": "7D {q7} | Reset {r7}h",
     "action.switch_title": "Switch to this account",
     "action.switch": "Switch",
     "action.refresh_title": "Refresh quota",
@@ -158,3 +168,4 @@
     "debug.title": "Debug Tools",
     "debug.notify": "Test: Low-Quota Notify"
 }
+

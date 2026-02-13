@@ -38,6 +38,7 @@ namespace
 {
 std::wstring EscapeJsonString(const std::wstring& input);
 std::wstring UnescapeJsonString(const std::wstring& input);
+std::wstring ToLowerCopy(const std::wstring& value);
 std::wstring FormatFileTime(const fs::path& path);
 bool ReadUtf8File(const fs::path& file, std::wstring& out);
 bool WriteUtf8File(const fs::path& file, const std::wstring& content);
@@ -170,11 +171,23 @@ std::wstring SanitizeAccountName(const std::wstring& name)
 
 std::wstring NormalizeGroup(const std::wstring& group)
 {
-    if (group == L"business" || group == L"enterprise")
+    const std::wstring lower = ToLowerCopy(group);
+    if (lower == L"enterprise")
     {
         return L"business";
     }
+    if (lower == L"personal" || lower == L"business" ||
+        lower == L"free" || lower == L"plus" || lower == L"team" || lower == L"pro")
+    {
+        return lower;
+    }
     return L"personal";
+}
+
+bool IsPlanGroup(const std::wstring& group)
+{
+    const std::wstring lower = ToLowerCopy(group);
+    return lower == L"free" || lower == L"plus" || lower == L"team" || lower == L"pro";
 }
 
 bool EqualsIgnoreCase(const std::wstring& a, const std::wstring& b)
@@ -795,19 +808,36 @@ int RemainingPercentFromUsed(const int usedPercent)
     return 100 - usedPercent;
 }
 
-std::wstring GroupFromPlanType(const std::wstring& planType)
+std::wstring NormalizePlanType(const std::wstring& planType)
 {
     const std::wstring lower = ToLowerCopy(planType);
-    if (lower == L"team" || lower == L"business" || lower == L"enterprise")
+    if (lower == L"free" || lower == L"plus" || lower == L"team" || lower == L"pro")
     {
-        return L"business";
+        return lower;
     }
-    return L"personal";
+    return L"";
+}
+
+std::wstring GroupFromPlanType(const std::wstring& planType)
+{
+    const std::wstring normalized = NormalizePlanType(planType);
+    if (!normalized.empty())
+    {
+        return normalized;
+    }
+    return NormalizeGroup(planType);
 }
 
 bool ParseUsagePayload(const std::wstring& body, UsageSnapshot& out)
 {
     out.planType = ExtractJsonField(body, L"plan_type");
+    const std::wstring normalizedPlanType = NormalizePlanType(out.planType);
+    if (normalizedPlanType.empty())
+    {
+        out.error = L"unknown_plan_type:" + out.planType;
+        return false;
+    }
+    out.planType = normalizedPlanType;
     out.email = ExtractJsonField(body, L"email");
 
     std::wstring rateLimitObj;
@@ -1844,6 +1874,43 @@ fs::path ResolveAuthPathFromIndex(const IndexEntry& item)
     return GetLegacyDataRoot() / relOrAbs;
 }
 
+bool SyncIndexEntryToGroup(IndexEntry& row, const std::wstring& targetGroup)
+{
+    const std::wstring normalizedTarget = NormalizeGroup(targetGroup);
+    const std::wstring safeName = SanitizeAccountName(row.name);
+    if (!IsPlanGroup(normalizedTarget) || safeName.empty())
+    {
+        return false;
+    }
+
+    const fs::path targetAuth = GetGroupDir(normalizedTarget) / safeName / L"auth.json";
+    std::error_code ec;
+    fs::create_directories(targetAuth.parent_path(), ec);
+    if (ec)
+    {
+        return false;
+    }
+
+    if (!fs::exists(targetAuth))
+    {
+        const fs::path sourceAuth = ResolveAuthPathFromIndex(row);
+        if (!fs::exists(sourceAuth))
+        {
+            return false;
+        }
+        ec.clear();
+        fs::copy_file(sourceAuth, targetAuth, fs::copy_options::overwrite_existing, ec);
+        if (ec)
+        {
+            return false;
+        }
+    }
+
+    row.group = normalizedTarget;
+    row.path = MakeRelativeAuthPath(normalizedTarget, safeName);
+    return true;
+}
+
 bool LoadIndex(IndexData& out)
 {
     out.accounts.clear();
@@ -1955,6 +2022,11 @@ void EnsureIndexExists()
     const fs::path legacyBackupsDir = GetLegacyBackupsDir();
     std::error_code ec;
     fs::create_directories(backupsDir, ec);
+    for (const std::wstring group : { L"personal", L"business", L"free", L"plus", L"team", L"pro" })
+    {
+        ec.clear();
+        fs::create_directories(backupsDir / group, ec);
+    }
 
     auto scanBackupsRoot = [&](const fs::path& root) {
         if (!fs::exists(root))
@@ -1962,7 +2034,7 @@ void EnsureIndexExists()
             return;
         }
 
-        for (const std::wstring group : { L"personal", L"business" })
+        for (const std::wstring group : { L"personal", L"business", L"free", L"plus", L"team", L"pro" })
         {
             const fs::path groupDir = root / group;
             if (!fs::exists(groupDir))
@@ -2009,7 +2081,10 @@ void EnsureIndexExists()
             }
 
             const std::wstring folder = entry.path().filename().wstring();
-            if (folder == L"personal" || folder == L"business")
+            const std::wstring folderLower = ToLowerCopy(folder);
+            if (folderLower == L"personal" || folderLower == L"business" ||
+                folderLower == L"free" || folderLower == L"plus" ||
+                folderLower == L"team" || folderLower == L"pro")
             {
                 continue;
             }
@@ -2758,14 +2833,21 @@ std::vector<AccountEntry> CollectAccounts(const bool refreshUsage, const std::ws
                 indexChanged = true;
 
                 const std::wstring refreshedGroup = GroupFromPlanType(usage.planType);
-                if (NormalizeGroup(row.group) != refreshedGroup)
+                const std::wstring expectedPath = MakeRelativeAuthPath(refreshedGroup, SanitizeAccountName(row.name));
+                const bool needGroupSync =
+                    IsPlanGroup(refreshedGroup) &&
+                    (NormalizeGroup(row.group) != refreshedGroup ||
+                        ToLowerCopy(row.path) != ToLowerCopy(expectedPath));
+                if (needGroupSync)
                 {
-                    row.group = refreshedGroup;
-                    indexChanged = true;
+                    if (SyncIndexEntryToGroup(row, refreshedGroup))
+                    {
+                        indexChanged = true;
+                    }
                 }
-                if (item.isCurrent && NormalizeGroup(idx.currentGroup) != refreshedGroup)
+                if (item.isCurrent && IsPlanGroup(row.group) && NormalizeGroup(idx.currentGroup) != NormalizeGroup(row.group))
                 {
-                    idx.currentGroup = refreshedGroup;
+                    idx.currentGroup = NormalizeGroup(row.group);
                     indexChanged = true;
                 }
             }
@@ -2860,6 +2942,25 @@ void PostAsyncWebJson(const HWND hwnd, const std::wstring& json)
     if (!PostMessageW(hwnd, WebViewHost::kMsgAsyncWebJson, 0, reinterpret_cast<LPARAM>(heapJson)))
     {
         delete heapJson;
+    }
+}
+
+struct LowQuotaCandidatePayload
+{
+    std::wstring currentName;
+    int currentQuota = -1;
+    std::wstring bestName;
+    std::wstring bestGroup;
+    int bestQuota = -1;
+    std::wstring accountKey;
+};
+
+void PostLowQuotaCandidate(const HWND hwnd, LowQuotaCandidatePayload&& payload)
+{
+    auto* heapPayload = new LowQuotaCandidatePayload(std::move(payload));
+    if (!PostMessageW(hwnd, WebViewHost::kMsgLowQuotaCandidate, 0, reinterpret_cast<LPARAM>(heapPayload)))
+    {
+        delete heapPayload;
     }
 }
 }
@@ -3054,7 +3155,7 @@ void WebViewHost::EnsureTrayIcon()
     nid.uID = 1;
     nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     nid.uCallbackMessage = kMsgTrayNotify;
-    nid.hIcon = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
+    nid.hIcon = static_cast<HICON>(LoadImageW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR | LR_SHARED));
     if (nid.hIcon == nullptr)
     {
         nid.hIcon = LoadIconW(nullptr, IDI_INFORMATION);
@@ -3147,7 +3248,9 @@ void WebViewHost::TriggerRefreshAll(const bool notifyStatus)
     SendRefreshTimerState();
 
     const HWND targetHwnd = hwnd_;
-    std::thread([this, targetHwnd, notifyStatus]() {
+    const bool checkLowQuota = lowQuotaPromptEnabled_;
+    auto* runningFlag = &allRefreshRunning_;
+    std::thread([targetHwnd, notifyStatus, checkLowQuota, runningFlag]() {
         const std::vector<AccountEntry> accounts = CollectAccounts(true, L"", L"");
         PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L""));
         if (notifyStatus)
@@ -3156,24 +3259,26 @@ void WebViewHost::TriggerRefreshAll(const bool notifyStatus)
         }
 
         const AccountEntry* current = FindCurrentAccountEntry(accounts);
-        if (lowQuotaPromptEnabled_ &&
+        if (checkLowQuota &&
             current != nullptr && current->usageOk && current->quota5hRemainingPercent >= 0 &&
             current->quota5hRemainingPercent <= kLowQuotaThresholdPercent)
         {
             const AccountEntry* best = FindBestSwitchCandidate(accounts, current);
             const std::wstring currentKey = NormalizeGroup(current->group) + L"::" + current->name;
-            const auto now = std::chrono::steady_clock::now();
-            const bool cooledDown = lastLowQuotaPromptAt_.time_since_epoch().count() == 0 ||
-                std::chrono::duration_cast<std::chrono::seconds>(now - lastLowQuotaPromptAt_).count() >= kLowQuotaPromptCooldownSeconds;
-            if (best != nullptr && (!EqualsIgnoreCase(lastLowQuotaPromptAccountKey_, currentKey) || cooledDown))
+            if (best != nullptr)
             {
-                lastLowQuotaPromptAt_ = now;
-                lastLowQuotaPromptAccountKey_ = currentKey;
-                ShowLowQuotaBalloon(current->name, current->quota5hRemainingPercent, best->name, best->group, best->quota5hRemainingPercent);
+                LowQuotaCandidatePayload payload;
+                payload.currentName = current->name;
+                payload.currentQuota = current->quota5hRemainingPercent;
+                payload.bestName = best->name;
+                payload.bestGroup = best->group;
+                payload.bestQuota = best->quota5hRemainingPercent;
+                payload.accountKey = currentKey;
+                PostLowQuotaCandidate(targetHwnd, std::move(payload));
             }
         }
 
-        allRefreshRunning_.store(false);
+        runningFlag->store(false);
     }).detach();
 }
 
@@ -3196,35 +3301,40 @@ void WebViewHost::TriggerRefreshCurrent()
     LoadIndex(idx);
     const std::wstring account = idx.currentName;
     const std::wstring group = idx.currentGroup;
+
+    const HWND targetHwnd = hwnd_;
+    const bool checkLowQuota = lowQuotaPromptEnabled_;
+    auto* runningFlag = &currentRefreshRunning_;
+
     if (account.empty())
     {
-        currentRefreshRunning_.store(false);
+        runningFlag->store(false);
         SendRefreshTimerState();
         return;
     }
-
-    const HWND targetHwnd = hwnd_;
-    std::thread([this, targetHwnd, account, group]() {
+    std::thread([targetHwnd, account, group, checkLowQuota, runningFlag]() {
         PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, account, group));
         const std::vector<AccountEntry> accounts = CollectAccounts(false, L"", L"");
         const AccountEntry* current = FindCurrentAccountEntry(accounts);
-        if (lowQuotaPromptEnabled_ &&
+        if (checkLowQuota &&
             current != nullptr && current->usageOk && current->quota5hRemainingPercent >= 0 &&
             current->quota5hRemainingPercent <= kLowQuotaThresholdPercent)
         {
             const AccountEntry* best = FindBestSwitchCandidate(accounts, current);
             const std::wstring currentKey = NormalizeGroup(current->group) + L"::" + current->name;
-            const auto now = std::chrono::steady_clock::now();
-            const bool cooledDown = lastLowQuotaPromptAt_.time_since_epoch().count() == 0 ||
-                std::chrono::duration_cast<std::chrono::seconds>(now - lastLowQuotaPromptAt_).count() >= kLowQuotaPromptCooldownSeconds;
-            if (best != nullptr && (!EqualsIgnoreCase(lastLowQuotaPromptAccountKey_, currentKey) || cooledDown))
+            if (best != nullptr)
             {
-                lastLowQuotaPromptAt_ = now;
-                lastLowQuotaPromptAccountKey_ = currentKey;
-                ShowLowQuotaBalloon(current->name, current->quota5hRemainingPercent, best->name, best->group, best->quota5hRemainingPercent);
+                LowQuotaCandidatePayload payload;
+                payload.currentName = current->name;
+                payload.currentQuota = current->quota5hRemainingPercent;
+                payload.bestName = best->name;
+                payload.bestGroup = best->group;
+                payload.bestQuota = best->quota5hRemainingPercent;
+                payload.accountKey = currentKey;
+                PostLowQuotaCandidate(targetHwnd, std::move(payload));
             }
         }
-        currentRefreshRunning_.store(false);
+        runningFlag->store(false);
     }).detach();
 }
 
@@ -3819,6 +3929,36 @@ bool WebViewHost::HandleWindowMessage(UINT msg, WPARAM wParam, LPARAM lParam)
         {
             HandleLowQuotaPromptClick();
         }
+        return true;
+    }
+
+    if (msg == kMsgLowQuotaCandidate)
+    {
+        auto* heapPayload = reinterpret_cast<LowQuotaCandidatePayload*>(lParam);
+        if (heapPayload == nullptr)
+        {
+            return true;
+        }
+
+        const auto now = std::chrono::steady_clock::now();
+        const bool cooledDown = lastLowQuotaPromptAt_.time_since_epoch().count() == 0 ||
+            std::chrono::duration_cast<std::chrono::seconds>(now - lastLowQuotaPromptAt_).count() >= kLowQuotaPromptCooldownSeconds;
+        if (lowQuotaPromptEnabled_ &&
+            hwnd_ != nullptr &&
+            !heapPayload->bestName.empty() &&
+            (!EqualsIgnoreCase(lastLowQuotaPromptAccountKey_, heapPayload->accountKey) || cooledDown))
+        {
+            lastLowQuotaPromptAt_ = now;
+            lastLowQuotaPromptAccountKey_ = heapPayload->accountKey;
+            ShowLowQuotaBalloon(
+                heapPayload->currentName,
+                heapPayload->currentQuota,
+                heapPayload->bestName,
+                heapPayload->bestGroup,
+                heapPayload->bestQuota);
+        }
+
+        delete heapPayload;
         return true;
     }
 

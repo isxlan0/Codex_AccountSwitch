@@ -14,6 +14,7 @@ class WebViewHost
 public:
     static constexpr UINT kMsgAsyncWebJson = WM_APP + 101;
     static constexpr UINT kMsgTrayNotify = WM_APP + 102;
+    static constexpr UINT kMsgLowQuotaCandidate = WM_APP + 103;
 
     void Initialize(HWND hwnd);
     void Resize(HWND hwnd) const;
