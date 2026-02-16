@@ -31,7 +31,7 @@
     <main class="content">
       <section class="tab-panel active" id="tab-dashboard">
         <div class="dashboard-wrap">
-          <div class="dashboard-head">
+          <div class="dashboard-head dashboard-head--enhanced">
             <h2 class="dashboard-title" id="dashboardTitle"></h2>
             <p class="dashboard-subtitle" id="dashboardSubtitle"></p>
           </div>
@@ -95,13 +95,23 @@
           </div>
         </div>
 
+        <div class="bulk-row" id="bulkRow">
+          <button class="tool-btn" id="multiSelectToggleBtn"></button>
+          <button class="tool-btn" id="bulkRefreshBtn" disabled></button>
+          <button class="tool-btn" id="bulkDeleteBtn" disabled></button>
+          <span class="bulk-selected" id="bulkSelectedText"></span>
+        </div>
+
         <div class="card">
           <table class="table">
             <thead>
               <tr>
-                <th style="width: 30%;" id="thAccount"></th>
-                <th style="width: 32%;" id="thQuota"></th>
-                <th style="width: 16%;" id="thRecent"></th>
+                <th style="width: 5%;" class="select-col">
+                  <input type="checkbox" id="selectAllCheckbox" />
+                </th>
+                <th style="width: 28%;" id="thAccount"></th>
+                <th style="width: 31%;" id="thQuota"></th>
+                <th style="width: 14%;" id="thRecent"></th>
                 <th style="width: 22%;" id="thAction"></th>
               </tr>
             </thead>
@@ -265,6 +275,22 @@
       <div class="modal-actions">
         <button class="mini" id="confirmCancelBtn"></button>
         <button class="mini primary" id="confirmOkBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="renameModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="renameTitle">
+      <div class="modal-head" id="renameTitle"></div>
+      <div class="modal-body">
+        <div>
+          <div class="modal-label" id="renameNameLabel"></div>
+          <input class="modal-input" id="renameNameInput" maxlength="32" autocomplete="off" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="mini" id="renameCancelBtn"></button>
+        <button class="mini primary" id="renameConfirmBtn"></button>
       </div>
     </div>
   </div>

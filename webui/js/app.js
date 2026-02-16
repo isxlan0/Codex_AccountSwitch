@@ -85,6 +85,9 @@
     "dialog.backup.title":  "Backup Current Account",
     "dialog.backup.name_label":  "Account Name",
     "dialog.backup.name_placeholder":  "Enter account name",
+    "dialog.rename.title": "Rename Account",
+    "dialog.rename.name_label": "New Account Name",
+    "dialog.rename.name_placeholder": "Enter new account name",
     "dialog.import_auth.title": "Quick Import Existing OAuth",
     "dialog.import_auth.name_label": "Imported Account Name",
     "dialog.import_auth.name_placeholder": "Enter account name",
@@ -108,14 +111,24 @@
     "tag.plan_unknown": "Unknown",
     "quota.gpt":  "Codex",
     "quota.placeholder":  "No quota data",
-    "quota.format":  "5H {q5} | 7D {q7} | Reset {r5}h/{r7}h",
-    "quota.format_free": "7D {q7} | Reset {r7}h",
+    "quota.format":  "5H {q5} | 7D {q7} | Reset {r5}/{r7}",
+    "quota.format_free": "7D {q7} | Reset {r7}",
     "action.switch_title":  "Switch to this account",
     "action.switch":  "Switch",
+    "action.rename_title": "Rename account",
+    "action.rename": "Rename",
     "action.refresh_title":  "Refresh quota",
     "action.refresh":  "Refresh",
     "action.delete_title":  "Delete account",
     "action.delete":  "Delete",
+    "bulk.mode_on": "Exit Multi-select",
+    "bulk.mode_off": "Multi-select",
+    "bulk.refresh": "Batch Refresh",
+    "bulk.delete": "Batch Delete",
+    "bulk.selected": "Selected {count}",
+    "bulk.select_all": "Select all",
+    "bulk.delete_confirm_title": "Batch Delete Accounts",
+    "bulk.delete_confirm_message": "Delete {count} selected accounts?",
     "count.format":  "Showing 1 to {total}, total {total}",
     "count.empty":  "Showing 0 to 0, total 0",
     "status_code.invalid_name":  "Save failed: invalid account name",
@@ -129,8 +142,14 @@
     "status_code.restart_failed":  "Failed to restart {ide}, please restart manually",
     "status_code.config_saved":  "Settings saved",
     "status_code.backup_saved":  "Account backup saved",
+    "status_code.account_renamed": "Account renamed",
+    "status_code.account_renamed_and_refreshed": "Account renamed and quota refreshed",
     "status_code.auth_json_invalid": "This file may not be a valid auth.json (missing required fields)",
     "status_code.auth_json_imported": "OAuth imported",
+    "status_code.import_auth_batch_done": "Import succeeded {success}/{total}",
+    "status_code.import_auth_batch_partial": "Import partially succeeded {success}/{total}",
+    "status_code.import_auth_batch_failed": "Import failed {success}/{total}",
+    "status_code.last_error_prefix": "Last error",
     "status_code.low_quota_notification": "Low quota detected. Click tray notification to confirm switch.",
     "low_quota.prompt_title": "Low Quota Alert",
     "low_quota.prompt_message": "Current account {current} is down to {currentQuota}% in 5h window.\nSwitch to {best} ({bestQuota}%) and restart IDE?",
@@ -143,6 +162,11 @@
     "status_code.save_config_failed":  "Failed to save settings",
     "status_code.quota_refreshed":  "Quota refreshed",
     "status_code.account_quota_refreshed":  "Account quota refreshed",
+    "status_code.batch_refresh_done": "Batch quota refresh completed",
+    "status_code.batch_delete_done": "Batch delete completed",
+    "status_code.batch_delete_partial": "Batch delete partially completed",
+    "status_code.batch_delete_failed": "Batch delete failed",
+    "status_code.batch_empty": "Please select at least one account",
     "status_code.unknown_action":  "Unknown action",
     "update.failed":  "Update check failed, please try again later",
     "update.latest":  "Already up to date",
@@ -202,12 +226,38 @@
     "dialog.add_account.import_current": "导入当前登录账号",
     "dialog.add_account.import_oauth": "快速导入已有OAuth",
     "dialog.add_account.login_new": "登录新账号",
+    "dialog.rename.title": "重命名账号",
+    "dialog.rename.name_label": "新账号名",
+    "dialog.rename.name_placeholder": "请输入新账号名",
+    "action.rename_title": "重命名账号",
+    "action.rename": "重命名",
+    "action.delete_title": "删除账号",
+    "action.delete": "删除",
+    "bulk.mode_on": "退出多选",
+    "bulk.mode_off": "多选模式",
+    "bulk.refresh": "批量刷新额度",
+    "bulk.delete": "批量删除账号",
+    "bulk.selected": "已选 {count} 项",
+    "bulk.select_all": "全选",
+    "bulk.delete_confirm_title": "批量删除账号",
+    "bulk.delete_confirm_message": "确认删除已选中的 {count} 个账号吗？",
+    "status_code.batch_refresh_done": "批量刷新额度完成",
+    "status_code.batch_delete_done": "批量删除完成",
+    "status_code.batch_delete_partial": "批量删除部分完成",
+    "status_code.batch_delete_failed": "批量删除失败",
+    "status_code.batch_empty": "请至少选择一个账号",
+    "status_code.account_renamed": "账号已重命名",
+    "status_code.account_renamed_and_refreshed": "账号已重命名并刷新额度",
+    "status_code.import_auth_batch_done": "导入成功 {success}/{total}",
+    "status_code.import_auth_batch_partial": "导入部分成功 {success}/{total}",
+    "status_code.import_auth_batch_failed": "导入失败 {success}/{total}",
+    "status_code.last_error_prefix": "最后错误",
     "tag.plan_free": "Free",
     "tag.plan_plus": "Plus",
     "tag.plan_team": "Team",
     "tag.plan_pro": "Pro",
     "tag.plan_unknown": "未知类型",
-    "quota.format_free": "7D {q7} | 重置 {r7}h"
+    "quota.format_free": "7D {q7} | 重置 {r7}"
   };
 
   const dom = {
@@ -226,6 +276,12 @@
     groupPlusBtn: document.getElementById("groupPlusBtn"),
     groupTeamBtn: document.getElementById("groupTeamBtn"),
     groupProBtn: document.getElementById("groupProBtn"),
+    bulkRow: document.getElementById("bulkRow"),
+    multiSelectToggleBtn: document.getElementById("multiSelectToggleBtn"),
+    bulkRefreshBtn: document.getElementById("bulkRefreshBtn"),
+    bulkDeleteBtn: document.getElementById("bulkDeleteBtn"),
+    bulkSelectedText: document.getElementById("bulkSelectedText"),
+    selectAllCheckbox: document.getElementById("selectAllCheckbox"),
     thAccount: document.getElementById("thAccount"),
     thQuota: document.getElementById("thQuota"),
     thRecent: document.getElementById("thRecent"),
@@ -304,6 +360,12 @@
     backupNameInput: document.getElementById("backupNameInput"),
     backupCancelBtn: document.getElementById("backupCancelBtn"),
     backupConfirmBtn: document.getElementById("backupConfirmBtn"),
+    renameModal: document.getElementById("renameModal"),
+    renameTitle: document.getElementById("renameTitle"),
+    renameNameLabel: document.getElementById("renameNameLabel"),
+    renameNameInput: document.getElementById("renameNameInput"),
+    renameCancelBtn: document.getElementById("renameCancelBtn"),
+    renameConfirmBtn: document.getElementById("renameConfirmBtn"),
     importAuthModal: document.getElementById("importAuthModal"),
     importAuthTitle: document.getElementById("importAuthTitle"),
     importAuthNameLabel: document.getElementById("importAuthNameLabel"),
@@ -351,6 +413,12 @@
     updateCheckContext: "manual",
     refreshMode: "",
     refreshTargetKey: "",
+    importMode: "",
+    multiSelectMode: false,
+    selectedAccountKeys: [],
+    bulkMode: "",
+    renameTargetName: "",
+    renameTargetGroup: "personal",
     refreshBusyTimer: null,
     saveConfigTimer: null,
     configLoaded: false,
@@ -609,6 +677,10 @@
     dom.thQuota.textContent = t("table.quota");
     dom.thRecent.textContent = t("table.recent");
     dom.thAction.textContent = t("table.action");
+    dom.multiSelectToggleBtn.textContent = state.multiSelectMode ? t("bulk.mode_on") : t("bulk.mode_off");
+    dom.bulkRefreshBtn.textContent = t("bulk.refresh");
+    dom.bulkDeleteBtn.textContent = t("bulk.delete");
+    dom.selectAllCheckbox.title = t("bulk.select_all");
     dom.aboutTitle.textContent = t("about.title");
     dom.aboutSubtitle.textContent = t("about.subtitle");
     dom.aboutAuthorLabel.textContent = t("about.author_label");
@@ -643,6 +715,11 @@
     dom.backupTitle.textContent = t("dialog.backup.title");
     dom.backupNameLabel.textContent = t("dialog.backup.name_label");
     dom.backupNameInput.placeholder = t("dialog.backup.name_placeholder");
+    dom.renameTitle.textContent = t("dialog.rename.title");
+    dom.renameNameLabel.textContent = t("dialog.rename.name_label");
+    dom.renameNameInput.placeholder = t("dialog.rename.name_placeholder");
+    dom.renameCancelBtn.textContent = t("dialog.common.cancel");
+    dom.renameConfirmBtn.textContent = t("dialog.common.confirm");
     dom.importAuthTitle.textContent = t("dialog.import_auth.title");
     dom.importAuthNameLabel.textContent = t("dialog.import_auth.name_label");
     dom.importAuthNameInput.placeholder = t("dialog.import_auth.name_placeholder");
@@ -679,6 +756,7 @@
     switchSettingsSubTab(state.settingsSubTab);
     renderDashboard();
     applyCountText();
+    renderBulkControls();
     switchTab(document.querySelector(".tab-btn.active")?.getAttribute("data-tab") || "dashboard");
   }
 
@@ -694,6 +772,41 @@
     if (state.i18n[key]) {
       if (code === "restart_failed") {
         return t(key, { ide: getIdeDisplayName(state.currentIdeExe) });
+      }
+      if (["import_auth_batch_done", "import_auth_batch_partial", "import_auth_batch_failed"].includes(code)) {
+        const successRaw = msg?.success;
+        const totalRaw = msg?.total;
+        let success = Number.isFinite(Number(successRaw)) ? String(Number(successRaw)) : "";
+        let total = Number.isFinite(Number(totalRaw)) ? String(Number(totalRaw)) : "";
+
+        if (!success || !total) {
+          const raw = String(msg?.message || "");
+          const countMatch = raw.match(/(\d+)\s*\/\s*(\d+)/);
+          success = success || (countMatch ? countMatch[1] : "0");
+          total = total || (countMatch ? countMatch[2] : "0");
+        }
+
+        const lastError = String(msg?.lastError || "").trim();
+        const text = t(key, { success: success || "0", total: total || "0" });
+        if (lastError && code !== "import_auth_batch_done") {
+          return `${text} · ${t("status_code.last_error_prefix")}: ${lastError}`;
+        }
+        return text;
+      }
+      if (["batch_delete_done", "batch_delete_partial", "batch_delete_failed"].includes(code)) {
+        const successRaw = msg?.success;
+        const totalRaw = msg?.total;
+        const success = Number.isFinite(Number(successRaw)) ? String(Number(successRaw)) : "";
+        const total = Number.isFinite(Number(totalRaw)) ? String(Number(totalRaw)) : "";
+        const lastError = String(msg?.lastError || "").trim();
+        let text = t(key);
+        if (success && total) {
+          text = `${text} ${success}/${total}`;
+        }
+        if (lastError && code !== "batch_delete_done") {
+          text = `${text} · ${t("status_code.last_error_prefix")}: ${lastError}`;
+        }
+        return text;
       }
       return t(key);
     }
@@ -714,8 +827,9 @@
     }
 
     const isBusy = mode === "all" || mode === "account";
-    dom.refreshBtn.disabled = isBusy;
-    dom.refreshBtn.classList.toggle("loading", mode === "all");
+    const isImportBusy = !!state.importMode;
+    dom.refreshBtn.disabled = isBusy || isImportBusy;
+    dom.refreshBtn.classList.toggle("loading", mode === "all" || isImportBusy);
 
     if (isBusy) {
       state.refreshBusyTimer = setTimeout(() => {
@@ -724,10 +838,77 @@
     }
 
     renderAccounts();
+    renderImportBusy();
+    renderBulkControls();
+  }
+
+  function setImportBusy(mode = "") {
+    state.importMode = mode;
+    renderImportBusy();
+    setRefreshBusy(state.refreshMode, state.refreshTargetKey);
+  }
+
+  function normalizeSelectedKeys() {
+    const validSet = new Set(state.accounts.map((x) => makeAccountKey(x.name, x.group)));
+    state.selectedAccountKeys = state.selectedAccountKeys.filter((key) => validSet.has(key));
+  }
+
+  function getSelectedItems() {
+    const selectedSet = new Set(state.selectedAccountKeys);
+    return state.accounts.filter((item) => selectedSet.has(makeAccountKey(item.name, item.group)));
+  }
+
+  function renderBulkControls() {
+    const selectedCount = state.selectedAccountKeys.length;
+    const busy = state.bulkMode === "refresh" || state.bulkMode === "delete";
+    dom.bulkSelectedText.textContent = t("bulk.selected", { count: selectedCount });
+    dom.multiSelectToggleBtn.textContent = state.multiSelectMode ? t("bulk.mode_on") : t("bulk.mode_off");
+    dom.bulkRefreshBtn.textContent = t("bulk.refresh");
+    dom.bulkDeleteBtn.textContent = t("bulk.delete");
+
+    const hasSelection = selectedCount > 0;
+    dom.bulkRefreshBtn.disabled = !state.multiSelectMode || !hasSelection || busy || !!state.importMode || !!state.refreshMode;
+    dom.bulkDeleteBtn.disabled = !state.multiSelectMode || !hasSelection || busy || !!state.importMode;
+    dom.bulkRefreshBtn.classList.toggle("loading", state.bulkMode === "refresh");
+    dom.bulkDeleteBtn.classList.toggle("loading", state.bulkMode === "delete");
+
+    const visibleKeys = state.filteredAccounts.map((x) => makeAccountKey(x.name, x.group));
+    const visibleSelected = visibleKeys.filter((x) => state.selectedAccountKeys.includes(x)).length;
+    dom.selectAllCheckbox.checked = state.multiSelectMode && visibleKeys.length > 0 && visibleSelected === visibleKeys.length;
+    dom.selectAllCheckbox.indeterminate = state.multiSelectMode && visibleSelected > 0 && visibleSelected < visibleKeys.length;
+    dom.selectAllCheckbox.disabled = !state.multiSelectMode || visibleKeys.length === 0 || busy;
+    dom.selectAllCheckbox.title = t("bulk.select_all");
+    dom.selectAllCheckbox.style.visibility = state.multiSelectMode ? "visible" : "hidden";
+    dom.bulkRow.classList.toggle("disabled", !state.multiSelectMode);
+  }
+
+  function setBulkBusy(mode = "") {
+    state.bulkMode = mode;
+    renderBulkControls();
+    renderImportBusy();
+    renderAccounts();
+  }
+
+  function renderImportBusy() {
+    const isCurrentBusy = state.importMode === "current";
+    const isOAuthBusy = state.importMode === "oauth";
+    const disableAny = isCurrentBusy || isOAuthBusy;
+
+    dom.addCurrentBtn.disabled = disableAny;
+    dom.addCurrentBtn.classList.toggle("loading", disableAny);
+
+    dom.refreshBtn.disabled = (state.refreshMode === "all" || state.refreshMode === "account") || disableAny;
+    dom.refreshBtn.classList.toggle("loading", (state.refreshMode === "all") || disableAny);
+
+    dom.addAccountImportCurrentBtn.disabled = disableAny;
+    dom.addAccountImportCurrentBtn.classList.toggle("loading", isCurrentBusy);
+
+    dom.addAccountImportOAuthBtn.disabled = disableAny;
+    dom.addAccountImportOAuthBtn.classList.toggle("loading", isOAuthBusy);
   }
 
   function formatRemain(v) {
-    return Number.isFinite(Number(v)) && Number(v) >= 0 ? `${Number(v)}%` : "-";
+    return formatPercentValue(v);
   }
 
   function normalizePlanType(planType) {
@@ -778,7 +959,10 @@
 
   function formatPercentValue(v) {
     const n = toPercentNumber(v);
-    return n === null ? "-" : `${Math.round(n)}%`;
+    if (n === null) return "-";
+    if (n > 0 && n < 0.1) return "<0.1%";
+    const rounded = Math.round(n * 10) / 10;
+    return `${rounded.toFixed(1).replace(/\.0$/, "")}%`;
   }
 
   function getPlanMetrics(item) {
@@ -854,7 +1038,7 @@
 
   function formatHoursFromSeconds(v) {
     if (!Number.isFinite(Number(v)) || Number(v) < 0) return "-";
-    return (Number(v) / 3600).toFixed(1);
+    return `${(Number(v) / 3600).toFixed(1)}h`;
   }
 
   function formatCountdown(sec) {
@@ -958,8 +1142,11 @@
   }
 
   function renderAccounts() {
+    normalizeSelectedKeys();
+
     if (!state.filteredAccounts.length) {
-      dom.accountsBody.innerHTML = `<tr><td colspan="4" style="text-align:center;color:#6b7c93;">${escapeHtml(t("accounts.empty"))}</td></tr>`;
+      dom.accountsBody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#6b7c93;">${escapeHtml(t("accounts.empty"))}</td></tr>`;
+      renderBulkControls();
       return;
     }
 
@@ -968,9 +1155,13 @@
       return v.length > 14 ? `${v.slice(0, 14)}...` : v;
     };
 
+    const bulkBusy = state.bulkMode === "refresh" || state.bulkMode === "delete";
+
     dom.accountsBody.innerHTML = state.filteredAccounts.map((item) => {
-      const isThisRefreshing = state.refreshMode === "account" && state.refreshTargetKey === makeAccountKey(item.name, item.group);
-      const disableRefreshAction = state.refreshMode === "all" || isThisRefreshing;
+      const accountKey = makeAccountKey(item.name, item.group);
+      const isThisRefreshing = state.refreshMode === "account" && state.refreshTargetKey === accountKey;
+      const disableRefreshAction = state.refreshMode === "all" || isThisRefreshing || !!state.importMode || bulkBusy;
+      const disableRowAction = bulkBusy;
       const normalizedPlanType = normalizePlanType(item.planType);
       const planClass = normalizedPlanType || "unknown";
       const isFreePlan = normalizedPlanType === "free";
@@ -984,8 +1175,12 @@
       const quotaErrorText = usageErrorText
         ? usageErrorText
         : t("quota.placeholder");
+      const checked = state.selectedAccountKeys.includes(accountKey);
       return `
       <tr>
+        <td class="select-col">
+          <input class="row-select" type="checkbox" data-select-account="1" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" ${checked ? "checked" : ""} ${!state.multiSelectMode || bulkBusy ? "disabled" : ""} style="visibility:${state.multiSelectMode ? "visible" : "hidden"};" />
+        </td>
         <td>
           <div class="account-cell" title="${escapeHtml(item.name)}">
             <span class="account-name">${escapeHtml(shortName(item.name))}</span>
@@ -1014,16 +1209,19 @@
           </div>
         </td>
         <td>${escapeHtml(item.updatedAt || "-")}</td>
-        <td>
+        <td class="actions-col">
           <div class="actions">
-            <button class="btn-action switch" data-action="switch" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.switch_title"))}">${escapeHtml(t("action.switch"))}</button>
+            <button class="btn-action switch" data-action="switch" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.switch_title"))}" ${disableRowAction ? "disabled" : ""}>${escapeHtml(t("action.switch"))}</button>
+            <button class="btn-action rename" data-action="rename" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.rename_title"))}" ${disableRowAction ? "disabled" : ""}>${escapeHtml(t("action.rename"))}</button>
             <button class="btn-action refresh ${isThisRefreshing ? "loading" : ""}" data-action="refresh" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.refresh_title"))}" ${disableRefreshAction ? "disabled" : ""}>${escapeHtml(t("action.refresh"))}</button>
-            <button class="btn-action delete" data-action="delete" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.delete_title"))}">${escapeHtml(t("action.delete"))}</button>
+            <button class="btn-action delete" data-action="delete" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.delete_title"))}" ${disableRowAction ? "disabled" : ""}>${escapeHtml(t("action.delete"))}</button>
           </div>
         </td>
       </tr>
     `;
     }).join("");
+
+    renderBulkControls();
   }
 
   function applySearch() {
@@ -1054,6 +1252,57 @@
       dom.addAccountModal.classList.add("show");
     });
 
+    dom.multiSelectToggleBtn.addEventListener("click", () => {
+      if (state.bulkMode || state.importMode || state.refreshMode) return;
+      state.multiSelectMode = !state.multiSelectMode;
+      if (!state.multiSelectMode) {
+        state.selectedAccountKeys = [];
+      }
+      renderAccounts();
+    });
+
+    dom.selectAllCheckbox.addEventListener("change", () => {
+      if (!state.multiSelectMode || state.bulkMode) return;
+      const visibleKeys = state.filteredAccounts.map((x) => makeAccountKey(x.name, x.group));
+      const selectedSet = new Set(state.selectedAccountKeys);
+      if (dom.selectAllCheckbox.checked) {
+        visibleKeys.forEach((key) => selectedSet.add(key));
+      } else {
+        visibleKeys.forEach((key) => selectedSet.delete(key));
+      }
+      state.selectedAccountKeys = Array.from(selectedSet);
+      renderAccounts();
+    });
+
+    dom.bulkRefreshBtn.addEventListener("click", () => {
+      if (state.bulkMode || state.importMode || state.refreshMode) return;
+      const items = getSelectedItems().map((x) => ({ account: x.name, group: x.group || "personal" }));
+      if (!items.length) {
+        showToast(t("status_code.batch_empty"), "warning");
+        return;
+      }
+      setRefreshBusy("all");
+      setBulkBusy("refresh");
+      post("refresh_accounts_batch", { items });
+    });
+
+    dom.bulkDeleteBtn.addEventListener("click", () => {
+      if (state.bulkMode || state.importMode) return;
+      const items = getSelectedItems().map((x) => ({ account: x.name, group: x.group || "personal" }));
+      if (!items.length) {
+        showToast(t("status_code.batch_empty"), "warning");
+        return;
+      }
+      openConfirm({
+        title: t("bulk.delete_confirm_title"),
+        message: t("bulk.delete_confirm_message", { count: items.length }),
+        onConfirm: () => {
+          setBulkBusy("delete");
+          post("delete_accounts_batch", { items });
+        }
+      });
+    });
+
     document.querySelectorAll("[data-group-filter]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.groupFilter = btn.getAttribute("data-group-filter") || "all";
@@ -1078,8 +1327,17 @@
           language: state.currentLanguage,
           ideExe: state.currentIdeExe
         });
+      } else if (action === "rename") {
+        state.renameTargetName = name;
+        state.renameTargetGroup = group;
+        dom.renameNameInput.value = name;
+        dom.renameModal.classList.add("show");
+        setTimeout(() => {
+          dom.renameNameInput.focus();
+          dom.renameNameInput.select();
+        }, 10);
       } else if (action === "refresh") {
-        if (state.refreshMode) return;
+        if (state.refreshMode || state.bulkMode) return;
         setRefreshBusy("account", makeAccountKey(name, group));
         post("refresh_account", { account: name, group });
       } else if (action === "delete") {
@@ -1089,6 +1347,25 @@
           onConfirm: () => post("delete_account", { account: name, group })
         });
       }
+    });
+
+    dom.accountsBody.addEventListener("change", (e) => {
+      const target = e.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.getAttribute("data-select-account") !== "1") return;
+      if (!state.multiSelectMode || state.bulkMode) return;
+      const name = target.getAttribute("data-name") || "";
+      const group = target.getAttribute("data-group") || "personal";
+      if (!name) return;
+      const key = makeAccountKey(name, group);
+      const selectedSet = new Set(state.selectedAccountKeys);
+      if (target.checked) {
+        selectedSet.add(key);
+      } else {
+        selectedSet.delete(key);
+      }
+      state.selectedAccountKeys = Array.from(selectedSet);
+      renderBulkControls();
     });
 
     dom.autoUpdateToggle.addEventListener("change", () => {
@@ -1154,36 +1431,57 @@
       dom.backupModal.classList.remove("show");
     });
 
-    dom.importAuthCancelBtn.addEventListener("click", () => dom.importAuthModal.classList.remove("show"));
-    dom.importAuthModal.addEventListener("click", (e) => {
-      if (e.target === dom.importAuthModal) dom.importAuthModal.classList.remove("show");
+    dom.renameCancelBtn.addEventListener("click", () => {
+      dom.renameModal.classList.remove("show");
+      state.renameTargetName = "";
+      state.renameTargetGroup = "personal";
     });
-    dom.importAuthConfirmBtn.addEventListener("click", () => {
-      const name = dom.importAuthNameInput.value.trim();
-      if (!name) {
-        dom.importAuthNameInput.focus();
+    dom.renameModal.addEventListener("click", (e) => {
+      if (e.target === dom.renameModal) {
+        dom.renameModal.classList.remove("show");
+        state.renameTargetName = "";
+        state.renameTargetGroup = "personal";
+      }
+    });
+    dom.renameConfirmBtn.addEventListener("click", () => {
+      const newName = dom.renameNameInput.value.trim();
+      if (!newName) {
+        dom.renameNameInput.focus();
         return;
       }
-      if (name.length > 32) {
+      if (newName.length > 32) {
         showToast(t("status_code.name_too_long"), "warning");
         return;
       }
-      post("import_auth_json", { name });
-      dom.importAuthModal.classList.remove("show");
+      if (!state.renameTargetName) {
+        dom.renameModal.classList.remove("show");
+        return;
+      }
+      post("rename_account", {
+        account: state.renameTargetName,
+        group: state.renameTargetGroup || "personal",
+        newName
+      });
+      dom.renameModal.classList.remove("show");
+      state.renameTargetName = "";
+      state.renameTargetGroup = "personal";
     });
 
     dom.addAccountCancelBtn.addEventListener("click", () => dom.addAccountModal.classList.remove("show"));
+
     dom.addAccountModal.addEventListener("click", (e) => {
       if (e.target === dom.addAccountModal) dom.addAccountModal.classList.remove("show");
     });
     dom.addAccountImportCurrentBtn.addEventListener("click", () => {
+      if (state.importMode) return;
       dom.addAccountModal.classList.remove("show");
-      dom.backupNameInput.value = "";
-      dom.backupModal.classList.add("show");
-      setTimeout(() => dom.backupNameInput.focus(), 10);
+      setImportBusy("current");
+      post("backup_current_auto");
     });
     dom.addAccountImportOAuthBtn.addEventListener("click", () => {
+      if (state.importMode) return;
       dom.addAccountModal.classList.remove("show");
+      setImportBusy("oauth");
       post("import_auth_json");
     });
 
@@ -1199,7 +1497,7 @@
     });
 
     dom.refreshBtn.addEventListener("click", () => {
-      if (state.refreshMode) return;
+      if (state.refreshMode || state.bulkMode) return;
       setRefreshBusy("all");
       post("refresh_accounts");
     });
@@ -1249,9 +1547,40 @@
         log(`host status: level=${msg.level || "info"} code=${msg.code || ""}`);
         if (msg.code === "quota_refreshed" || msg.code === "account_quota_refreshed") {
           setRefreshBusy("", "");
+          if (state.importMode === "current") {
+            setImportBusy("");
+          }
+          if (state.bulkMode === "refresh") {
+            setBulkBusy("");
+          }
+        } else if (msg.code === "batch_refresh_done") {
+          setRefreshBusy("", "");
+          if (state.bulkMode === "refresh") {
+            setBulkBusy("");
+          }
+        } else if (["batch_delete_done", "batch_delete_partial", "batch_delete_failed"].includes(String(msg.code || ""))) {
+          if (state.bulkMode === "delete") {
+            setBulkBusy("");
+          }
         } else if (state.refreshMode && (msg.level === "error" || msg.level === "warning")) {
           setRefreshBusy("", "");
+          if (state.bulkMode === "refresh") {
+            setBulkBusy("");
+          }
         }
+
+        if (state.importMode === "oauth" && [
+          "import_cancelled",
+          "import_auth_batch_done",
+          "import_auth_batch_partial",
+          "import_auth_batch_failed"
+        ].includes(String(msg.code || ""))) {
+          setImportBusy("");
+        }
+        if (state.importMode === "current" && msg.level === "error") {
+          setImportBusy("");
+        }
+
         showToast(mapStatusMessage(msg), msg.level || "info");
         return;
       }
@@ -1346,13 +1675,6 @@
           persistent: true,
           onConfirm: () => post("confirm_low_quota_switch")
         });
-        return;
-      }
-
-      if (msg && typeof msg === "object" && msg.type === "import_auth_need_name") {
-        dom.importAuthNameInput.value = "";
-        dom.importAuthModal.classList.add("show");
-        setTimeout(() => dom.importAuthNameInput.focus(), 10);
         return;
       }
 

@@ -1,4 +1,4 @@
-﻿{
+{
     "app.brand": "Codex Account Switch",
     "tab.accounts": "Accounts",
     "tab.about": "About",
@@ -163,9 +163,32 @@
     "dialog.add_account.import_current": "Import Current Logged-in Account",
     "dialog.add_account.import_oauth": "Quick Import Existing OAuth",
     "dialog.add_account.login_new": "Login New Account",
+    "dialog.rename.title": "Rename Account",
+    "dialog.rename.name_label": "New Account Name",
+    "dialog.rename.name_placeholder": "Enter new account name",
+    "action.rename_title": "Rename account",
+    "action.rename": "Rename",
+    "bulk.mode_on": "Exit Multi-select",
+    "bulk.mode_off": "Multi-select",
+    "bulk.refresh": "Batch Refresh",
+    "bulk.delete": "Batch Delete",
+    "bulk.selected": "Selected {count}",
+    "bulk.select_all": "Select all",
+    "bulk.delete_confirm_title": "Batch Delete Accounts",
+    "bulk.delete_confirm_message": "Delete {count} selected accounts?",
+    "status_code.batch_refresh_done": "Batch quota refresh completed",
+    "status_code.batch_delete_done": "Batch delete completed",
+    "status_code.batch_delete_partial": "Batch delete partially completed",
+    "status_code.batch_delete_failed": "Batch delete failed",
+    "status_code.batch_empty": "Please select at least one account",
+    "status_code.account_renamed": "Account renamed",
+    "status_code.account_renamed_and_refreshed": "Account renamed and quota refreshed",
     "status_code.debug_action_ok": "Debug action triggered",
     "status_code.debug_action_unsupported": "This action is only available in Debug build",
     "debug.title": "Debug Tools",
-    "debug.notify": "Test: Low-Quota Notify"
+    "debug.notify": "Test: Low-Quota Notify",
+    "status_code.import_auth_batch_done": "Import succeeded {success}/{total}",
+    "status_code.import_auth_batch_partial": "Import partially succeeded {success}/{total}",
+    "status_code.import_auth_batch_failed": "Import failed {success}/{total}",
+    "status_code.last_error_prefix": "Last error"
 }
-

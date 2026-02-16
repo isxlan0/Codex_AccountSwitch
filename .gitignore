@@ -5,6 +5,8 @@
 /packages/
 /x64/
 /Codex_AccountSwitch/x64/
+/.claude/
+/.playwright-mcp/
 
 # Visual Studio / local IDE state
 /.vs/

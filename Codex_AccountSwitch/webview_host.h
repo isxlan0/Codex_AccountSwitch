@@ -64,6 +64,5 @@ private:
     int pendingCurrentQuota_ = -1;
     int pendingBestQuota_ = -1;
     std::wstring lastLowQuotaPromptAccountKey_;
-    std::wstring pendingImportAuthPath_;
     std::chrono::steady_clock::time_point lastLowQuotaPromptAt_{};
 };

@@ -22,6 +22,7 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 #include <windows.h>
 #include <dwmapi.h>
@@ -55,6 +56,7 @@ constexpr int kMinRefreshMinutes = 1;
 constexpr int kMaxRefreshMinutes = 240;
 constexpr int kLowQuotaThresholdPercent = 20;
 constexpr int kLowQuotaPromptCooldownSeconds = 30 * 60;
+constexpr DWORD kRefreshAllThrottleMs = 100;
 
 int ClampRefreshMinutes(const int v, const int fallback)
 {
@@ -2286,8 +2288,9 @@ bool SwitchToAccount(const std::wstring& account, const std::wstring& group, std
     return true;
 }
 
-bool PickOpenJsonPath(HWND hwnd, std::wstring& outPath)
+bool PickOpenJsonPaths(HWND hwnd, std::vector<std::wstring>& outPaths)
 {
+    outPaths.clear();
     std::vector<wchar_t> fileName(32768, L'\0');
     static constexpr wchar_t kJsonFilter[] = L"JSON Files (*.json)\0*.json\0All Files (*.*)\0*.*\0\0";
     OPENFILENAMEW ofn{};
@@ -2296,7 +2299,7 @@ bool PickOpenJsonPath(HWND hwnd, std::wstring& outPath)
     ofn.lpstrFile = fileName.data();
     ofn.nMaxFile = static_cast<DWORD>(fileName.size());
     ofn.lpstrFilter = kJsonFilter;
-    ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
+    ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR | OFN_ALLOWMULTISELECT;
     ofn.lpstrDefExt = L"json";
 
     if (!GetOpenFileNameW(&ofn))
@@ -2304,12 +2307,45 @@ bool PickOpenJsonPath(HWND hwnd, std::wstring& outPath)
         const DWORD dlgErr = CommDlgExtendedError();
         if (dlgErr != 0)
         {
-            OutputDebugStringW((L"[PickOpenJsonPath] CommDlgExtendedError=" + std::to_wstring(dlgErr) + L"\n").c_str());
+            OutputDebugStringW((L"[PickOpenJsonPaths] CommDlgExtendedError=" + std::to_wstring(dlgErr) + L"\n").c_str());
         }
         return false;
     }
 
-    outPath = fileName.data();
+    const std::wstring first = fileName.data();
+    if (first.empty())
+    {
+        return false;
+    }
+
+    const wchar_t* next = fileName.data() + first.size() + 1;
+    if (*next == L'\0')
+    {
+        outPaths.push_back(first);
+        return true;
+    }
+
+    const fs::path baseDir = fs::path(first);
+    while (*next != L'\0')
+    {
+        const std::wstring file = next;
+        if (!file.empty())
+        {
+            outPaths.push_back((baseDir / file).wstring());
+        }
+        next += file.size() + 1;
+    }
+    return !outPaths.empty();
+}
+
+bool PickOpenJsonPath(HWND hwnd, std::wstring& outPath)
+{
+    std::vector<std::wstring> paths;
+    if (!PickOpenJsonPaths(hwnd, paths))
+    {
+        return false;
+    }
+    outPath = paths.front();
     return true;
 }
 
@@ -2324,14 +2360,8 @@ bool JsonContainsField(const std::wstring& json, const std::wstring& key)
 
 bool IsLikelyValidAuthJson(const std::wstring& json)
 {
-    if (!JsonContainsField(json, L"auth_mode") ||
-        !JsonContainsField(json, L"OPENAI_API_KEY") ||
-        !JsonContainsField(json, L"tokens") ||
-        !JsonContainsField(json, L"id_token") ||
-        !JsonContainsField(json, L"access_token") ||
-        !JsonContainsField(json, L"refresh_token") ||
-        !JsonContainsField(json, L"account_id") ||
-        !JsonContainsField(json, L"last_refresh"))
+    if (!JsonContainsField(json, L"id_token") ||
+        !JsonContainsField(json, L"access_token"))
     {
         return false;
     }
@@ -2421,6 +2451,71 @@ bool LoginNewAccount(std::wstring& status, std::wstring& code)
     status = L"已清理登录文件，正在重启 " + ideDisplay;
     code = L"login_new_success";
     return true;
+}
+
+std::wstring MakeImportBaseNameFromPath(const std::wstring& jsonPath, const UsageSnapshot& usage)
+{
+    std::wstring baseName;
+    if (usage.ok && !usage.email.empty())
+    {
+        baseName = usage.email;
+    }
+    if (baseName.empty())
+    {
+        baseName = fs::path(jsonPath).stem().wstring();
+    }
+    if (baseName.empty())
+    {
+        baseName = L"imported_auth";
+    }
+    baseName = SanitizeAccountName(baseName);
+    if (baseName.empty())
+    {
+        baseName = L"imported_auth";
+    }
+    if (baseName.size() > 32)
+    {
+        baseName.resize(32);
+    }
+    return baseName;
+}
+
+bool ContainsAccountNameIgnoreCase(const std::vector<std::wstring>& names, const std::wstring& candidate)
+{
+    return std::any_of(names.begin(), names.end(), [&](const std::wstring& item) {
+        return EqualsIgnoreCase(item, candidate);
+    });
+}
+
+std::wstring MakeUniqueImportedName(const std::wstring& baseName, const std::vector<std::wstring>& reservedNames)
+{
+    std::wstring safeBase = SanitizeAccountName(baseName);
+    if (safeBase.empty())
+    {
+        safeBase = L"imported_auth";
+    }
+    if (safeBase.size() > 32)
+    {
+        safeBase.resize(32);
+    }
+
+    if (!ContainsAccountNameIgnoreCase(reservedNames, safeBase))
+    {
+        return safeBase;
+    }
+
+    for (int suffix = 2; suffix < 10000; ++suffix)
+    {
+        const std::wstring tail = L"#" + std::to_wstring(suffix);
+        const size_t maxBaseLen = (tail.size() >= 32) ? 0 : (32 - tail.size());
+        std::wstring candidate = safeBase.substr(0, maxBaseLen) + tail;
+        if (!ContainsAccountNameIgnoreCase(reservedNames, candidate))
+        {
+            return candidate;
+        }
+    }
+
+    return L"imported_auth";
 }
 
 bool ImportAuthJsonFile(const std::wstring& jsonPath, const std::wstring& preferredName, std::wstring& status, std::wstring& code)
@@ -2514,6 +2609,150 @@ bool ImportAuthJsonFile(const std::wstring& jsonPath, const std::wstring& prefer
 
     status = L"auth.json 导入成功：[" + detectedGroup + L"] " + accountName;
     code = L"auth_json_imported";
+    return true;
+}
+
+bool BackupCurrentAccountAuto(std::wstring& savedName, std::wstring& status, std::wstring& code)
+{
+    savedName.clear();
+    EnsureIndexExists();
+
+    const std::wstring userAuth = GetUserAuthPath();
+    if (userAuth.empty() || !fs::exists(userAuth))
+    {
+        status = L"保存失败：当前账号文件不存在";
+        code = L"auth_missing";
+        return false;
+    }
+
+    UsageSnapshot usage;
+    QueryUsageFromAuthFile(userAuth, usage);
+
+    std::wstring baseName = usage.email;
+    if (baseName.empty())
+    {
+        baseName = L"current_account";
+    }
+
+    IndexData idx;
+    LoadIndex(idx);
+    std::vector<std::wstring> reservedNames;
+    reservedNames.reserve(idx.accounts.size());
+    for (const auto& row : idx.accounts)
+    {
+        reservedNames.push_back(row.name);
+    }
+
+    const std::wstring uniqueName = MakeUniqueImportedName(baseName, reservedNames);
+    if (!BackupCurrentAccount(uniqueName, status, code))
+    {
+        return false;
+    }
+
+    savedName = uniqueName;
+    return true;
+}
+
+bool RenameAccount(const std::wstring& account,
+                   const std::wstring& group,
+                   const std::wstring& newName,
+                   std::wstring& status,
+                   std::wstring& code)
+{
+    EnsureIndexExists();
+    const std::wstring safeGroup = NormalizeGroup(group);
+    const std::wstring safeName = SanitizeAccountName(account);
+    const std::wstring safeNewName = SanitizeAccountName(newName);
+
+    if (safeNewName.empty())
+    {
+        status = L"重命名失败：账号名无效";
+        code = L"invalid_name";
+        return false;
+    }
+    if (safeNewName.size() > 32)
+    {
+        status = L"重命名失败：账号名最多 32 个字符";
+        code = L"name_too_long";
+        return false;
+    }
+
+    IndexData idx;
+    LoadIndex(idx);
+
+    auto it = std::find_if(idx.accounts.begin(), idx.accounts.end(), [&](const IndexEntry& row) {
+        return NormalizeGroup(row.group) == safeGroup && EqualsIgnoreCase(row.name, safeName);
+    });
+    if (it == idx.accounts.end())
+    {
+        status = L"重命名失败：未找到目标账号";
+        code = L"not_found";
+        return false;
+    }
+
+    const auto duplicated = std::find_if(idx.accounts.begin(), idx.accounts.end(), [&](const IndexEntry& row) {
+        return &row != &(*it) && EqualsIgnoreCase(row.name, safeNewName);
+    });
+    if (duplicated != idx.accounts.end())
+    {
+        status = L"重命名失败：名字重复，请修改后再试";
+        code = L"duplicate_name";
+        return false;
+    }
+
+    const std::wstring normalizedGroup = NormalizeGroup(it->group);
+    const fs::path targetDir = GetGroupDir(normalizedGroup) / safeNewName;
+    std::error_code ec;
+
+    fs::path sourceDir = ResolveAuthPathFromIndex(*it).parent_path();
+    if (sourceDir.empty() || !fs::exists(sourceDir))
+    {
+        sourceDir = GetGroupDir(normalizedGroup) / safeName;
+    }
+
+    if (!EqualsIgnoreCase(safeName, safeNewName))
+    {
+        if (fs::exists(targetDir))
+        {
+            status = L"重命名失败：名字重复，请修改后再试";
+            code = L"duplicate_name";
+            return false;
+        }
+
+        if (!sourceDir.empty() && fs::exists(sourceDir))
+        {
+            fs::create_directories(targetDir.parent_path(), ec);
+            if (ec)
+            {
+                status = L"重命名失败：无法创建目标目录";
+                code = L"create_dir_failed";
+                return false;
+            }
+
+            ec.clear();
+            fs::rename(sourceDir, targetDir, ec);
+            if (ec)
+            {
+                status = L"重命名失败：无法更新账号目录";
+                code = L"write_failed";
+                return false;
+            }
+        }
+    }
+
+    const bool wasCurrent = EqualsIgnoreCase(idx.currentName, it->name) && NormalizeGroup(idx.currentGroup) == normalizedGroup;
+    it->name = safeNewName;
+    it->path = MakeRelativeAuthPath(normalizedGroup, safeNewName);
+    it->updatedAt = NowText();
+    if (wasCurrent)
+    {
+        idx.currentName = safeNewName;
+        idx.currentGroup = normalizedGroup;
+    }
+    SaveIndex(idx);
+
+    status = L"重命名成功：[" + normalizedGroup + L"] " + safeName + L" -> " + safeNewName;
+    code = L"account_renamed";
     return true;
 }
 
@@ -2859,6 +3098,105 @@ std::vector<AccountEntry> CollectAccounts(const bool refreshUsage, const std::ws
 
         item.group = NormalizeGroup(row.group);
         result.push_back(item);
+    }
+
+    if (indexChanged)
+    {
+        SaveIndex(idx);
+    }
+
+    return result;
+}
+
+std::vector<AccountEntry> CollectAccountsWithThrottle(const DWORD throttleMs)
+{
+    EnsureIndexExists();
+
+    std::vector<AccountEntry> result;
+    IndexData idx;
+    LoadIndex(idx);
+    bool indexChanged = false;
+
+    for (size_t i = 0; i < idx.accounts.size(); ++i)
+    {
+        auto& row = idx.accounts[i];
+        const fs::path backupAuth = ResolveAuthPathFromIndex(row);
+        if (!fs::exists(backupAuth))
+        {
+            continue;
+        }
+
+        AccountEntry item;
+        item.name = row.name;
+        item.group = NormalizeGroup(row.group);
+        item.updatedAt = row.updatedAt.empty() ? FormatFileTime(backupAuth) : row.updatedAt;
+        item.isCurrent = EqualsIgnoreCase(idx.currentName, row.name) &&
+            NormalizeGroup(idx.currentGroup) == NormalizeGroup(row.group);
+        item.usageOk = row.quotaUsageOk;
+        item.planType = row.quotaPlanType;
+        item.email = row.quotaEmail;
+        item.quota5hRemainingPercent = row.quota5hRemainingPercent;
+        item.quota7dRemainingPercent = row.quota7dRemainingPercent;
+        item.quota5hResetAfterSeconds = row.quota5hResetAfterSeconds;
+        item.quota7dResetAfterSeconds = row.quota7dResetAfterSeconds;
+        item.quota5hResetAt = row.quota5hResetAt;
+        item.quota7dResetAt = row.quota7dResetAt;
+
+        UsageSnapshot usage;
+        if (QueryUsageFromAuthFile(backupAuth, usage))
+        {
+            item.usageOk = true;
+            item.usageError.clear();
+            item.planType = usage.planType;
+            item.email = usage.email;
+            item.quota5hRemainingPercent = RemainingPercentFromUsed(usage.primaryUsedPercent);
+            item.quota7dRemainingPercent = RemainingPercentFromUsed(usage.secondaryUsedPercent);
+            item.quota5hResetAfterSeconds = usage.primaryResetAfterSeconds;
+            item.quota7dResetAfterSeconds = usage.secondaryResetAfterSeconds;
+            item.quota5hResetAt = usage.primaryResetAt;
+            item.quota7dResetAt = usage.secondaryResetAt;
+            row.quotaUsageOk = true;
+            row.quotaPlanType = item.planType;
+            row.quotaEmail = item.email;
+            row.quota5hRemainingPercent = item.quota5hRemainingPercent;
+            row.quota7dRemainingPercent = item.quota7dRemainingPercent;
+            row.quota5hResetAfterSeconds = item.quota5hResetAfterSeconds;
+            row.quota7dResetAfterSeconds = item.quota7dResetAfterSeconds;
+            row.quota5hResetAt = item.quota5hResetAt;
+            row.quota7dResetAt = item.quota7dResetAt;
+            indexChanged = true;
+
+            const std::wstring refreshedGroup = GroupFromPlanType(usage.planType);
+            const std::wstring expectedPath = MakeRelativeAuthPath(refreshedGroup, SanitizeAccountName(row.name));
+            const bool needGroupSync =
+                IsPlanGroup(refreshedGroup) &&
+                (NormalizeGroup(row.group) != refreshedGroup ||
+                    ToLowerCopy(row.path) != ToLowerCopy(expectedPath));
+            if (needGroupSync)
+            {
+                if (SyncIndexEntryToGroup(row, refreshedGroup))
+                {
+                    indexChanged = true;
+                }
+            }
+            if (item.isCurrent && IsPlanGroup(row.group) && NormalizeGroup(idx.currentGroup) != NormalizeGroup(row.group))
+            {
+                idx.currentGroup = NormalizeGroup(row.group);
+                indexChanged = true;
+            }
+        }
+        else
+        {
+            item.usageError = usage.error;
+        }
+
+        item.group = NormalizeGroup(row.group);
+        result.push_back(item);
+
+        if (throttleMs > 0 && i + 1 < idx.accounts.size())
+        {
+            Sleep(throttleMs);
+        }
     }
 
     if (indexChanged)
@@ -3251,11 +3589,11 @@ void WebViewHost::TriggerRefreshAll(const bool notifyStatus)
     const bool checkLowQuota = lowQuotaPromptEnabled_;
     auto* runningFlag = &allRefreshRunning_;
     std::thread([targetHwnd, notifyStatus, checkLowQuota, runningFlag]() {
-        const std::vector<AccountEntry> accounts = CollectAccounts(true, L"", L"");
+        const std::vector<AccountEntry> accounts = CollectAccountsWithThrottle(kRefreshAllThrottleMs);
         PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L""));
         if (notifyStatus)
         {
-            PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"quota_refreshed\",\"message\":\"额度已刷新\"}");
+            PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"quota_refreshed\",\"message\":\"\"}");
         }
 
         const AccountEntry* current = FindCurrentAccountEntry(accounts);
@@ -3439,8 +3777,45 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
             const HWND targetHwnd = hwnd_;
             std::thread([targetHwnd, name]() {
                 PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, name, L""));
-                PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"account_quota_refreshed\",\"message\":\"账号额度已刷新\"}");
+                PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"account_quota_refreshed\",\"message\":\"\"}");
             }).detach();
+        }
+        return;
+    }
+
+    if (action == L"backup_current_auto")
+    {
+        std::wstring savedName;
+        std::wstring status;
+        std::wstring code;
+        const bool ok = BackupCurrentAccountAuto(savedName, status, code);
+        const std::wstring level = (code == L"duplicate_name") ? L"warning" : (ok ? L"success" : L"error");
+        SendWebStatus(status, level, code);
+        if (ok)
+        {
+            const HWND targetHwnd = hwnd_;
+            const std::wstring targetName = savedName;
+            std::thread([targetHwnd, targetName]() {
+                PostAsyncWebJson(targetHwnd, BuildAccountsListJson(true, targetName, L""));
+                PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"account_quota_refreshed\",\"message\":\"\"}");
+            }).detach();
+        }
+        return;
+    }
+
+    if (action == L"rename_account")
+    {
+        const std::wstring account = ExtractJsonField(rawMessage, L"account");
+        const std::wstring group = ExtractJsonField(rawMessage, L"group");
+        const std::wstring newName = ExtractJsonField(rawMessage, L"newName");
+        std::wstring status;
+        std::wstring code;
+        const bool ok = RenameAccount(account, group, newName, status, code);
+        const std::wstring level = (code == L"duplicate_name") ? L"warning" : (ok ? L"success" : L"error");
+        SendWebStatus(status, level, code);
+        if (ok)
+        {
+            SendAccountsList(false, L"", L"");
         }
         return;
     }
@@ -3460,10 +3835,143 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
         return;
     }
 
+    if (action == L"delete_accounts_batch")
+    {
+        std::wstring itemsArray;
+        if (!ExtractJsonArrayField(rawMessage, L"items", itemsArray))
+        {
+            SendWebStatus(L"请至少选择一个账号", L"warning", L"batch_empty");
+            return;
+        }
+
+        const auto objects = ExtractTopLevelObjectsFromArray(itemsArray);
+        std::vector<std::pair<std::wstring, std::wstring>> targets;
+        targets.reserve(objects.size());
+        std::unordered_set<std::wstring> dedup;
+        for (const auto& obj : objects)
+        {
+            const std::wstring account = ExtractJsonField(obj, L"account");
+            if (account.empty())
+            {
+                continue;
+            }
+            const std::wstring group = NormalizeGroup(ExtractJsonField(obj, L"group"));
+            const std::wstring key = ToLowerCopy(group) + L"::" + account;
+            if (!dedup.insert(key).second)
+            {
+                continue;
+            }
+            targets.emplace_back(account, group);
+        }
+
+        if (targets.empty())
+        {
+            SendWebStatus(L"请至少选择一个账号", L"warning", L"batch_empty");
+            return;
+        }
+
+        const HWND targetHwnd = hwnd_;
+        std::thread([targetHwnd, targets = std::move(targets)]() mutable {
+            int successCount = 0;
+            std::wstring lastError;
+            for (const auto& item : targets)
+            {
+                std::wstring status;
+                std::wstring code;
+                const bool ok = DeleteAccountBackup(item.first, item.second, status, code);
+                if (ok)
+                {
+                    ++successCount;
+                }
+                else if (!status.empty())
+                {
+                    lastError = status;
+                }
+            }
+
+            const int totalCount = static_cast<int>(targets.size());
+            std::wstring level = L"success";
+            std::wstring code = L"batch_delete_done";
+            if (successCount == 0)
+            {
+                level = L"error";
+                code = L"batch_delete_failed";
+            }
+            else if (successCount < totalCount)
+            {
+                level = L"warning";
+                code = L"batch_delete_partial";
+            }
+
+            std::wstring statusJson =
+                L"{\"type\":\"status\",\"level\":\"" + EscapeJsonString(level) +
+                L"\",\"code\":\"" + EscapeJsonString(code) +
+                L"\",\"message\":\"\",\"success\":" + std::to_wstring(successCount) +
+                L",\"total\":" + std::to_wstring(totalCount) +
+                L",\"lastError\":\"" + EscapeJsonString(lastError) + L"\"}";
+
+            PostAsyncWebJson(targetHwnd, statusJson);
+            PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L""));
+        }).detach();
+        return;
+    }
+
     if (action == L"list_accounts")
     {
         SendAccountsList(false, L"", L"");
         SendRefreshTimerState();
+        return;
+    }
+
+    if (action == L"refresh_accounts_batch")
+    {
+        std::wstring itemsArray;
+        if (!ExtractJsonArrayField(rawMessage, L"items", itemsArray))
+        {
+            SendWebStatus(L"请至少选择一个账号", L"warning", L"batch_empty");
+            return;
+        }
+
+        const auto objects = ExtractTopLevelObjectsFromArray(itemsArray);
+        std::vector<std::pair<std::wstring, std::wstring>> targets;
+        targets.reserve(objects.size());
+        std::unordered_set<std::wstring> dedup;
+        for (const auto& obj : objects)
+        {
+            const std::wstring account = ExtractJsonField(obj, L"account");
+            if (account.empty())
+            {
+                continue;
+            }
+            const std::wstring group = NormalizeGroup(ExtractJsonField(obj, L"group"));
+            const std::wstring key = ToLowerCopy(group) + L"::" + account;
+            if (!dedup.insert(key).second)
+            {
+                continue;
+            }
+            targets.emplace_back(account, group);
+        }
+
+        if (targets.empty())
+        {
+            SendWebStatus(L"请至少选择一个账号", L"warning", L"batch_empty");
+            return;
+        }
+
+        const HWND targetHwnd = hwnd_;
+        std::thread([targetHwnd, targets = std::move(targets)]() mutable {
+            std::wstring latestJson = BuildAccountsListJson(false, L"", L"");
+            for (const auto& item : targets)
+            {
+                latestJson = BuildAccountsListJson(true, item.first, item.second);
+            }
+            if (latestJson.empty())
+            {
+                latestJson = BuildAccountsListJson(false, L"", L"");
+            }
+            PostAsyncWebJson(targetHwnd, latestJson);
+            PostAsyncWebJson(targetHwnd, L"{\"type\":\"status\",\"level\":\"success\",\"code\":\"batch_refresh_done\",\"message\":\"\"}");
+        }).detach();
         return;
     }
 
@@ -3634,49 +4142,78 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring& action, const s
 
     if (action == L"import_auth_json")
     {
-        const std::wstring preferredName = ExtractJsonField(rawMessage, L"name");
-        if (preferredName.empty())
+        std::vector<std::wstring> jsonPaths;
+        if (!PickOpenJsonPaths(hwnd, jsonPaths))
         {
-            std::wstring jsonPath;
-            if (!PickOpenJsonPath(hwnd, jsonPath))
-            {
-                SendWebStatus(L"导入已取消", L"warning", L"import_cancelled");
-                return;
-            }
-
-            std::wstring json;
-            if (!ReadUtf8File(jsonPath, json))
-            {
-                SendWebStatus(L"导入失败：无法读取 auth.json 文件", L"error", L"write_failed");
-                return;
-            }
-            if (!IsLikelyValidAuthJson(json))
-            {
-                SendWebStatus(L"该文件可能不是有效 auth.json，缺少必要字段", L"error", L"auth_json_invalid");
-                return;
-            }
-
-            pendingImportAuthPath_ = jsonPath;
-            SendWebJson(L"{\"type\":\"import_auth_need_name\"}");
+            SendWebStatus(L"导入已取消", L"warning", L"import_cancelled");
             return;
         }
 
-        if (pendingImportAuthPath_.empty())
-        {
-            SendWebStatus(L"请先选择要导入的 auth.json 文件", L"warning", L"import_cancelled");
-            return;
-        }
+        const HWND targetHwnd = hwnd_;
+        std::thread([targetHwnd, jsonPaths = std::move(jsonPaths)]() mutable {
+            EnsureIndexExists();
+            IndexData idx;
+            LoadIndex(idx);
+            std::vector<std::wstring> reservedNames;
+            reservedNames.reserve(idx.accounts.size() + jsonPaths.size());
+            for (const auto& row : idx.accounts)
+            {
+                reservedNames.push_back(row.name);
+            }
 
-        std::wstring status;
-        std::wstring code;
-        const bool ok = ImportAuthJsonFile(pendingImportAuthPath_, preferredName, status, code);
-        pendingImportAuthPath_.clear();
-        const std::wstring level = (code == L"import_cancelled") ? L"warning" : (ok ? L"success" : L"error");
-        SendWebStatus(status, level, code);
-        if (ok)
-        {
-            SendAccountsList(false, L"", L"");
-        }
+            const int totalCount = static_cast<int>(jsonPaths.size());
+            int successCount = 0;
+            std::wstring lastError;
+
+            for (const auto& jsonPath : jsonPaths)
+            {
+                UsageSnapshot usage;
+                QueryUsageFromAuthFile(jsonPath, usage);
+                const std::wstring baseName = MakeImportBaseNameFromPath(jsonPath, usage);
+                const std::wstring uniqueName = MakeUniqueImportedName(baseName, reservedNames);
+
+                std::wstring status;
+                std::wstring code;
+                const bool ok = ImportAuthJsonFile(jsonPath, uniqueName, status, code);
+                if (ok)
+                {
+                    ++successCount;
+                    reservedNames.push_back(uniqueName);
+                }
+                else
+                {
+                    lastError = status;
+                }
+            }
+
+            std::wstring level = L"success";
+            std::wstring code = L"import_auth_batch_done";
+            if (successCount == totalCount)
+            {
+                level = L"success";
+                code = L"import_auth_batch_done";
+            }
+            else if (successCount > 0)
+            {
+                level = L"warning";
+                code = L"import_auth_batch_partial";
+            }
+            else
+            {
+                level = L"error";
+                code = L"import_auth_batch_failed";
+            }
+
+            std::wstring statusJson =
+                L"{\"type\":\"status\",\"level\":\"" + EscapeJsonString(level) +
+                L"\",\"code\":\"" + EscapeJsonString(code) +
+                L"\",\"message\":\"\",\"success\":" + std::to_wstring(successCount) +
+                L",\"total\":" + std::to_wstring(totalCount) +
+                L",\"lastError\":\"" + EscapeJsonString(lastError) + L"\"}";
+
+            PostAsyncWebJson(targetHwnd, statusJson);
+            PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L""));
+        }).detach();
         return;
     }
 
@@ -3903,7 +4440,6 @@ void WebViewHost::Cleanup()
     pendingBestAccountName_.clear();
     pendingBestAccountGroup_.clear();
     pendingCurrentAccountName_.clear();
-    pendingImportAuthPath_.clear();
     hwnd_ = nullptr;
 }
 
