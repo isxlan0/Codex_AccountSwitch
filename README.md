@@ -31,12 +31,12 @@
 
 ### 1. 仪表盘（浅色）
 <p align="center">
-  <img src="./image/cn/1.png" alt="仪表盘（浅色）" width="75%" />
+  <img src="./image/cn/1.png" alt="仪表盘" width="75%" />
 </p>
 
 ### 1B. 仪表盘（深色）
 <p align="center">
-  <img src="./image/cn/1_b.png" alt="仪表盘（深色）" width="75%" />
+  <img src="./image/cn/1_b.png" alt="仪表盘_b" width="75%" />
 </p>
 
 ### 2. 账号管理

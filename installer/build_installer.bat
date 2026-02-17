@@ -28,6 +28,6 @@ if errorlevel 1 (
 )
 
 echo.
-echo Installer generated in dist\
+echo Installer and portable package generated in dist\
 popd
 exit /b 0

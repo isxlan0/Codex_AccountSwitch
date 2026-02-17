@@ -31,12 +31,12 @@
 
 ### 1. Dashboard (Light)
 <p align="center">
-  <img src="./image/en/1.png" alt="Dashboard (Light)" width="75%" />
+  <img src="./image/en/1.png" alt="Dashboard" width="75%" />
 </p>
 
 ### 1B. Dashboard (Dark)
 <p align="center">
-  <img src="./image/en/1_b.png" alt="Dashboard (Dark)" width="75%" />
+  <img src="./image/en/1_b.png" alt="Dashboard_b" width="75%" />
 </p>
 
 ### 2. Accounts

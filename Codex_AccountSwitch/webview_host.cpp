@@ -347,9 +347,46 @@ fs::path GetWorkspaceRoot() {
   return webUi.parent_path().parent_path();
 }
 
+fs::path GetExecutableDir() {
+  wchar_t modulePath[MAX_PATH]{};
+  if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) == 0) {
+    return fs::current_path();
+  }
+  return fs::path(modulePath).parent_path();
+}
+
+bool IsPortableModeEnabled() {
+  const fs::path exeDir = GetExecutableDir();
+  const fs::path markerPath = exeDir / L"portable.mode";
+  std::error_code ec;
+  if (fs::exists(markerPath, ec) && !ec) {
+    return true;
+  }
+
+  wchar_t *envPortable = nullptr;
+  size_t required = 0;
+  const int envResult = _wdupenv_s(&envPortable, &required, L"CAS_PORTABLE");
+  if (envResult == 0 && envPortable != nullptr && *envPortable != L'\0') {
+    std::wstring text = ToLowerCopy(envPortable);
+    free(envPortable);
+    if (text == L"1" || text == L"true" || text == L"yes" || text == L"on") {
+      return true;
+    }
+    return false;
+  }
+  free(envPortable);
+  return false;
+}
+
+fs::path GetPortableDataRoot() { return GetExecutableDir() / L"data"; }
+
 fs::path GetLegacyDataRoot() { return GetWorkspaceRoot(); }
 
 fs::path GetUserDataRoot() {
+  if (IsPortableModeEnabled()) {
+    return GetPortableDataRoot();
+  }
+
   wchar_t *localAppData = nullptr;
   size_t required = 0;
   if (_wdupenv_s(&localAppData, &required, L"LOCALAPPDATA") == 0 &&
