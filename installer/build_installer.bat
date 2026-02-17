@@ -6,6 +6,8 @@ set ISCC_EXE=C:\Program Files (x86)\Inno Setup 6\ISCC.exe
 set TARGET_PLATFORM=%~1
 set TARGET_ARCH=%~2
 if "%TARGET_PLATFORM%"=="" set TARGET_PLATFORM=windows
+set TARGET_ARCH_SPECIFIED=1
+if "%TARGET_ARCH%"=="" set TARGET_ARCH_SPECIFIED=0
 if "%TARGET_ARCH%"=="" set TARGET_ARCH=x64
 set BINARY_SUBDIR=x64
 set INSTALLER_ALLOWED=x64compatible
@@ -38,9 +40,17 @@ pushd "%SCRIPT_DIR%"
 
 if exist ".\build_installer.ps1" (
   if exist "%ISCC_EXE%" (
-    powershell -NoProfile -ExecutionPolicy Bypass -File ".\build_installer.ps1" -IsccPath "%ISCC_EXE%" -TargetPlatform "%TARGET_PLATFORM%" -TargetArchitecture "%TARGET_ARCH%"
+    if "%TARGET_ARCH_SPECIFIED%"=="1" (
+      powershell -NoProfile -ExecutionPolicy Bypass -File ".\build_installer.ps1" -IsccPath "%ISCC_EXE%" -TargetPlatform "%TARGET_PLATFORM%" -TargetArchitecture "%TARGET_ARCH%"
+    ) else (
+      powershell -NoProfile -ExecutionPolicy Bypass -File ".\build_installer.ps1" -IsccPath "%ISCC_EXE%" -TargetPlatform "%TARGET_PLATFORM%"
+    )
   ) else (
-    powershell -NoProfile -ExecutionPolicy Bypass -File ".\build_installer.ps1" -TargetPlatform "%TARGET_PLATFORM%" -TargetArchitecture "%TARGET_ARCH%"
+    if "%TARGET_ARCH_SPECIFIED%"=="1" (
+      powershell -NoProfile -ExecutionPolicy Bypass -File ".\build_installer.ps1" -TargetPlatform "%TARGET_PLATFORM%" -TargetArchitecture "%TARGET_ARCH%"
+    ) else (
+      powershell -NoProfile -ExecutionPolicy Bypass -File ".\build_installer.ps1" -TargetPlatform "%TARGET_PLATFORM%"
+    )
   )
 ) else (
   if exist "%ISCC_EXE%" (
