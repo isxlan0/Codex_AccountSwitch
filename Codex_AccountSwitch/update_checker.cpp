@@ -3,7 +3,9 @@
 #include <windows.h>
 #include <winhttp.h>
 
+#include <filesystem>
 #include <cwctype>
+#include <cstdlib>
 #include <string>
 #include <vector>
 
@@ -11,6 +13,8 @@
 
 namespace
 {
+namespace fs = std::filesystem;
+
 constexpr wchar_t kHost[] = L"api.github.com";
 constexpr wchar_t kReleasePath[] = L"/repos/isxlan0/Codex_AccountSwitch/releases/latest";
 constexpr wchar_t kTagsPath[] = L"/repos/isxlan0/Codex_AccountSwitch/tags?per_page=1";
@@ -195,8 +199,136 @@ bool EndsWithIgnoreCase(const std::wstring& text, const std::wstring& suffix)
     return true;
 }
 
-std::wstring ExtractPreferredDownloadUrl(const std::wstring& text)
+std::wstring ToLowerCopy(const std::wstring& text)
 {
+    std::wstring out = text;
+    for (wchar_t& ch : out)
+    {
+        ch = static_cast<wchar_t>(towlower(ch));
+    }
+    return out;
+}
+
+bool ContainsToken(const std::wstring& text, const std::wstring& token)
+{
+    if (token.empty() || text.empty() || text.size() < token.size())
+    {
+        return false;
+    }
+
+    size_t pos = 0;
+    while ((pos = text.find(token, pos)) != std::wstring::npos)
+    {
+        const bool leftOk = (pos == 0) || !iswalnum(text[pos - 1]);
+        const size_t rightPos = pos + token.size();
+        const bool rightOk = (rightPos >= text.size()) || !iswalnum(text[rightPos]);
+        if (leftOk && rightOk)
+        {
+            return true;
+        }
+        ++pos;
+    }
+    return false;
+}
+
+std::wstring GetExecutableDir()
+{
+    wchar_t modulePath[MAX_PATH]{};
+    if (GetModuleFileNameW(nullptr, modulePath, MAX_PATH) == 0)
+    {
+        return L"";
+    }
+    fs::path p(modulePath);
+    return p.parent_path().wstring();
+}
+
+bool IsPortableModeEnabled()
+{
+    const std::wstring exeDir = GetExecutableDir();
+    if (!exeDir.empty())
+    {
+        const fs::path markerPath = fs::path(exeDir) / L"portable.mode";
+        std::error_code ec;
+        if (fs::exists(markerPath, ec) && !ec)
+        {
+            return true;
+        }
+    }
+
+    wchar_t* envPortable = nullptr;
+    size_t required = 0;
+    const int envResult = _wdupenv_s(&envPortable, &required, L"CAS_PORTABLE");
+    if (envResult == 0 && envPortable != nullptr && *envPortable != L'\0')
+    {
+        const std::wstring text = ToLowerCopy(envPortable);
+        free(envPortable);
+        return text == L"1" || text == L"true" || text == L"yes" || text == L"on";
+    }
+    free(envPortable);
+    return false;
+}
+
+enum class AssetArch
+{
+    Unknown,
+    X64,
+    X86,
+    Arm
+};
+
+AssetArch DetectCurrentArch()
+{
+#if defined(_M_X64) || defined(__x86_64__)
+    return AssetArch::X64;
+#elif defined(_M_IX86) || defined(__i386__)
+    return AssetArch::X86;
+#elif defined(_M_ARM64) || defined(_M_ARM) || defined(__aarch64__) || defined(__arm__)
+    return AssetArch::Arm;
+#else
+    SYSTEM_INFO si{};
+    GetNativeSystemInfo(&si);
+    switch (si.wProcessorArchitecture)
+    {
+    case PROCESSOR_ARCHITECTURE_AMD64: return AssetArch::X64;
+    case PROCESSOR_ARCHITECTURE_INTEL: return AssetArch::X86;
+    case PROCESSOR_ARCHITECTURE_ARM64:
+    case PROCESSOR_ARCHITECTURE_ARM: return AssetArch::Arm;
+    default: return AssetArch::Unknown;
+    }
+#endif
+}
+
+AssetArch DetectAssetArch(const std::wstring& lowerUrl)
+{
+    if (ContainsToken(lowerUrl, L"x64"))
+    {
+        return AssetArch::X64;
+    }
+    if (ContainsToken(lowerUrl, L"x86") || ContainsToken(lowerUrl, L"win32"))
+    {
+        return AssetArch::X86;
+    }
+    if (ContainsToken(lowerUrl, L"arm64") || ContainsToken(lowerUrl, L"arm"))
+    {
+        return AssetArch::Arm;
+    }
+    return AssetArch::Unknown;
+}
+
+struct AssetCandidate
+{
+    std::wstring url;
+    std::wstring lowerUrl;
+    AssetArch arch = AssetArch::Unknown;
+    bool portable = false;
+    bool installer = false;
+    bool zip = false;
+    bool exeOrMsi = false;
+};
+
+std::vector<AssetCandidate> ExtractReleaseAssets(const std::wstring& text)
+{
+    std::vector<AssetCandidate> assets;
     const std::wstring key = L"browser_download_url";
     size_t searchPos = 0;
     while (searchPos < text.size())
@@ -204,19 +336,89 @@ std::wstring ExtractPreferredDownloadUrl(const std::wstring& text)
         const size_t keyPos = text.find(L"\"" + key + L"\"", searchPos);
         if (keyPos == std::wstring::npos)
         {
-            return L"";
+            break;
         }
 
         const std::wstring url = ExtractJsonStringField(text, key, keyPos);
-        if (!url.empty() &&
-            (EndsWithIgnoreCase(url, L".exe") || EndsWithIgnoreCase(url, L".msi") || EndsWithIgnoreCase(url, L".zip")))
+        searchPos = keyPos + key.size() + 2;
+        if (url.empty())
         {
-            return url;
+            continue;
         }
 
-        searchPos = keyPos + key.size() + 2;
+        const bool isExe = EndsWithIgnoreCase(url, L".exe");
+        const bool isMsi = EndsWithIgnoreCase(url, L".msi");
+        const bool isZip = EndsWithIgnoreCase(url, L".zip");
+        if (!isExe && !isMsi && !isZip)
+        {
+            continue;
+        }
+
+        AssetCandidate c;
+        c.url = url;
+        c.lowerUrl = ToLowerCopy(url);
+        c.portable = c.lowerUrl.find(L"portable") != std::wstring::npos;
+        c.installer = c.lowerUrl.find(L"setup") != std::wstring::npos || isExe || isMsi;
+        c.zip = isZip;
+        c.exeOrMsi = isExe || isMsi;
+        c.arch = DetectAssetArch(c.lowerUrl);
+        assets.push_back(std::move(c));
     }
-    return L"";
+    return assets;
+}
+
+std::wstring ExtractPreferredDownloadUrl(const std::wstring& text)
+{
+    const std::vector<AssetCandidate> assets = ExtractReleaseAssets(text);
+    if (assets.empty())
+    {
+        return L"";
+    }
+
+    const bool preferPortable = IsPortableModeEnabled();
+    const AssetArch currentArch = DetectCurrentArch();
+
+    int bestScore = -100000;
+    std::wstring bestUrl = assets.front().url;
+    for (const AssetCandidate& asset : assets)
+    {
+        int score = 0;
+
+        if (preferPortable)
+        {
+            if (asset.portable) score += 120;
+            if (asset.installer && !asset.portable) score -= 120;
+            if (asset.zip) score += 20;
+        }
+        else
+        {
+            if (asset.installer && !asset.portable) score += 120;
+            if (asset.portable) score -= 120;
+            if (asset.exeOrMsi) score += 20;
+        }
+
+        if (asset.arch == currentArch)
+        {
+            score += 100;
+        }
+        else if (asset.arch != AssetArch::Unknown && currentArch != AssetArch::Unknown)
+        {
+            score -= 100;
+        }
+
+        if (ContainsToken(asset.lowerUrl, L"windows"))
+        {
+            score += 5;
+        }
+
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestUrl = asset.url;
+        }
+    }
+
+    return bestUrl;
 }
 
 std::wstring JsonUnescape(const std::wstring& text)
