@@ -2,58 +2,73 @@
   "use strict";
 
   const IDE_LIST = ["Code.exe", "Trae.exe", "Kiro.exe", "Antigravity.exe"];
+  const FALLBACK_API_MODELS = [
+    "gpt-5",
+    "gpt-5-codex",
+    "gpt-5-codex-mini",
+    "gpt-5.1",
+    "gpt-5.1-codex",
+    "gpt-5.1-codex-mini",
+    "gpt-5.1-codex-max",
+    "gpt-5.2",
+    "gpt-5.2-codex",
+    "gpt-5.3-codex"
+  ];
   const DEFAULT_I18N = {
-    "app.brand":  "Codex Account Switch",
+    "app.brand": "Codex Account Switch",
     "tab.dashboard": "Dashboard",
-    "tab.accounts":  "Accounts",
-    "tab.about":  "About",
-    "tab.settings":  "Settings",
-    "toolbar.refresh":  "Refresh Quota",
+    "tab.accounts": "Accounts",
+    "tab.api": "API Proxy",
+    "tab.traffic": "Traffic Logs",
+    "tab.token": "Token Stats",
+    "tab.about": "About",
+    "tab.settings": "Settings",
+    "toolbar.refresh": "Refresh Quota",
     "toolbar.add_current": "Add Account",
-    "toolbar.login_new":  "Login New",
-    "toolbar.backup_current":  "Backup Current",
-    "toolbar.import_auth":  "Add Account",
-    "toolbar.import":  "Import Backup",
-    "toolbar.export":  "Export Backup",
+    "toolbar.login_new": "Login New",
+    "toolbar.backup_current": "Backup Current",
+    "toolbar.import_auth": "Add Account",
+    "toolbar.import": "Import Backup",
+    "toolbar.export": "Export Backup",
     "refresh.disabled": "Disabled",
     "refresh.countdown_prefix": "Next refresh in ",
     "refresh.countdown_suffix": "",
     "refresh.countdown_default": "--:--",
-    "search.placeholder":  "Search accounts...",
-    "group.all":  "All",
+    "search.placeholder": "Search accounts...",
+    "group.all": "All",
     "group.free": "Free",
     "group.plus": "Plus",
     "group.team": "Team",
     "group.pro": "Pro",
-    "table.account":  "Account",
-    "table.quota":  "Model Quota",
-    "table.recent":  "Last Used",
-    "table.action":  "Action",
-    "about.title":  "Codex Account Switch",
-    "about.subtitle":  "Professional Account Management",
-    "about.author_label":  "Author",
-    "about.author_name":  "Xiao Lan",
-    "about.repo_label":  "Open Source",
-    "about.repo_link":  "View Code",
-    "about.check_update":  "Check Update",
-    "about.version_prefix":  "Current Version: {version}",
-    "about.version_checking":  "Current Version: {version}, checking...",
-    "about.version_check_failed":  "Current Version: {version} (check failed)",
-    "about.version_new":  "Current Version: {version}, Latest: {latest}",
-    "about.version_latest":  "Current Version: {version} (latest)",
-    "settings.title":  "Default Settings",
-    "settings.subtitle":  "These settings are used on first launch and all future switches.",
+    "table.account": "Account",
+    "table.quota": "Model Quota",
+    "table.recent": "Last Used",
+    "table.action": "Action",
+    "about.title": "Codex Account Switch",
+    "about.subtitle": "Professional Account Management",
+    "about.author_label": "Author",
+    "about.author_name": "Xiao Lan",
+    "about.repo_label": "Open Source",
+    "about.repo_link": "View Code",
+    "about.check_update": "Check Update",
+    "about.version_prefix": "Current Version: {version}",
+    "about.version_checking": "Current Version: {version}, checking...",
+    "about.version_check_failed": "Current Version: {version} (check failed)",
+    "about.version_new": "Current Version: {version}, Latest: {latest}",
+    "about.version_latest": "Current Version: {version} (latest)",
+    "settings.title": "Default Settings",
+    "settings.subtitle": "These settings are used on first launch and all future switches.",
     "settings.tab.general": "General",
     "settings.tab.account": "Account",
-    "settings.language_label":  "Language",
-    "settings.ide_label":  "IDE Executable",
-    "settings.theme_label":  "Theme",
-    "settings.theme_auto":  "Auto",
-    "settings.theme_light":  "Light",
-    "settings.theme_dark":  "Dark",
-    "settings.theme_hint":  "Auto follows your Windows theme.",
-    "settings.auto_update_label":  "Auto Update",
-    "settings.auto_update_hint":  "Check update automatically at startup and prompt before downloading.",
+    "settings.language_label": "Language",
+    "settings.ide_label": "IDE Executable",
+    "settings.theme_label": "Theme",
+    "settings.theme_auto": "Auto",
+    "settings.theme_light": "Light",
+    "settings.theme_dark": "Dark",
+    "settings.theme_hint": "Auto follows your Windows theme.",
+    "settings.auto_update_label": "Auto Update",
+    "settings.auto_update_hint": "Check update automatically at startup and prompt before downloading.",
     "settings.quota_refresh_section": "Quota Refresh",
     "settings.auto_refresh_all_label": "Auto Refresh All Accounts",
     "settings.auto_refresh_all_hint": "Refresh all accounts every {minutes} minutes in background.",
@@ -64,7 +79,7 @@
     "settings.refresh_minutes_label": "Interval (minutes)",
     "settings.minutes_hint": "Enter 1-240",
     "settings.countdown_prefix": "Remaining: ",
-    "settings.first_run_toast":  "Please confirm default settings for first launch",
+    "settings.first_run_toast": "Please confirm default settings for first launch",
     "dashboard.title": "Quota Dashboard",
     "dashboard.subtitle": "Quick overview of account capacity and current account health.",
     "dashboard.total_accounts": "Total Accounts",
@@ -78,49 +93,165 @@
     "dashboard.current_5h": "5-hour Remaining",
     "dashboard.current_7d": "7-day Remaining",
     "dashboard.switch_button": "Go To Account Management",
+    "api.title": "API Playground",
+    "api.subtitle": "Use selected account token to request Codex Responses API.",
+    "api.model_label": "Model ID",
+    "api.prompt_label": "Input Content",
+    "api.output_label": "Model Output",
+    "api.send": "Send Request",
+    "api.model_placeholder": "e.g. gpt-5.3-codex",
+    "api.prompt_placeholder": "Type your message here...",
+    "proxy.title": "Service Config",
+    "proxy.start": "Start Service",
+    "proxy.stop": "Stop Service",
+    "proxy.status_stopped": "Service stopped",
+    "proxy.status_running": "Running on port {port}",
+    "proxy.port_label": "Listen Port",
+    "proxy.port_hint": "Local API proxy listen port. Default 8045.",
+    "proxy.timeout_label": "Request Timeout (sec)",
+    "proxy.timeout_hint": "Default 120 sec, range 30-7200. Includes long reasoning/stream wait.",
+    "proxy.auto_start_label": "Auto-start with app",
+    "proxy.auto_start_hint": "Start local API proxy automatically when app launches.",
+    "proxy.allow_lan_label": "Allow LAN access",
+    "proxy.allow_lan_hint_off": "Bind to 127.0.0.1 only (local-only, privacy-first).",
+    "proxy.allow_lan_hint_on": "Bind to 0.0.0.0, LAN devices can access this proxy port.",
+    "proxy.api_key_label": "API Key",
+    "proxy.api_key_hint": "Use Authorization: Bearer <API_KEY> or x-api-key on each proxy request.",
+    "proxy.stealth_mode_label": "Codex Client Use Local Proxy Mode",
+    "proxy.stealth_mode_hint": "Start local proxy service first.",
+    "api.subtab.proxy": "Proxy",
+    "api.subtab.test": "Test",
+    "proxy.dispatch_mode_label": "Account Dispatch",
+    "proxy.dispatch_mode_hint": "Select account scheduling strategy for proxy forwarding.",
+    "proxy.dispatch_mode_round_robin": "Round-robin",
+    "proxy.dispatch_mode_random": "Random",
+    "proxy.dispatch_mode_fixed": "Fixed account",
+    "proxy.fixed_account_label": "Fixed Account",
+    "proxy.fixed_account_hint": "Fixed mode always follows the current account selected in Account Management.",
+    "proxy.fixed_account_current": "Current selected account",
+    "quick.theme_title": "Switch Theme",
+    "quick.language_title": "Switch Language",
+    "traffic.title": "Traffic Logs",
+    "traffic.subtitle": "View call details for all accounts or one specific account.",
+    "traffic.label.account": "Account",
+    "traffic.label.filter": "Filter",
+    "traffic.filter.all": "All",
+    "traffic.filter.error": "Errors Only",
+    "traffic.search_placeholder": "Keyword filter (account/model/path)",
+    "traffic.refresh": "Refresh",
+    "traffic.th.status": "Status",
+    "traffic.th.method": "Method",
+    "traffic.th.model": "Model",
+    "traffic.th.protocol": "Protocol",
+    "traffic.th.account": "Account",
+    "traffic.th.path": "Path",
+    "traffic.th.tokens": "Token Usage",
+    "traffic.th.elapsed": "Elapsed",
+    "traffic.th.called_at": "Called At",
+    "traffic.label.page_size": "Per Page",
+    "traffic.prev": "Previous",
+    "traffic.next": "Next",
+    "traffic.empty": "No traffic logs",
+    "traffic.page_info_empty": "Page 0 / 0",
+    "traffic.page_info": "Page {page} / {totalPages}, total {total}",
+    "token.title": "Token Stats",
+    "token.subtitle": "Token usage statistics by account and time range.",
+    "token.label.account": "Account",
+    "token.label.period": "Period",
+    "token.period.hour": "Hour",
+    "token.period.day": "Day",
+    "token.period.week": "Week",
+    "token.refresh": "Refresh",
+    "token.card.input": "Input Tokens",
+    "token.card.active_account": "Active Account",
+    "token.card.output": "Output Tokens",
+    "token.card.total": "Total Tokens",
+    "token.trend.title": "Token Usage Trend",
+    "token.trend.model": "By Model",
+    "token.trend.account": "By Account",
+    "token.trend.empty": "No trend data",
+    "token.trend.period.hour": "Hour (5-minute bins)",
+    "token.trend.period.day": "Day (hourly bins)",
+    "token.trend.period.week": "Week (daily bins)",
+    "token.account_stats.title": "Account Breakdown",
+    "token.account_stats.th.account": "Account",
+    "token.account_stats.th.calls": "Calls",
+    "token.account_stats.th.output": "Output Tokens",
+    "token.account_stats.th.total": "Total Tokens",
+    "token.account_stats.empty": "No account stats",
+    "token.model_stats.th.model": "Model",
+    "token.model_stats.th.output": "Output Tokens",
+    "token.model_stats.th.total": "Total Tokens",
+    "token.model_stats.empty": "No token stats",
+    "confirm.switch_restart_ide": "Switch to {name} now? This will restart {ide}.",
+    "confirm.switch_proxy_mode": "Switch to {name} now? Proxy mode is enabled, restart IDE or CLI to take effect.",
     "dialog.add_account.title": "Add New Account",
+    "dialog.add_account.tab_oauth": "OAuth Auth",
+    "dialog.add_account.tab_manual": "Manual Paste",
+    "dialog.add_account.tab_current": "Import Current",
+    "dialog.add_account.tab_file": "Quick Import",
+    "dialog.add_account.oauth_desc": "Open browser to complete Codex login authorization, automatically obtain and save Token.",
+    "dialog.add_account.oauth_btn": "Start OAuth Login",
+    "dialog.add_account.oauth_monitor_title": "OAuth Authorization Monitoring",
+    "dialog.add_account.oauth_status_idle": "Click start to open browser and listen for callback on local port {port}.",
+    "dialog.add_account.oauth_status_listening": "Listening on local callback port {port}, waiting for authorization result.",
+    "dialog.add_account.oauth_status_browser_opened": "Browser opened. Complete authorization there, then wait for callback.",
+    "dialog.add_account.oauth_status_callback_received": "Callback received, exchanging token...",
+    "dialog.add_account.oauth_status_done": "Authorization completed.",
+    "dialog.add_account.oauth_status_browser_failed": "Browser did not open automatically. Open the authorization link manually.",
+    "dialog.add_account.oauth_link_label": "Authorization Link",
+    "dialog.add_account.oauth_open_link": "Open Link",
+    "dialog.add_account.oauth_callback_label": "Browser did not redirect automatically? Paste callback URL here:",
+    "dialog.add_account.oauth_callback_placeholder": "Paste full callback URL, e.g. http://localhost:1455/auth/callback?code=...&state=...",
+    "dialog.add_account.oauth_submit_callback": "Submit Callback URL",
+    "dialog.add_account.manual_desc": "Paste auth.json content below, supports batch paste for multiple accounts.",
+    "dialog.add_account.manual_btn": "Import Token",
+    "dialog.add_account.current_desc": "Import currently logged-in account from this device.",
+    "dialog.add_account.current_btn": "Import Current Account",
+    "dialog.add_account.file_desc": "Select existing OAuth authorization files to import.",
+    "dialog.add_account.file_btn": "Select OAuth Files",
     "dialog.add_account.import_current": "Import Current Logged-in Account",
     "dialog.add_account.import_oauth": "Quick Import Existing OAuth",
     "dialog.add_account.login_new": "Login New Account",
-    "dialog.backup.title":  "Backup Current Account",
-    "dialog.backup.name_label":  "Account Name",
-    "dialog.backup.name_placeholder":  "Enter account name",
+    "dialog.backup.title": "Backup Current Account",
+    "dialog.backup.name_label": "Account Name",
+    "dialog.backup.name_placeholder": "Enter account name",
     "dialog.rename.title": "Rename Account",
     "dialog.rename.name_label": "New Account Name",
     "dialog.rename.name_placeholder": "Enter new account name",
     "dialog.import_auth.title": "Quick Import Existing OAuth",
     "dialog.import_auth.name_label": "Imported Account Name",
     "dialog.import_auth.name_placeholder": "Enter account name",
-    "dialog.common.cancel":  "Cancel",
-    "dialog.common.save":  "Save",
-    "dialog.common.confirm":  "Confirm",
-    "dialog.confirm.title":  "Please Confirm",
-    "dialog.confirm.default_message":  "Confirm this action?",
-    "dialog.delete.title":  "Delete Account",
-    "dialog.delete.message":  "Delete backup for {name}?",
-    "dialog.login_new.title":  "Login New Account",
-    "dialog.login_new.message":  "Clear current login files and restart {ide}?",
-    "accounts.empty":  "No account backups",
-    "tag.current":  "Current",
-    "tag.group_business":  "Business",
-    "tag.group_personal":  "Personal",
+    "dialog.common.cancel": "Cancel",
+    "dialog.common.save": "Save",
+    "dialog.common.confirm": "Confirm",
+    "dialog.confirm.title": "Please Confirm",
+    "dialog.confirm.default_message": "Confirm this action?",
+    "dialog.delete.title": "Delete Account",
+    "dialog.delete.message": "Delete backup for {name}?",
+    "dialog.login_new.title": "Login New Account",
+    "dialog.login_new.message": "Clear current login files and restart {ide}?",
+    "accounts.empty": "No account backups",
+    "tag.current": "Current",
+    "tag.group_business": "Business",
+    "tag.group_personal": "Personal",
     "tag.plan_free": "Free",
     "tag.plan_plus": "Plus",
     "tag.plan_team": "Team",
     "tag.plan_pro": "Pro",
     "tag.plan_unknown": "Unknown",
-    "quota.gpt":  "Codex",
-    "quota.placeholder":  "No quota data",
-    "quota.format":  "5H {q5} | 7D {q7} | Reset {r5}/{r7}",
+    "quota.gpt": "Codex",
+    "quota.placeholder": "No quota data",
+    "quota.format": "5H {q5} | 7D {q7} | Reset {r5}/{r7}",
     "quota.format_free": "7D {q7} | Reset {r7}",
-    "action.switch_title":  "Switch to this account",
-    "action.switch":  "Switch",
+    "action.switch_title": "Switch to this account",
+    "action.switch": "Switch",
     "action.rename_title": "Rename account",
     "action.rename": "Rename",
-    "action.refresh_title":  "Refresh quota",
-    "action.refresh":  "Refresh",
-    "action.delete_title":  "Delete account",
-    "action.delete":  "Delete",
+    "action.refresh_title": "Refresh quota",
+    "action.refresh": "Refresh",
+    "action.delete_title": "Delete account",
+    "action.delete": "Delete",
     "bulk.mode_on": "Exit Multi-select",
     "bulk.mode_off": "Multi-select",
     "bulk.refresh": "Batch Refresh",
@@ -129,19 +260,19 @@
     "bulk.select_all": "Select all",
     "bulk.delete_confirm_title": "Batch Delete Accounts",
     "bulk.delete_confirm_message": "Delete {count} selected accounts?",
-    "count.format":  "Showing 1 to {total}, total {total}",
-    "count.empty":  "Showing 0 to 0, total 0",
-    "status_code.invalid_name":  "Save failed: invalid account name",
-    "status_code.name_too_long":  "Account name max length is 32",
-    "status_code.auth_missing":  "Save failed: current account file missing",
-    "status_code.duplicate_name":  "Duplicate name, please change it",
-    "status_code.create_dir_failed":  "Save failed: cannot create backup directory",
-    "status_code.write_failed":  "Operation failed: cannot write file",
-    "status_code.not_found":  "Operation failed: target not found",
-    "status_code.userprofile_missing":  "Operation failed: user directory not found",
-    "status_code.restart_failed":  "Failed to restart {ide}, please restart manually",
-    "status_code.config_saved":  "Settings saved",
-    "status_code.backup_saved":  "Account backup saved",
+    "count.format": "Showing 1 to {total}, total {total}",
+    "count.empty": "Showing 0 to 0, total 0",
+    "status_code.invalid_name": "Save failed: invalid account name",
+    "status_code.name_too_long": "Account name max length is 32",
+    "status_code.auth_missing": "Save failed: current account file missing",
+    "status_code.duplicate_name": "Duplicate name, please change it",
+    "status_code.create_dir_failed": "Save failed: cannot create backup directory",
+    "status_code.write_failed": "Operation failed: cannot write file",
+    "status_code.not_found": "Operation failed: target not found",
+    "status_code.userprofile_missing": "Operation failed: user directory not found",
+    "status_code.restart_failed": "Failed to restart {ide}, please restart manually",
+    "status_code.config_saved": "Settings saved",
+    "status_code.backup_saved": "Account backup saved",
     "status_code.account_renamed": "Account renamed",
     "status_code.account_renamed_and_refreshed": "Account renamed and quota refreshed",
     "status_code.auth_json_invalid": "This file may not be a valid auth.json (missing required fields)",
@@ -151,43 +282,227 @@
     "status_code.import_auth_batch_failed": "Import failed {success}/{total}",
     "status_code.last_error_prefix": "Last error",
     "status_code.low_quota_notification": "Low quota detected. Click tray notification to confirm switch.",
+    "status_code.switch_success": "Switched successfully, restarting {ide}",
+    "status_code.delete_success": "Deleted successfully",
+    "status_code.login_new_success": "Login files cleared, restarting {ide}",
+    "status_code.import_success": "Import completed",
+    "status_code.export_success": "Export completed",
+    "status_code.oauth_success": "OAuth authorization completed",
+    "status_code.oauth_timeout": "OAuth authorization timed out",
+    "status_code.oauth_error": "OAuth authorization failed",
+    "status_code.browser_open_failed": "Browser failed to open automatically",
+    "status_code.no_auth_code": "OAuth callback missing auth code",
+    "status_code.token_request_failed": "Token exchange failed",
+    "status_code.invalid_token_response": "Token response is invalid",
+    "status_code.invalid_token_data": "Token data is invalid",
+    "status_code.batch_import_success": "Batch import completed",
+    "status_code.batch_import_failed": "Batch import failed",
+    "status_code.no_json_found": "No valid JSON content detected",
+    "status_code.proxy_started": "Proxy service started",
+    "status_code.proxy_stopped": "Proxy service stopped",
+    "status_code.proxy_not_running": "Proxy service is not running",
+    "status_code.proxy_already_running": "Proxy service is already running",
+    "status_code.proxy_invalid_port": "Proxy port is invalid",
+    "status_code.proxy_wsa_startup_failed": "Proxy network initialization failed",
+    "status_code.proxy_socket_failed": "Proxy socket creation failed",
+    "status_code.proxy_bind_failed": "Proxy bind failed, port may be in use",
+    "status_code.proxy_listen_failed": "Proxy listen failed",
+    "status_code.wsa_startup_failed": "Network initialization failed",
+    "status_code.thread_create_failed": "Failed to create worker thread",
+    "status_code.challenge_gen_failed": "Failed to generate OAuth challenge",
+    "status_code.state_gen_failed": "Failed to generate OAuth state",
+    "status_code.random_gen_failed": "Failed to generate secure random bytes",
     "low_quota.prompt_title": "Low Quota Alert",
-    "low_quota.prompt_message": "Current account {current} is down to {currentQuota}% in 5h window.\nSwitch to {best} ({bestQuota}%) and restart IDE?",
+    "low_quota.prompt_message": "Current account {current} is down to {currentQuota}% in {window} window.\nSwitch to {best} ({bestQuota}%) and restart IDE?",
+    "low_quota.prompt_message_dynamic": "Current account {current} is down to {currentQuota}% in {window} window.\nSwitch to {best} ({bestQuota}%) and restart IDE?",
+    "status_code.switch_success_proxy_mode": "Switched successfully in proxy mode. Restart IDE or CLI to take effect.",
+    "status_code.proxy_usage_limit_reached": "Current account quota exhausted. Auto-switching and retrying request.",
+    "status_code.proxy_auto_switched": "Auto-switched to another account and retrying request.",
+    "status_code.proxy_fixed_auto_switched": "Fixed account quota unavailable. Auto-switched to another account.",
+    "status_code.proxy_low_quota": "Proxy mode detected low quota on current account.",
     "status_code.debug_action_ok": "Debug action triggered",
     "status_code.debug_action_unsupported": "This action is only available in Debug build",
-    "status_code.import_cancelled":  "Import cancelled",
-    "status_code.export_cancelled":  "Export cancelled",
-    "status_code.open_url_failed":  "Failed to open link",
-    "status_code.open_url_success":  "Link opened",
-    "status_code.save_config_failed":  "Failed to save settings",
-    "status_code.quota_refreshed":  "Quota refreshed",
-    "status_code.account_quota_refreshed":  "Account quota refreshed",
+    "status_code.import_cancelled": "Import cancelled",
+    "status_code.export_cancelled": "Export cancelled",
+    "status_code.open_url_failed": "Failed to open link",
+    "status_code.open_url_success": "Link opened",
+    "status_code.save_config_failed": "Failed to save settings",
+    "status_code.quota_refreshed": "Quota refreshed",
+    "status_code.account_quota_refreshed": "Account quota refreshed",
     "status_code.batch_refresh_done": "Batch quota refresh completed",
     "status_code.batch_delete_done": "Batch delete completed",
     "status_code.batch_delete_partial": "Batch delete partially completed",
     "status_code.batch_delete_failed": "Batch delete failed",
     "status_code.batch_empty": "Please select at least one account",
-    "status_code.unknown_action":  "Unknown action",
-    "update.failed":  "Update check failed, please try again later",
-    "update.latest":  "Already up to date",
-    "update.new":  "New version detected: {latest}",
-    "update.dialog.title":  "Update Available",
-    "update.dialog.current_label":  "Current",
-    "update.dialog.latest_label":  "Latest",
-    "update.dialog.notes_label":  "Release Notes",
-    "update.dialog.confirm_question":  "Download and install the latest release now?",
-    "update.dialog.message":  "Current: {current}\nLatest: {latest}\n\nRelease Notes:\n{notes}\n\nDownload and install the latest release now?",
+    "status_code.api_invalid_input": "API input is incomplete",
+    "status_code.api_no_selected_account": "No active account selected in Account Management",
+    "status_code.api_account_auth_missing": "Selected account auth file not found",
+    "status_code.api_request_success": "API request succeeded",
+    "status_code.api_request_failed": "API request failed",
+    "status_code.invalid_callback_url": "Invalid callback URL",
+    "status_code.oauth_session_not_active": "No OAuth session is active",
+    "status_code.oauth_callback_submitted": "Callback URL submitted",
+    "status_code.oauth_session_busy": "An OAuth session is already in progress",
+    "status_code.unknown_action": "Unknown action",
+    "update.failed": "Update check failed, please try again later",
+    "update.latest": "Already up to date",
+    "update.new": "New version detected: {latest}",
+    "update.dialog.title": "Update Available",
+    "update.dialog.current_label": "Current",
+    "update.dialog.latest_label": "Latest",
+    "update.dialog.notes_label": "Release Notes",
+    "update.dialog.confirm_question": "Download and install the latest release now?",
+    "update.dialog.message": "Current: {current}\nLatest: {latest}\n\nRelease Notes:\n{notes}\n\nDownload and install the latest release now?",
     "debug.title": "Debug Tools",
     "debug.notify": "Test: Low-Quota Notify",
-    "ide.Code.exe":  "VSCode",
-    "ide.Trae.exe":  "Trae",
-    "ide.Kiro.exe":  "Kiro",
-    "ide.Antigravity.exe":  "Antigravity"
-}
-;
+    "low_quota.window_5h": "5-hour",
+    "low_quota.window_7d": "7-day",
+    "status_text.proxy_low_quota_current": "Proxy current account {account} remaining quota only {quota}% ({window} window)",
+    "status_text.proxy_low_quota_suggest": ", recommended switch to {account} ({quota}%)",
+    "status_text.proxy_usage_limit_reached": "Account {account} quota exhausted (usage_limit_reached)",
+    "status_text.proxy_usage_limit_switching_retry": ", switching and retrying request",
+    "status_text.proxy_auto_switched_retry": "Auto-switched to {account}, retrying request",
+    "status_text.proxy_auto_switch_failed": "Auto account switch failed: {error}",
+    "status_text.proxy_fixed_auto_switched": "Fixed account quota unavailable, auto-switched to {account} and continuing request",
+    "status_text.tray_switched_account": "Tray switched to account {account}",
+    "status_text.low_quota_auto_switched": "Current account quota is low, auto-switched to the account with highest quota",
+    "tray.notify_title": "Codex Quota Alert",
+    "tray.proxy_auto_switching_suffix": ", auto switching account",
+    "tray.proxy_auto_switched_retry": "Auto-switched to account {account}, and retrying current request",
+    "tray.proxy_fixed_auto_switched": "Fixed account quota unavailable, auto-switched to {account}",
+    "tray.low_quota_window_default": "quota",
+    "tray.low_quota_window_suffix": "{window} quota",
+    "tray.low_quota_current": "Current account {account} {window} dropped to {quota}%",
+    "tray.low_quota_switch_suggest": ", can switch to {account} ({quota}%)",
+    "tray.low_quota_click_hint": ". Click this notification to choose whether to switch and restart IDE.",
+    "tray.menu.open_window": "Open Window",
+    "tray.menu.minimize_to_tray": "Minimize to Tray",
+    "tray.menu.exit": "Exit",
+    "tray.menu.quick_switch": "Quick Switch Account",
+    "tray.menu.no_switchable": "No switchable account",
+    "tray.quota_format": "5H {q5} | 7D {q7}",
+    "tray.quota_na": "--",
+    "ide.Code.exe": "VSCode",
+    "ide.Trae.exe": "Trae",
+    "ide.Kiro.exe": "Kiro",
+    "ide.Antigravity.exe": "Antigravity"
+  }
+    ;
 
   const ZH_FALLBACK_I18N = {
+    "app.brand": "Codex Account Switch",
+    "tab.accounts": "账号管理",
+    "tab.about": "关于",
+    "tab.settings": "设置",
+    "toolbar.login_new": "登录新账号",
+    "toolbar.backup_current": "备份当前账号",
+    "refresh.disabled": "已关闭",
+    "refresh.countdown_prefix": "下次刷新倒计时 ",
+    "refresh.countdown_suffix": "",
+    "refresh.countdown_default": "--:--",
+    "search.placeholder": "搜索账号...",
+    "group.all": "全部",
+    "table.account": "账号",
+    "table.quota": "模型配额",
+    "table.recent": "最近使用",
+    "table.action": "操作",
+    "about.title": "Codex Account Switch",
+    "about.subtitle": "专业账号管理",
+    "about.author_label": "作者",
+    "about.author_name": "Xiao Lan",
+    "about.repo_label": "开源地址",
+    "about.repo_link": "查看代码",
+    "about.check_update": "检查更新",
+    "about.version_prefix": "当前版本: {version}",
+    "about.version_checking": "当前版本: {version}，检查中...",
+    "about.version_check_failed": "当前版本: {version}（检查失败）",
+    "about.version_new": "当前版本: {version}，最新: {latest}",
+    "about.version_latest": "当前版本: {version}（已最新）",
+    "settings.title": "默认设置",
+    "settings.subtitle": "首次启动和后续切换都会使用这些设置。",
+    "settings.language_label": "语言",
+    "settings.ide_label": "IDE 可执行文件",
+    "settings.theme_label": "主题",
+    "settings.theme_auto": "自动",
+    "settings.theme_light": "浅色",
+    "settings.theme_dark": "深色",
+    "settings.theme_hint": "自动模式会跟随 Windows 主题。",
+    "settings.auto_update_label": "自动更新",
+    "settings.auto_update_hint": "启动时自动检查更新，并在下载前提示。",
+    "settings.quota_refresh_section": "额度刷新",
+    "settings.minutes_hint": "输入 1-240",
+    "settings.first_run_toast": "首次启动请先确认默认设置",
+    "dialog.backup.title": "备份当前账号",
+    "dialog.backup.name_label": "账号名称",
+    "dialog.backup.name_placeholder": "请输入账号名称",
+    "dialog.import_auth.title": "快速导入已有 OAuth",
+    "dialog.import_auth.name_label": "导入账号名称",
+    "dialog.import_auth.name_placeholder": "请输入账号名称",
+    "dialog.common.cancel": "取消",
+    "dialog.common.save": "保存",
+    "dialog.common.confirm": "确认",
+    "dialog.confirm.title": "请确认",
+    "dialog.confirm.default_message": "确认执行此操作吗？",
+    "dialog.delete.title": "删除账号",
+    "dialog.delete.message": "确认删除账号备份 {name} 吗？",
+    "dialog.login_new.title": "登录新账号",
+    "dialog.login_new.message": "将清理当前登录文件并重启 {ide}，是否继续？",
+    "accounts.empty": "暂无账号备份",
+    "tag.current": "当前",
+    "tag.group_business": "企业",
+    "tag.group_personal": "个人",
+    "quota.gpt": "Codex",
+    "quota.placeholder": "暂无配额数据",
+    "action.switch_title": "切换到此账号",
+    "action.switch": "切换",
+    "action.refresh_title": "刷新配额",
+    "action.refresh": "刷新",
+    "count.format": "显示 1 到 {total}，共 {total}",
+    "count.empty": "显示 0 到 0，共 0",
+    "status_code.invalid_name": "保存失败：账号名无效",
+    "status_code.name_too_long": "账号名最长 32 个字符",
+    "status_code.auth_missing": "保存失败：当前账号文件不存在",
+    "status_code.duplicate_name": "名称重复，请修改后重试",
+    "status_code.create_dir_failed": "保存失败：无法创建备份目录",
+    "status_code.write_failed": "操作失败：无法写入文件",
+    "status_code.not_found": "操作失败：未找到目标",
+    "status_code.userprofile_missing": "操作失败：未找到用户目录",
+    "status_code.restart_failed": "重启 {ide} 失败，请手动重启",
+    "status_code.config_saved": "设置已保存",
+    "status_code.backup_saved": "账号备份已保存",
+    "status_code.auth_json_invalid": "该文件可能不是有效 auth.json（缺少必要字段）",
+    "status_code.auth_json_imported": "OAuth 导入成功",
+    "status_code.low_quota_notification": "检测到低额度，请点击托盘通知确认是否切换账号",
+    "low_quota.prompt_title": "低额度提醒",
+    "status_code.debug_action_ok": "调试操作已触发",
+    "status_code.debug_action_unsupported": "该操作仅在 Debug 构建可用",
+    "status_code.import_cancelled": "导入已取消",
+    "status_code.export_cancelled": "导出已取消",
+    "status_code.open_url_failed": "打开链接失败",
+    "status_code.open_url_success": "链接已打开",
+    "status_code.save_config_failed": "设置保存失败",
+    "status_code.quota_refreshed": "额度已刷新",
+    "status_code.account_quota_refreshed": "账号额度已刷新",
+    "status_code.unknown_action": "未知操作",
+    "update.failed": "检查更新失败，请稍后重试",
+    "update.latest": "当前已是最新版本",
+    "update.new": "检测到新版本：{latest}",
+    "update.dialog.title": "发现新版本",
+    "update.dialog.current_label": "当前版本",
+    "update.dialog.latest_label": "最新版本",
+    "update.dialog.notes_label": "更新内容",
+    "update.dialog.confirm_question": "是否立即下载并安装最新版本？",
+    "update.dialog.message": "当前版本: {current}\n最新版本: {latest}\n\n更新内容:\n{notes}\n\n是否立即下载并安装最新版本？",
+    "debug.title": "调试工具",
+    "debug.notify": "测试：低额度通知",
+    "ide.Code.exe": "VSCode",
+    "ide.Trae.exe": "Trae",
+    "ide.Kiro.exe": "Kiro",
+    "ide.Antigravity.exe": "Antigravity",
     "tab.dashboard": "仪表盘",
+    "tab.api": "API 反代",
+    "tab.traffic": "流量日志",
+    "tab.token": "Token统计",
     "settings.tab.general": "通用",
     "settings.tab.account": "账号",
     "toolbar.refresh": "刷新额度",
@@ -222,7 +537,123 @@
     "dashboard.current_5h": "5 小时剩余",
     "dashboard.current_7d": "7 天剩余",
     "dashboard.switch_button": "前往账号管理",
+    "api.title": "API 调试",
+    "api.subtitle": "使用所选账号令牌请求 Codex Responses API。",
+    "api.model_label": "模型 ID",
+    "api.prompt_label": "发送内容",
+    "api.output_label": "模型返回内容",
+    "api.send": "发送请求",
+    "api.model_placeholder": "例如 gpt-5.3-codex",
+    "api.prompt_placeholder": "请输入请求内容...",
+    "proxy.title": "服务配置",
+    "proxy.start": "启动服务",
+    "proxy.stop": "停止服务",
+    "proxy.status_stopped": "服务已停止",
+    "proxy.status_running": "服务运行中（端口 {port}）",
+    "proxy.port_label": "监听端口",
+    "proxy.port_hint": "本地 API 代理监听端口，默认 8045。",
+    "proxy.timeout_label": "请求超时（秒）",
+    "proxy.timeout_hint": "默认 120 秒，范围 30-7200 秒。用于等待上游响应（包含长文本/长推理）。",
+    "proxy.auto_start_label": "跟随应用自动启动",
+    "proxy.auto_start_hint": "应用启动时自动启动本地 API 代理服务。",
+    "proxy.allow_lan_label": "允许局域网访问",
+    "proxy.allow_lan_hint_off": "仅监听 127.0.0.1，仅本机可访问（隐私优先）。",
+    "proxy.allow_lan_hint_on": "监听 0.0.0.0，局域网其他设备也可访问该端口。",
+    "proxy.api_key_label": "API 密钥",
+    "proxy.api_key_hint": "调用代理时请在请求头传入：Authorization: Bearer <API_KEY> 或 x-api-key。",
+    "proxy.stealth_mode_label": "Codex 客户端使用本地反代模式",
+    "proxy.stealth_mode_hint": "⚠️ 需要先启动本地反向代理服务",
+    "api.subtab.proxy": "反向代理",
+    "api.subtab.test": "测试",
+    "proxy.dispatch_mode_label": "账号调度模式",
+    "proxy.dispatch_mode_hint": "决定反向代理请求使用哪个账号。如果是固定模式则使用账号管理内选中的账号使用。",
+    "proxy.dispatch_mode_round_robin": "轮询账号",
+    "proxy.dispatch_mode_random": "随机账号",
+    "proxy.dispatch_mode_fixed": "固定账号",
+    "proxy.fixed_account_label": "固定账号",
+    "proxy.fixed_account_hint": "固定模式下自动使用账号管理当前选中账号。",
+    "proxy.fixed_account_current": "当前选中账号",
+    "quick.theme_title": "切换主题",
+    "quick.language_title": "切换语言",
+    "traffic.title": "流量日志",
+    "traffic.subtitle": "查看全部账号或指定账号的调用明细",
+    "traffic.label.account": "账号",
+    "traffic.label.filter": "过滤",
+    "traffic.filter.all": "全部",
+    "traffic.filter.error": "仅错误日志",
+    "traffic.search_placeholder": "关键字过滤(账号/模型/路径)",
+    "traffic.refresh": "刷新",
+    "traffic.th.status": "状态",
+    "traffic.th.method": "方法",
+    "traffic.th.model": "模型",
+    "traffic.th.protocol": "协议",
+    "traffic.th.account": "账号",
+    "traffic.th.path": "路径",
+    "traffic.th.tokens": "Token 消耗",
+    "traffic.th.elapsed": "耗时",
+    "traffic.th.called_at": "调用时间",
+    "traffic.label.page_size": "每页",
+    "traffic.prev": "上一页",
+    "traffic.next": "下一页",
+    "traffic.empty": "暂无流量日志",
+    "traffic.page_info_empty": "第 0 / 0 页",
+    "traffic.page_info": "第 {page} / {totalPages} 页，共 {total} 条",
+    "token.title": "Token 统计",
+    "token.subtitle": "按账号和时间窗口统计 Token 消费",
+    "token.label.account": "账号",
+    "token.label.period": "周期",
+    "token.period.hour": "小时",
+    "token.period.day": "日",
+    "token.period.week": "周",
+    "token.refresh": "刷新",
+    "token.card.input": "输入 Token",
+    "token.card.active_account": "活跃账号",
+    "token.card.output": "输出 Token",
+    "token.card.total": "总 Token",
+    "token.trend.title": "Token 使用趋势",
+    "token.trend.model": "分模型趋势",
+    "token.trend.account": "分账号趋势",
+    "token.trend.empty": "暂无趋势数据",
+    "token.trend.period.hour": "小时(5分钟粒度)",
+    "token.trend.period.day": "日(小时粒度)",
+    "token.trend.period.week": "周(天粒度)",
+    "token.account_stats.title": "分账号统计",
+    "token.account_stats.th.account": "账号",
+    "token.account_stats.th.calls": "调用次数",
+    "token.account_stats.th.output": "输出 Token",
+    "token.account_stats.th.total": "总 Token",
+    "token.account_stats.empty": "暂无账号统计",
+    "token.model_stats.th.model": "使用模型",
+    "token.model_stats.th.output": "输出 Token",
+    "token.model_stats.th.total": "总 Token",
+    "token.model_stats.empty": "暂无 Token 统计",
+    "confirm.switch_restart_ide": "确认切换到 {name}？将重启 {ide}。",
+    "confirm.switch_proxy_mode": "确认切换到 {name}？当前为反代模式，不会结束 IDE，请手动重启 IDE 或 CLI 生效。",
     "dialog.add_account.title": "添加新账号",
+    "dialog.add_account.tab_oauth": "OAuth授权",
+    "dialog.add_account.tab_manual": "手动粘贴",
+    "dialog.add_account.tab_current": "导入当前",
+    "dialog.add_account.tab_file": "快速导入",
+    "dialog.add_account.oauth_desc": "打开浏览器完成 Codex 登录授权，自动获取并保存 Token。",
+    "dialog.add_account.oauth_btn": "开始 OAuth 登录",
+    "dialog.add_account.oauth_monitor_title": "OAuth 授权监控",
+    "dialog.add_account.oauth_status_idle": "点击开始后将打开浏览器，并监听本地 {port} 端口回调。",
+    "dialog.add_account.oauth_status_listening": "正在监听本地回调端口 {port}，等待授权返回。",
+    "dialog.add_account.oauth_status_browser_opened": "浏览器已打开，请在浏览器中完成授权并等待回调。",
+    "dialog.add_account.oauth_status_callback_received": "已收到回调，正在交换令牌...",
+    "dialog.add_account.oauth_status_done": "授权完成。",
+    "dialog.add_account.oauth_status_browser_failed": "浏览器未自动打开，请手动打开授权链接。",
+    "dialog.add_account.oauth_link_label": "授权链接",
+    "dialog.add_account.oauth_open_link": "打开链接",
+    "dialog.add_account.oauth_callback_label": "浏览器没有自动跳转？请在此处粘贴回调链接：",
+    "dialog.add_account.oauth_callback_placeholder": "粘贴完整回调链接，例如：http://localhost:1455/auth/callback?code=...&state=...",
+    "dialog.add_account.oauth_submit_callback": "提交回调链接",
+    "dialog.add_account.manual_desc": "在下方粘贴 auth.json 内容，支持批量粘贴多个账号。",
+    "dialog.add_account.manual_btn": "导入令牌",
+    "dialog.add_account.current_desc": "导入本设备当前已登录的账号。",
+    "dialog.add_account.current_btn": "导入当前账号",
+    "dialog.add_account.file_desc": "选择已有的 OAuth 授权文件进行导入。",
+    "dialog.add_account.file_btn": "选择 OAuth 文件",
     "dialog.add_account.import_current": "导入当前登录账号",
     "dialog.add_account.import_oauth": "快速导入已有OAuth",
     "dialog.add_account.login_new": "登录新账号",
@@ -246,12 +677,85 @@
     "status_code.batch_delete_partial": "批量删除部分完成",
     "status_code.batch_delete_failed": "批量删除失败",
     "status_code.batch_empty": "请至少选择一个账号",
+    "status_code.api_invalid_input": "API参数不完整",
+    "status_code.api_no_selected_account": "账号管理中未选中当前账号",
+    "status_code.api_account_auth_missing": "所选账号auth文件不存在",
+    "status_code.api_request_success": "API请求成功",
+    "status_code.api_request_failed": "API请求失败",
+    "status_code.invalid_callback_url": "回调链接无效",
+    "status_code.oauth_session_not_active": "当前没有进行中的 OAuth 授权",
+    "status_code.oauth_callback_submitted": "已提交回调链接",
+    "status_code.oauth_session_busy": "已有进行中的 OAuth 授权",
     "status_code.account_renamed": "账号已重命名",
     "status_code.account_renamed_and_refreshed": "账号已重命名并刷新额度",
     "status_code.import_auth_batch_done": "导入成功 {success}/{total}",
     "status_code.import_auth_batch_partial": "导入部分成功 {success}/{total}",
     "status_code.import_auth_batch_failed": "导入失败 {success}/{total}",
     "status_code.last_error_prefix": "最后错误",
+    "status_code.switch_success": "切换成功，正在重启 {ide}",
+    "status_code.delete_success": "删除成功",
+    "status_code.login_new_success": "已清理登录文件，正在重启 {ide}",
+    "status_code.import_success": "导入成功",
+    "status_code.export_success": "导出成功",
+    "status_code.oauth_success": "OAuth 授权完成",
+    "status_code.oauth_timeout": "OAuth 授权超时",
+    "status_code.oauth_error": "OAuth 授权失败",
+    "status_code.browser_open_failed": "浏览器未能自动打开",
+    "status_code.no_auth_code": "OAuth 回调缺少授权码",
+    "status_code.token_request_failed": "令牌交换失败",
+    "status_code.invalid_token_response": "令牌响应无效",
+    "status_code.invalid_token_data": "令牌数据无效",
+    "status_code.batch_import_success": "批量导入完成",
+    "status_code.batch_import_failed": "批量导入失败",
+    "status_code.no_json_found": "未检测到有效 JSON 内容",
+    "status_code.proxy_started": "代理服务已启动",
+    "status_code.proxy_stopped": "代理服务已停止",
+    "status_code.proxy_not_running": "代理服务未运行",
+    "status_code.proxy_already_running": "代理服务已在运行",
+    "status_code.proxy_invalid_port": "代理端口无效",
+    "status_code.proxy_wsa_startup_failed": "代理网络初始化失败",
+    "status_code.proxy_socket_failed": "代理套接字创建失败",
+    "status_code.proxy_bind_failed": "代理绑定失败，端口可能被占用",
+    "status_code.proxy_listen_failed": "代理监听失败",
+    "status_code.wsa_startup_failed": "网络初始化失败",
+    "status_code.thread_create_failed": "创建工作线程失败",
+    "status_code.challenge_gen_failed": "生成 OAuth challenge 失败",
+    "status_code.state_gen_failed": "生成 OAuth state 失败",
+    "status_code.random_gen_failed": "生成安全随机字节失败",
+    "status_code.switch_success_proxy_mode": "反代模式下切换成功，请重启 IDE 或 CLI 生效。",
+    "status_code.proxy_usage_limit_reached": "当前账号额度已用尽，正在自动切换并重试请求。",
+    "status_code.proxy_auto_switched": "已自动切换到其他账号并重试请求。",
+    "status_code.proxy_fixed_auto_switched": "固定账号额度不可用，已自动切换到其他账号。",
+    "status_code.proxy_low_quota": "反代模式检测到当前账号额度较低。",
+    "low_quota.prompt_message": "当前账号 {current} 在 {window} 窗口额度已降至 {currentQuota}% 。\n是否切换到 {best}（{bestQuota}%）并重启 IDE？",
+    "low_quota.prompt_message_dynamic": "当前账号 {current} 在 {window} 窗口额度已降至 {currentQuota}% 。\n是否切换到 {best}（{bestQuota}%）并重启 IDE？",
+    "low_quota.window_5h": "5小时",
+    "low_quota.window_7d": "7天",
+    "status_text.proxy_low_quota_current": "反代当前账号 {account} 可用额度仅剩 {quota}%（{window}窗口）",
+    "status_text.proxy_low_quota_suggest": "，建议切换到 {account}（{quota}%）",
+    "status_text.proxy_usage_limit_reached": "账号 {account} 已用尽额度（usage_limit_reached）",
+    "status_text.proxy_usage_limit_switching_retry": "，正在切换并重试请求",
+    "status_text.proxy_auto_switched_retry": "已自动切换到 {account}，正在重试请求",
+    "status_text.proxy_auto_switch_failed": "自动切换账号失败: {error}",
+    "status_text.proxy_fixed_auto_switched": "固定账号额度不可用，已自动切换到 {account} 并继续请求",
+    "status_text.tray_switched_account": "托盘已切换到账号 {account}",
+    "status_text.low_quota_auto_switched": "当前账号额度过低，已自动切换到额度最高的账号",
+    "tray.notify_title": "Codex额度提醒",
+    "tray.proxy_auto_switching_suffix": "，正在自动切换账号",
+    "tray.proxy_auto_switched_retry": "已自动切换到账号 {account}，并继续重试当前请求",
+    "tray.proxy_fixed_auto_switched": "固定账号额度不可用，已自动切换到 {account}",
+    "tray.low_quota_window_default": "额度",
+    "tray.low_quota_window_suffix": "{window}额度",
+    "tray.low_quota_current": "当前账号 {account} 的{window}已降至 {quota}%",
+    "tray.low_quota_switch_suggest": "，可切换到 {account}（{quota}%）",
+    "tray.low_quota_click_hint": "。点击此通知可选择是否切换并重启IDE。",
+    "tray.menu.open_window": "打开页面",
+    "tray.menu.minimize_to_tray": "最小化到托盘",
+    "tray.menu.exit": "退出程序",
+    "tray.menu.quick_switch": "快速切换账号",
+    "tray.menu.no_switchable": "暂无可切换账号",
+    "tray.quota_format": "5小时 {q5} | 7天 {q7}",
+    "tray.quota_na": "--",
     "tag.plan_free": "Free",
     "tag.plan_plus": "Plus",
     "tag.plan_team": "Team",
@@ -264,8 +768,16 @@
     brandTitle: document.getElementById("brandTitle"),
     tabBtnDashboard: document.getElementById("tabBtnDashboard"),
     tabBtnAccounts: document.getElementById("tabBtnAccounts"),
+    tabBtnApi: document.getElementById("tabBtnApi"),
+    tabBtnTraffic: document.getElementById("tabBtnTraffic"),
+    tabBtnToken: document.getElementById("tabBtnToken"),
     tabBtnAbout: document.getElementById("tabBtnAbout"),
     tabBtnSettings: document.getElementById("tabBtnSettings"),
+    toolbarQuick: document.getElementById("toolbarQuick"),
+    quickThemeBtn: document.getElementById("quickThemeBtn"),
+    quickLangBtn: document.getElementById("quickLangBtn"),
+    quickLangMenu: document.getElementById("quickLangMenu"),
+    toolbarActions: document.querySelector(".toolbar-actions"),
     addCurrentBtn: document.getElementById("addCurrentBtn"),
     refreshBtn: document.getElementById("refreshBtn"),
     importBtn: document.getElementById("importBtn"),
@@ -281,6 +793,10 @@
     bulkRefreshBtn: document.getElementById("bulkRefreshBtn"),
     bulkDeleteBtn: document.getElementById("bulkDeleteBtn"),
     bulkSelectedText: document.getElementById("bulkSelectedText"),
+    accountsSectionTitle: document.getElementById("accountsSectionTitle"),
+    proxyStealthModeToggle: document.getElementById("proxyStealthModeToggle"),
+    proxyStealthModeLabel: document.getElementById("proxyStealthModeLabel"),
+    proxyStealthModeHint: document.getElementById("proxyStealthModeHint"),
     selectAllCheckbox: document.getElementById("selectAllCheckbox"),
     thAccount: document.getElementById("thAccount"),
     thQuota: document.getElementById("thQuota"),
@@ -350,6 +866,102 @@
     dashCurrent5Bar: document.getElementById("dashCurrent5Bar"),
     dashCurrent7Bar: document.getElementById("dashCurrent7Bar"),
     dashboardSwitchBtn: document.getElementById("dashboardSwitchBtn"),
+    apiTitle: document.getElementById("apiTitle"),
+    apiSub: document.getElementById("apiSub"),
+    apiSubTabTestBtn: document.getElementById("apiSubTabTestBtn"),
+    apiSubTabProxyBtn: document.getElementById("apiSubTabProxyBtn"),
+    apiPaneTest: document.getElementById("apiPaneTest"),
+    apiPaneProxy: document.getElementById("apiPaneProxy"),
+    apiModelLabel: document.getElementById("apiModelLabel"),
+    apiModelInput: document.getElementById("apiModelInput"),
+    apiPromptLabel: document.getElementById("apiPromptLabel"),
+    apiPromptTextarea: document.getElementById("apiPromptTextarea"),
+    apiSendBtn: document.getElementById("apiSendBtn"),
+    apiOutputLabel: document.getElementById("apiOutputLabel"),
+    apiOutputTextarea: document.getElementById("apiOutputTextarea"),
+    proxyTitle: document.getElementById("proxyTitle"),
+    proxyStatusDot: document.getElementById("proxyStatusDot"),
+    proxyStatusText: document.getElementById("proxyStatusText"),
+    proxyPortLabel: document.getElementById("proxyPortLabel"),
+    proxyPortInput: document.getElementById("proxyPortInput"),
+    proxyPortHint: document.getElementById("proxyPortHint"),
+    proxyTimeoutLabel: document.getElementById("proxyTimeoutLabel"),
+    proxyTimeoutInput: document.getElementById("proxyTimeoutInput"),
+    proxyTimeoutHint: document.getElementById("proxyTimeoutHint"),
+    proxyAutoStartLabel: document.getElementById("proxyAutoStartLabel"),
+    proxyAutoStartHint: document.getElementById("proxyAutoStartHint"),
+    proxyAllowLanLabel: document.getElementById("proxyAllowLanLabel"),
+    proxyAllowLanHint: document.getElementById("proxyAllowLanHint"),
+    proxyApiKeyLabel: document.getElementById("proxyApiKeyLabel"),
+    proxyApiKeyInput: document.getElementById("proxyApiKeyInput"),
+    proxyApiKeyHint: document.getElementById("proxyApiKeyHint"),
+    proxyDispatchModeLabel: document.getElementById("proxyDispatchModeLabel"),
+    proxyDispatchModeSelect: document.getElementById("proxyDispatchModeSelect"),
+    proxyDispatchModeHint: document.getElementById("proxyDispatchModeHint"),
+    proxyFixedAccountLabel: document.getElementById("proxyFixedAccountLabel"),
+    proxyFixedAccountSelect: document.getElementById("proxyFixedAccountSelect"),
+    proxyFixedAccountHint: document.getElementById("proxyFixedAccountHint"),
+    proxyAutoStartToggle: document.getElementById("proxyAutoStartToggle"),
+    proxyAllowLanToggle: document.getElementById("proxyAllowLanToggle"),
+    proxyStartBtn: document.getElementById("proxyStartBtn"),
+    proxyStopBtn: document.getElementById("proxyStopBtn"),
+    trafficTitle: document.getElementById("trafficTitle"),
+    trafficSubtitle: document.getElementById("trafficSubtitle"),
+    trafficAccountFilterLabel: document.getElementById("trafficAccountFilterLabel"),
+    trafficQuickFilterLabel: document.getElementById("trafficQuickFilterLabel"),
+    trafficAccountFilter: document.getElementById("trafficAccountFilter"),
+    trafficQuickFilterAllOption: document.querySelector("#trafficQuickFilter option[value='all']"),
+    trafficQuickFilterErrorOption: document.querySelector("#trafficQuickFilter option[value='error']"),
+    trafficRefreshBtn: document.getElementById("trafficRefreshBtn"),
+    trafficBody: document.getElementById("trafficBody"),
+    trafficQuickFilter: document.getElementById("trafficQuickFilter"),
+    trafficSearchInput: document.getElementById("trafficSearchInput"),
+    trafficThStatus: document.getElementById("trafficThStatus"),
+    trafficThMethod: document.getElementById("trafficThMethod"),
+    trafficThModel: document.getElementById("trafficThModel"),
+    trafficThProtocol: document.getElementById("trafficThProtocol"),
+    trafficThAccount: document.getElementById("trafficThAccount"),
+    trafficThPath: document.getElementById("trafficThPath"),
+    trafficThTokens: document.getElementById("trafficThTokens"),
+    trafficThElapsed: document.getElementById("trafficThElapsed"),
+    trafficThCalledAt: document.getElementById("trafficThCalledAt"),
+    trafficPageSizeLabel: document.getElementById("trafficPageSizeLabel"),
+    trafficPageSizeSelect: document.getElementById("trafficPageSizeSelect"),
+    trafficPrevBtn: document.getElementById("trafficPrevBtn"),
+    trafficNextBtn: document.getElementById("trafficNextBtn"),
+    trafficPageInfo: document.getElementById("trafficPageInfo"),
+    tokenTitle: document.getElementById("tokenTitle"),
+    tokenSubtitle: document.getElementById("tokenSubtitle"),
+    tokenAccountFilterLabel: document.getElementById("tokenAccountFilterLabel"),
+    tokenAccountFilter: document.getElementById("tokenAccountFilter"),
+    tokenPeriodSelectLabel: document.getElementById("tokenPeriodSelectLabel"),
+    tokenPeriodSelect: document.getElementById("tokenPeriodSelect"),
+    tokenPeriodHourOption: document.querySelector("#tokenPeriodSelect option[value='hour']"),
+    tokenPeriodDayOption: document.querySelector("#tokenPeriodSelect option[value='day']"),
+    tokenPeriodWeekOption: document.querySelector("#tokenPeriodSelect option[value='week']"),
+    tokenRefreshBtn: document.getElementById("tokenRefreshBtn"),
+    tokenCardInputLabel: document.getElementById("tokenCardInputLabel"),
+    tokenCardActiveLabel: document.getElementById("tokenCardActiveLabel"),
+    tokenCardOutputLabel: document.getElementById("tokenCardOutputLabel"),
+    tokenCardTotalLabel: document.getElementById("tokenCardTotalLabel"),
+    tokenInputValue: document.getElementById("tokenInputValue"),
+    tokenActiveAccount: document.getElementById("tokenActiveAccount"),
+    tokenOutputValue: document.getElementById("tokenOutputValue"),
+    tokenTotalValue: document.getElementById("tokenTotalValue"),
+    tokenTrendTitle: document.getElementById("tokenTrendTitle"),
+    tokenModelBody: document.getElementById("tokenModelBody"),
+    tokenTrendModelBtn: document.getElementById("tokenTrendModelBtn"),
+    tokenTrendAccountBtn: document.getElementById("tokenTrendAccountBtn"),
+    tokenTrendList: document.getElementById("tokenTrendList"),
+    tokenAccountStatsTitle: document.getElementById("tokenAccountStatsTitle"),
+    tokenAccountThAccount: document.getElementById("tokenAccountThAccount"),
+    tokenAccountThCalls: document.getElementById("tokenAccountThCalls"),
+    tokenAccountThOutput: document.getElementById("tokenAccountThOutput"),
+    tokenAccountThTotal: document.getElementById("tokenAccountThTotal"),
+    tokenModelThModel: document.getElementById("tokenModelThModel"),
+    tokenModelThOutput: document.getElementById("tokenModelThOutput"),
+    tokenModelThTotal: document.getElementById("tokenModelThTotal"),
+    tokenAccountBody: document.getElementById("tokenAccountBody"),
     countText: document.getElementById("countText"),
     accountsBody: document.getElementById("accountsBody"),
     logEl: document.getElementById("log"),
@@ -374,9 +986,32 @@
     importAuthConfirmBtn: document.getElementById("importAuthConfirmBtn"),
     addAccountModal: document.getElementById("addAccountModal"),
     addAccountTitle: document.getElementById("addAccountTitle"),
+    addTabOAuthBtn: document.getElementById("addTabOAuthBtn"),
+    addTabManualBtn: document.getElementById("addTabManualBtn"),
+    addTabCurrentBtn: document.getElementById("addTabCurrentBtn"),
+    addTabFileBtn: document.getElementById("addTabFileBtn"),
+    addPaneOAuth: document.getElementById("addPaneOAuth"),
+    addPaneManual: document.getElementById("addPaneManual"),
+    addPaneCurrent: document.getElementById("addPaneCurrent"),
+    addPaneFile: document.getElementById("addPaneFile"),
+    addPaneOAuthDesc: document.getElementById("addPaneOAuthDesc"),
+    addPaneManualDesc: document.getElementById("addPaneManualDesc"),
+    addPaneCurrentDesc: document.getElementById("addPaneCurrentDesc"),
+    addPaneFileDesc: document.getElementById("addPaneFileDesc"),
+    addAccountOAuthBtn: document.getElementById("addAccountOAuthBtn"),
+    oauthMonitorPanel: document.getElementById("oauthMonitorPanel"),
+    oauthMonitorTitle: document.getElementById("oauthMonitorTitle"),
+    oauthMonitorStatus: document.getElementById("oauthMonitorStatus"),
+    oauthAuthLinkLabel: document.getElementById("oauthAuthLinkLabel"),
+    oauthAuthLinkInput: document.getElementById("oauthAuthLinkInput"),
+    oauthOpenLinkBtn: document.getElementById("oauthOpenLinkBtn"),
+    oauthCallbackLabel: document.getElementById("oauthCallbackLabel"),
+    oauthCallbackTextarea: document.getElementById("oauthCallbackTextarea"),
+    oauthSubmitCallbackBtn: document.getElementById("oauthSubmitCallbackBtn"),
+    addAccountManualImportBtn: document.getElementById("addAccountManualImportBtn"),
     addAccountImportCurrentBtn: document.getElementById("addAccountImportCurrentBtn"),
     addAccountImportOAuthBtn: document.getElementById("addAccountImportOAuthBtn"),
-    addAccountLoginNewBtn: document.getElementById("addAccountLoginNewBtn"),
+    manualTokenTextarea: document.getElementById("manualTokenTextarea"),
     addAccountCancelBtn: document.getElementById("addAccountCancelBtn"),
     debugPanel: document.getElementById("debugPanel"),
     debugTitle: document.getElementById("debugTitle"),
@@ -385,7 +1020,8 @@
     confirmTitle: document.getElementById("confirmTitle"),
     confirmMessage: document.getElementById("confirmMessage"),
     confirmCancelBtn: document.getElementById("confirmCancelBtn"),
-    confirmOkBtn: document.getElementById("confirmOkBtn")
+    confirmOkBtn: document.getElementById("confirmOkBtn"),
+    accountsWrap: document.querySelector(".accounts-wrap")
   };
 
   const state = {
@@ -405,7 +1041,7 @@
     autoRefreshAllMinutes: 15,
     autoRefreshCurrentMinutes: 5,
     settingsSubTab: "general",
-    themeMode: "auto",
+    themeMode: readCachedThemeMode(),
     firstRun: false,
     languageIndex: [],
     i18n: {},
@@ -427,14 +1063,55 @@
     pendingConfigAckTimer: null,
     lowQuotaPromptOpen: false,
     allRefreshRemainSec: -1,
-    currentRefreshRemainSec: -1
+    currentRefreshRemainSec: -1,
+    addAccountTab: "oauth",
+    oauthFlowActive: false,
+    oauthAuthUrl: "",
+    oauthPort: 1455,
+    oauthFlowStage: "",
+    oauthFlowMessage: "",
+    apiSubTab: "proxy",
+    apiModels: [],
+    apiRequestBusy: false,
+    proxyRunning: false,
+    proxyAllowLan: false,
+    proxyAutoStart: false,
+    proxyApiKey: "",
+    proxyStealthMode: false,
+    proxyDispatchMode: "round_robin",
+    proxyFixedAccount: "",
+    proxyFixedGroup: "personal",
+    proxyApiKeyEditing: false,
+    trafficLogs: [],
+    trafficAccountFilter: "all",
+    tokenStats: null,
+    tokenAccountFilter: "all",
+    tokenPeriod: "day",
+    tokenTrendMode: "model",
+    trafficQuickFilter: "all",
+    trafficKeyword: "",
+    trafficPageSize: 50,
+    trafficPage: 1,
+    accountsAutoRefreshMs: 8000,
+    lastAccountsFetchAt: 0,
+    trafficAutoRefreshMs: 6000,
+    tokenAutoRefreshMs: 8000,
+    lastTrafficFetchAt: 0,
+    lastTokenFetchAt: 0,
+    autoRefreshLoopTimer: null,
+    quickLangMenuOpen: false
   };
+
+  const customSelectRegistry = new Map();
 
   const mediaDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
   function log(msg) {
     if (!state.debug) return;
     dom.logEl.textContent = `[${new Date().toLocaleTimeString()}] ${msg}\n` + dom.logEl.textContent;
+    if (window.console && typeof window.console.debug === "function") {
+      window.console.debug(`[CAS] ${msg}`);
+    }
   }
 
   function post(action, payload = {}) {
@@ -470,8 +1147,10 @@
   function t(key, vars = {}) {
     const langCode = String(state.currentLanguage || "").toLowerCase();
     const isZhCn = langCode === "zh-cn";
+    const isZhTw = langCode === "zh-tw";
+    const isZhLike = isZhCn || isZhTw;
     let text = state.i18n[key];
-    if (isZhCn && ZH_FALLBACK_I18N[key] !== undefined) {
+    if (isZhLike && (typeof text !== "string" || text.length === 0) && ZH_FALLBACK_I18N[key] !== undefined) {
       text = ZH_FALLBACK_I18N[key];
     }
     if (typeof text === "string") {
@@ -492,6 +1171,14 @@
       .replaceAll("\\r", "\n");
   }
 
+  function readCachedThemeMode() {
+    try {
+      return normalizeThemeMode(localStorage.getItem("cas_theme") || "auto");
+    } catch (e) {
+      return "auto";
+    }
+  }
+
   function initLanguageIndexFallback() {
     state.languageIndex = [{ code: "zh-CN", name: "简体中文", file: "zh-CN.json" }];
   }
@@ -506,6 +1193,7 @@
     applyI18n();
     refreshSettingsOptions();
     renderAccounts();
+    renderQuickSwitchers();
   }
 
   function requestLanguagePack(code) {
@@ -553,6 +1241,34 @@
   function switchTab(tab) {
     document.querySelectorAll(".tab-btn").forEach((x) => x.classList.toggle("active", x.getAttribute("data-tab") === tab));
     document.querySelectorAll(".tab-panel").forEach((x) => x.classList.toggle("active", x.id === `tab-${tab}`));
+    renderToolbarActionsForTab(tab);
+    if (tab === "dashboard" || tab === "accounts") {
+      requestAccountsList(true);
+    } else if (tab === "traffic") {
+      requestTrafficLogs(true);
+    } else if (tab === "token") {
+      requestTokenStats(true);
+    }
+  }
+
+  function renderToolbarActionsForTab(tab) {
+    const t = String(tab || "");
+    const showOnDashboard = t === "dashboard";
+    const showOnAccounts = t === "accounts";
+    if (dom.addCurrentBtn) dom.addCurrentBtn.classList.toggle("is-hidden", !(showOnDashboard || showOnAccounts));
+    if (dom.refreshBtn) dom.refreshBtn.classList.toggle("is-hidden", !(showOnDashboard || showOnAccounts));
+    if (dom.importBtn) dom.importBtn.classList.toggle("is-hidden", !showOnAccounts);
+    if (dom.exportBtn) dom.exportBtn.classList.toggle("is-hidden", !showOnAccounts);
+    if (dom.toolbarActions) {
+      const anyVisible = !dom.addCurrentBtn?.classList.contains("is-hidden")
+        || !dom.refreshBtn?.classList.contains("is-hidden")
+        || !dom.importBtn?.classList.contains("is-hidden")
+        || !dom.exportBtn?.classList.contains("is-hidden");
+      dom.toolbarActions.classList.toggle("is-hidden", !anyVisible);
+      document.body.classList.toggle("has-floating-toolbar-actions", anyVisible);
+    } else {
+      document.body.classList.remove("has-floating-toolbar-actions");
+    }
   }
 
   function switchSettingsSubTab(tab) {
@@ -562,6 +1278,60 @@
     });
     dom.settingsPaneGeneral.classList.toggle("active", state.settingsSubTab === "general");
     dom.settingsPaneAccount.classList.toggle("active", state.settingsSubTab === "account");
+  }
+
+  function switchAddAccountTab(tab) {
+    if (state.importMode === "oauth" && state.oauthFlowActive && tab !== "oauth") {
+      return;
+    }
+    state.addAccountTab = tab;
+    document.querySelectorAll("[data-add-tab]").forEach((x) => {
+      x.classList.toggle("active", x.getAttribute("data-add-tab") === state.addAccountTab);
+    });
+    dom.addPaneOAuth.classList.toggle("active", state.addAccountTab === "oauth");
+    dom.addPaneManual.classList.toggle("active", state.addAccountTab === "manual");
+    dom.addPaneCurrent.classList.toggle("active", state.addAccountTab === "current");
+    dom.addPaneFile.classList.toggle("active", state.addAccountTab === "file");
+  }
+
+  function openAddAccountModal() {
+    if (!state.oauthFlowActive) {
+      state.oauthFlowStage = "";
+      state.oauthFlowMessage = "";
+    }
+    dom.addAccountModal.classList.add("show");
+    document.body.classList.add("add-account-modal-open");
+    renderOAuthFlowPanel();
+  }
+
+  function closeAddAccountModal(force = false) {
+    if (!force && state.importMode === "oauth" && state.oauthFlowActive) {
+      return;
+    }
+    dom.addAccountModal.classList.remove("show");
+    document.body.classList.remove("add-account-modal-open");
+    if (!state.oauthFlowActive) {
+      dom.oauthCallbackTextarea.value = "";
+    }
+  }
+
+  function renderOAuthFlowPanel() {
+    const stage = String(state.oauthFlowStage || "");
+    const messageByStage = {
+      listening: t("dialog.add_account.oauth_status_listening", { port: state.oauthPort }),
+      browser_opened: t("dialog.add_account.oauth_status_browser_opened"),
+      callback_received: t("dialog.add_account.oauth_status_callback_received"),
+      completed: t("dialog.add_account.oauth_status_done"),
+      browser_open_failed: t("dialog.add_account.oauth_status_browser_failed")
+    };
+    const fallback = t("dialog.add_account.oauth_status_idle", { port: state.oauthPort });
+    const statusText = String(state.oauthFlowMessage || "").trim() || messageByStage[stage] || fallback;
+
+    dom.oauthMonitorPanel.classList.toggle("active", state.oauthFlowActive || !!state.oauthAuthUrl);
+    dom.oauthMonitorStatus.textContent = statusText;
+    dom.oauthAuthLinkInput.value = state.oauthAuthUrl || "";
+    dom.oauthOpenLinkBtn.disabled = !state.oauthAuthUrl;
+    dom.oauthSubmitCallbackBtn.disabled = !state.oauthFlowActive || state.importMode !== "oauth";
   }
 
   function openConfirm(options) {
@@ -598,7 +1368,189 @@
   }
 
   function applyTheme() {
-    document.documentElement.setAttribute("data-theme", resolveEffectiveTheme());
+    var eff = resolveEffectiveTheme();
+    document.documentElement.setAttribute("data-theme", eff);
+    document.documentElement.style.colorScheme = eff;
+    renderQuickSwitchers();
+  }
+
+  function renderQuickSwitchers() {
+    if (dom.quickThemeBtn) {
+      const mode = normalizeThemeMode(state.themeMode || "auto");
+      if (mode === "auto") {
+        dom.quickThemeBtn.textContent = "A";
+        dom.quickThemeBtn.title = "主题: Auto（跟随系统）";
+      } else if (mode === "dark") {
+        dom.quickThemeBtn.textContent = "☾";
+        dom.quickThemeBtn.title = "主题: Dark";
+      } else {
+        dom.quickThemeBtn.textContent = "☼";
+        dom.quickThemeBtn.title = "主题: Light";
+      }
+    }
+    if (dom.quickLangBtn) {
+      const raw = String(state.currentLanguage || "zh-CN").trim();
+      const shortCode = raw.split("-")[0].toUpperCase();
+      dom.quickLangBtn.textContent = shortCode || "ZH";
+      dom.quickLangBtn.title = `语言: ${raw || "zh-CN"}`;
+    }
+    renderQuickLangMenu();
+  }
+
+  function closeQuickLangMenu() {
+    state.quickLangMenuOpen = false;
+    if (dom.quickLangMenu) {
+      dom.quickLangMenu.classList.remove("show");
+    }
+    if (dom.quickLangBtn) {
+      dom.quickLangBtn.classList.remove("active");
+    }
+  }
+
+  function renderQuickLangMenu() {
+    if (!dom.quickLangMenu) return;
+    const langs = Array.isArray(state.languageIndex) ? state.languageIndex : [];
+    const current = String(state.currentLanguage || "").toLowerCase();
+    dom.quickLangMenu.innerHTML = langs.map((lang) => {
+      const code = String(lang?.code || "");
+      const name = String(lang?.name || code);
+      const isActive = code.toLowerCase() === current;
+      const shortCode = code.replace(/-.*/, "").toUpperCase();
+      return `
+        <button class="quick-menu-item ${isActive ? "active" : ""}" data-quick-lang="${escapeHtml(code)}">
+          <span class="quick-menu-code">${escapeHtml(shortCode)}</span>
+          <span class="quick-menu-name">${escapeHtml(name)}</span>
+          <span class="quick-menu-dot">${isActive ? "•" : ""}</span>
+        </button>
+      `;
+    }).join("");
+  }
+
+  function applyLanguageByCode(code) {
+    const nextCode = String(code || "").trim();
+    if (!nextCode) return;
+    state.currentLanguage = nextCode;
+    refreshSettingsOptions();
+    requestLanguagePack(nextCode);
+    queueSaveConfig();
+    renderQuickSwitchers();
+  }
+
+  function mountCustomSelect(selectEl) {
+    if (!(selectEl instanceof HTMLSelectElement)) return;
+    if (customSelectRegistry.has(selectEl)) {
+      return;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "custom-select-wrap";
+    const computedWidth = window.getComputedStyle(selectEl).width;
+    if (computedWidth && computedWidth !== "auto") {
+      wrap.style.width = computedWidth;
+    }
+    selectEl.parentNode.insertBefore(wrap, selectEl);
+    wrap.appendChild(selectEl);
+
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "custom-select-btn";
+    wrap.appendChild(btn);
+
+    const menu = document.createElement("div");
+    menu.className = "custom-select-menu";
+    wrap.appendChild(menu);
+
+    const closeMenu = () => {
+      menu.classList.remove("show");
+      btn.classList.remove("open");
+    };
+
+    const syncButtonText = () => {
+      const selected = selectEl.options[selectEl.selectedIndex];
+      btn.textContent = selected ? selected.textContent : "";
+      btn.disabled = !!selectEl.disabled;
+    };
+
+    const rebuildMenu = () => {
+      const selectedValue = String(selectEl.value ?? "");
+      menu.innerHTML = Array.from(selectEl.options).map((opt) => {
+        const value = String(opt.value ?? "");
+        const active = value === selectedValue;
+        return `
+          <button type="button" class="custom-select-item ${active ? "active" : ""}" data-value="${escapeHtml(value)}">
+            ${escapeHtml(String(opt.textContent || ""))}
+          </button>
+        `;
+      }).join("");
+      syncButtonText();
+    };
+
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (btn.disabled) return;
+      const opening = !menu.classList.contains("show");
+      document.querySelectorAll(".custom-select-menu.show").forEach((x) => x.classList.remove("show"));
+      document.querySelectorAll(".custom-select-btn.open").forEach((x) => x.classList.remove("open"));
+      if (opening) {
+        menu.classList.add("show");
+        btn.classList.add("open");
+      } else {
+        closeMenu();
+      }
+    });
+
+    menu.addEventListener("click", (e) => {
+      const item = e.target.closest(".custom-select-item");
+      if (!item) return;
+      const next = String(item.getAttribute("data-value") || "");
+      if (String(selectEl.value) !== next) {
+        selectEl.value = next;
+        selectEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      rebuildMenu();
+      closeMenu();
+    });
+
+    selectEl.classList.add("custom-select-native");
+    selectEl.addEventListener("change", rebuildMenu);
+    rebuildMenu();
+
+    const observer = new MutationObserver(() => {
+      rebuildMenu();
+    });
+    observer.observe(selectEl, { childList: true, subtree: true, attributes: true });
+
+    customSelectRegistry.set(selectEl, { rebuildMenu, closeMenu, observer });
+  }
+
+  function initCustomSelects() {
+    document.querySelectorAll("select.settings-number-input").forEach((el) => mountCustomSelect(el));
+  }
+
+  function refreshCustomSelects() {
+    customSelectRegistry.forEach((entry, selectEl) => {
+      if (!document.body.contains(selectEl)) return;
+      entry.rebuildMenu();
+    });
+  }
+
+  function setThemeWithButtonTransition(buttonEl, nextMode) {
+    const applyNext = () => {
+      state.themeMode = normalizeThemeMode(nextMode);
+      refreshSettingsOptions();
+      applyTheme();
+      queueSaveConfig();
+    };
+    if (!buttonEl || typeof document.startViewTransition !== "function") {
+      applyNext();
+      return;
+    }
+    const rect = buttonEl.getBoundingClientRect();
+    document.documentElement.style.setProperty("--vt-x", `${Math.round(rect.left + rect.width / 2)}px`);
+    document.documentElement.style.setProperty("--vt-y", `${Math.round(rect.top + rect.height / 2)}px`);
+    document.startViewTransition(() => {
+      applyNext();
+    });
   }
 
   function syncLayoutDensity() {
@@ -655,31 +1607,44 @@
     dom.settingsAutoRefreshCurrentHint.textContent = t("settings.auto_refresh_current_hint", { minutes: state.autoRefreshCurrentMinutes });
     dom.autoRefreshAllMinutesInput.value = String(state.autoRefreshAllMinutes);
     dom.autoRefreshCurrentMinutesInput.value = String(state.autoRefreshCurrentMinutes);
+    dom.proxyAutoStartToggle.checked = state.proxyAutoStart;
+    dom.proxyAllowLanToggle.checked = state.proxyAllowLan;
+    dom.proxyStealthModeToggle.checked = state.proxyStealthMode;
+    dom.proxyDispatchModeSelect.value = state.proxyDispatchMode || "round_robin";
+    renderProxyStatus();
+    renderProxyFixedAccountOptions();
+    refreshCustomSelects();
     switchSettingsSubTab(state.settingsSubTab);
   }
 
   function applyI18n() {
-    dom.tabBtnDashboard.textContent = t("tab.dashboard");
-    dom.tabBtnAccounts.textContent = t("tab.accounts");
-    dom.tabBtnAbout.textContent = t("tab.about");
-    dom.tabBtnSettings.textContent = t("tab.settings");
-    dom.addCurrentBtn.textContent = t("toolbar.add_current");
-    dom.refreshBtn.textContent = t("toolbar.refresh");
-    dom.importBtn.textContent = t("toolbar.import");
-    dom.exportBtn.textContent = t("toolbar.export");
+    dom.tabBtnDashboard.textContent = "\ud83d\udcca " + t("tab.dashboard");
+    dom.tabBtnAccounts.textContent = "\ud83d\udc65 " + t("tab.accounts");
+    dom.tabBtnApi.textContent = "\ud83d\udd0c " + t("tab.api");
+    dom.tabBtnTraffic.textContent = "\ud83d\udcc3 " + t("tab.traffic");
+    dom.tabBtnToken.textContent = "\ud83d\udcb0 " + t("tab.token");
+    dom.tabBtnAbout.textContent = "\ud83d\udca1 " + t("tab.about");
+    dom.tabBtnSettings.textContent = "\u2699\ufe0f " + t("tab.settings");
+    dom.quickThemeBtn.title = t("quick.theme_title");
+    dom.quickLangBtn.title = t("quick.language_title");
+    dom.accountsSectionTitle.textContent = "\ud83d\udc65 " + t("tab.accounts");
+    dom.addCurrentBtn.textContent = "\u2795 " + t("toolbar.add_current");
+    dom.refreshBtn.textContent = "\ud83d\udd04 " + t("toolbar.refresh");
+    dom.importBtn.textContent = "\ud83d\udce5 " + t("toolbar.import");
+    dom.exportBtn.textContent = "\ud83d\udce4 " + t("toolbar.export");
     dom.searchInput.placeholder = t("search.placeholder");
     dom.groupAllBtn.textContent = t("group.all");
-    dom.groupFreeBtn.textContent = "Free";
-    dom.groupPlusBtn.textContent = "Plus";
-    dom.groupTeamBtn.textContent = "Team";
-    dom.groupProBtn.textContent = "Pro";
+    dom.groupFreeBtn.textContent = t("group.free");
+    dom.groupPlusBtn.textContent = t("group.plus");
+    dom.groupTeamBtn.textContent = t("group.team");
+    dom.groupProBtn.textContent = t("group.pro");
     dom.thAccount.textContent = t("table.account");
     dom.thQuota.textContent = t("table.quota");
     dom.thRecent.textContent = t("table.recent");
     dom.thAction.textContent = t("table.action");
-    dom.multiSelectToggleBtn.textContent = state.multiSelectMode ? t("bulk.mode_on") : t("bulk.mode_off");
-    dom.bulkRefreshBtn.textContent = t("bulk.refresh");
-    dom.bulkDeleteBtn.textContent = t("bulk.delete");
+    dom.multiSelectToggleBtn.textContent = state.multiSelectMode ? "\u2716 " + t("bulk.mode_on") : "\u2610 " + t("bulk.mode_off");
+    dom.bulkRefreshBtn.textContent = "\ud83d\udd04 " + t("bulk.refresh");
+    dom.bulkDeleteBtn.textContent = "\ud83d\uddd1\ufe0f " + t("bulk.delete");
     dom.selectAllCheckbox.title = t("bulk.select_all");
     dom.aboutTitle.textContent = t("about.title");
     dom.aboutSubtitle.textContent = t("about.subtitle");
@@ -687,7 +1652,7 @@
     dom.aboutAuthorValue.textContent = t("about.author_name");
     dom.aboutRepoLabel.textContent = t("about.repo_label");
     dom.aboutRepoLink.textContent = t("about.repo_link");
-    dom.checkUpdateBtn.textContent = t("about.check_update");
+    dom.checkUpdateBtn.textContent = "\ud83d\ude80 " + t("about.check_update");
     dom.settingsTitle.textContent = t("settings.title");
     dom.settingsSub.textContent = t("settings.subtitle");
     dom.settingsTabGeneralBtn.textContent = t("settings.tab.general");
@@ -730,10 +1695,27 @@
     dom.confirmCancelBtn.textContent = t("dialog.common.cancel");
     dom.confirmOkBtn.textContent = t("dialog.common.confirm");
     dom.addAccountTitle.textContent = t("dialog.add_account.title");
-    dom.addAccountImportCurrentBtn.textContent = t("dialog.add_account.import_current");
-    dom.addAccountImportOAuthBtn.textContent = t("dialog.add_account.import_oauth");
-    dom.addAccountLoginNewBtn.textContent = t("dialog.add_account.login_new");
+    dom.addTabOAuthBtn.textContent = t("dialog.add_account.tab_oauth");
+    dom.addTabManualBtn.textContent = t("dialog.add_account.tab_manual");
+    dom.addTabCurrentBtn.textContent = t("dialog.add_account.tab_current");
+    dom.addTabFileBtn.textContent = t("dialog.add_account.tab_file");
+    dom.addPaneOAuthDesc.textContent = t("dialog.add_account.oauth_desc");
+    dom.addPaneManualDesc.textContent = t("dialog.add_account.manual_desc");
+    dom.addPaneCurrentDesc.textContent = t("dialog.add_account.current_desc");
+    dom.addPaneFileDesc.textContent = t("dialog.add_account.file_desc");
+    dom.addAccountOAuthBtn.textContent = t("dialog.add_account.oauth_btn");
+    dom.oauthMonitorTitle.textContent = t("dialog.add_account.oauth_monitor_title");
+    dom.oauthAuthLinkLabel.textContent = t("dialog.add_account.oauth_link_label");
+    dom.oauthOpenLinkBtn.textContent = t("dialog.add_account.oauth_open_link");
+    dom.oauthCallbackLabel.textContent = t("dialog.add_account.oauth_callback_label");
+    dom.oauthCallbackTextarea.placeholder = t("dialog.add_account.oauth_callback_placeholder");
+    dom.oauthSubmitCallbackBtn.textContent = t("dialog.add_account.oauth_submit_callback");
+    dom.addAccountManualImportBtn.textContent = t("dialog.add_account.manual_btn");
+    dom.addAccountImportCurrentBtn.textContent = t("dialog.add_account.current_btn");
+    dom.addAccountImportOAuthBtn.textContent = t("dialog.add_account.file_btn");
     dom.addAccountCancelBtn.textContent = t("dialog.common.cancel");
+    switchAddAccountTab(state.addAccountTab);
+    renderOAuthFlowPanel();
     dom.confirmTitle.textContent = t("dialog.confirm.title");
     dom.confirmMessage.textContent = t("dialog.confirm.default_message");
     dom.brandTitle.textContent = t("app.brand");
@@ -750,19 +1732,437 @@
     dom.dashCurrent5Label.textContent = t("dashboard.current_5h");
     dom.dashCurrent7Label.textContent = t("dashboard.current_7d");
     dom.dashboardSwitchBtn.textContent = t("dashboard.switch_button");
+    dom.apiTitle.textContent = t("api.title");
+    dom.apiSub.textContent = t("api.subtitle");
+    dom.apiModelLabel.textContent = t("api.model_label");
+    dom.apiPromptLabel.textContent = t("api.prompt_label");
+    dom.apiOutputLabel.textContent = t("api.output_label");
+    dom.apiSendBtn.textContent = "\ud83d\ude80 " + t("api.send");
+    dom.proxyTitle.textContent = "\ud83d\udd27 " + t("proxy.title");
+    dom.proxyPortLabel.textContent = t("proxy.port_label");
+    dom.proxyPortHint.textContent = t("proxy.port_hint");
+    dom.proxyTimeoutLabel.textContent = t("proxy.timeout_label");
+    dom.proxyTimeoutHint.textContent = t("proxy.timeout_hint");
+    dom.proxyAutoStartLabel.textContent = t("proxy.auto_start_label");
+    dom.proxyAutoStartHint.textContent = t("proxy.auto_start_hint");
+    dom.proxyAllowLanLabel.textContent = t("proxy.allow_lan_label");
+    dom.proxyApiKeyLabel.textContent = t("proxy.api_key_label");
+    dom.proxyApiKeyHint.textContent = t("proxy.api_key_hint");
+    dom.proxyStealthModeLabel.textContent = "🔄 " + t("proxy.stealth_mode_label");
+    if (dom.proxyStealthModeHint) dom.proxyStealthModeHint.textContent = t("proxy.stealth_mode_hint");
+    dom.apiSubTabProxyBtn.textContent = t("api.subtab.proxy");
+    dom.apiSubTabTestBtn.textContent = t("api.subtab.test");
+    dom.proxyDispatchModeLabel.textContent = t("proxy.dispatch_mode_label");
+    dom.proxyDispatchModeHint.textContent = t("proxy.dispatch_mode_hint");
+    if (dom.proxyFixedAccountLabel) dom.proxyFixedAccountLabel.textContent = t("proxy.fixed_account_label");
+    if (dom.proxyFixedAccountHint) dom.proxyFixedAccountHint.textContent = t("proxy.fixed_account_hint");
+    Array.from(dom.proxyDispatchModeSelect.options).forEach((opt) => {
+      if (opt.value === "round_robin") opt.textContent = t("proxy.dispatch_mode_round_robin");
+      if (opt.value === "random") opt.textContent = t("proxy.dispatch_mode_random");
+      if (opt.value === "fixed") opt.textContent = t("proxy.dispatch_mode_fixed");
+    });
+    dom.proxyDispatchModeSelect.value = state.proxyDispatchMode || "round_robin";
+    dom.proxyStartBtn.textContent = "\u25b6\ufe0f " + t("proxy.start");
+    dom.proxyStopBtn.textContent = "\u23f9\ufe0f " + t("proxy.stop");
+    dom.trafficTitle.textContent = t("traffic.title");
+    dom.trafficSubtitle.textContent = t("traffic.subtitle");
+    dom.trafficAccountFilterLabel.textContent = t("traffic.label.account");
+    dom.trafficQuickFilterLabel.textContent = t("traffic.label.filter");
+    if (dom.trafficQuickFilterAllOption) dom.trafficQuickFilterAllOption.textContent = t("traffic.filter.all");
+    if (dom.trafficQuickFilterErrorOption) dom.trafficQuickFilterErrorOption.textContent = t("traffic.filter.error");
+    dom.trafficSearchInput.placeholder = t("traffic.search_placeholder");
+    dom.trafficRefreshBtn.textContent = t("traffic.refresh");
+    dom.trafficThStatus.textContent = t("traffic.th.status");
+    dom.trafficThMethod.textContent = t("traffic.th.method");
+    dom.trafficThModel.textContent = t("traffic.th.model");
+    dom.trafficThProtocol.textContent = t("traffic.th.protocol");
+    dom.trafficThAccount.textContent = t("traffic.th.account");
+    dom.trafficThPath.textContent = t("traffic.th.path");
+    dom.trafficThTokens.textContent = t("traffic.th.tokens");
+    dom.trafficThElapsed.textContent = t("traffic.th.elapsed");
+    dom.trafficThCalledAt.textContent = t("traffic.th.called_at");
+    dom.trafficPageSizeLabel.textContent = t("traffic.label.page_size");
+    dom.trafficPrevBtn.textContent = t("traffic.prev");
+    dom.trafficNextBtn.textContent = t("traffic.next");
+    dom.tokenTitle.textContent = t("token.title");
+    dom.tokenSubtitle.textContent = t("token.subtitle");
+    dom.tokenAccountFilterLabel.textContent = t("token.label.account");
+    dom.tokenPeriodSelectLabel.textContent = t("token.label.period");
+    if (dom.tokenPeriodHourOption) dom.tokenPeriodHourOption.textContent = t("token.period.hour");
+    if (dom.tokenPeriodDayOption) dom.tokenPeriodDayOption.textContent = t("token.period.day");
+    if (dom.tokenPeriodWeekOption) dom.tokenPeriodWeekOption.textContent = t("token.period.week");
+    dom.tokenRefreshBtn.textContent = t("token.refresh");
+    dom.tokenCardInputLabel.textContent = t("token.card.input");
+    dom.tokenCardActiveLabel.textContent = t("token.card.active_account");
+    dom.tokenCardOutputLabel.textContent = t("token.card.output");
+    dom.tokenCardTotalLabel.textContent = t("token.card.total");
+    dom.tokenTrendTitle.textContent = t("token.trend.title");
+    dom.tokenTrendModelBtn.textContent = t("token.trend.model");
+    dom.tokenTrendAccountBtn.textContent = t("token.trend.account");
+    dom.tokenAccountStatsTitle.textContent = t("token.account_stats.title");
+    dom.tokenAccountThAccount.textContent = t("token.account_stats.th.account");
+    dom.tokenAccountThCalls.textContent = t("token.account_stats.th.calls");
+    dom.tokenAccountThOutput.textContent = t("token.account_stats.th.output");
+    dom.tokenAccountThTotal.textContent = t("token.account_stats.th.total");
+    dom.tokenModelThModel.textContent = t("token.model_stats.th.model");
+    dom.tokenModelThOutput.textContent = t("token.model_stats.th.output");
+    dom.tokenModelThTotal.textContent = t("token.model_stats.th.total");
+    dom.apiPromptTextarea.placeholder = t("api.prompt_placeholder");
     dom.versionText.textContent = t("about.version_prefix", { version: state.appVersion });
     renderRefreshCountdowns();
     renderIdeOptions();
     switchSettingsSubTab(state.settingsSubTab);
     renderDashboard();
     applyCountText();
+    switchApiSubTab(state.apiSubTab);
+    renderApiModelOptions();
+    renderApiState();
+    renderProxyStatus();
+    renderProxyFixedAccountOptions();
+    renderTrafficAccountOptions();
+    renderTrafficLogs();
+    renderTokenStats();
+    refreshCustomSelects();
     renderBulkControls();
     switchTab(document.querySelector(".tab-btn.active")?.getAttribute("data-tab") || "dashboard");
+  }
+
+  function formatTokenNumber(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || n < 0) return "-";
+    return n.toLocaleString();
+  }
+
+  function formatTrendDateTime(sec, withDate = true) {
+    const n = Number(sec);
+    if (!Number.isFinite(n) || n <= 0) return "-";
+    const d = new Date(n * 1000);
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mi = String(d.getMinutes()).padStart(2, "0");
+    return withDate ? `${mm}-${dd} ${hh}:${mi}` : `${hh}:${mi}`;
+  }
+
+  function renderTrafficAccountOptions() {
+    if (!dom.trafficAccountFilter || !dom.tokenAccountFilter) return;
+    const currentTraffic = String(state.trafficAccountFilter || "all");
+    const currentToken = String(state.tokenAccountFilter || "all");
+    const allAccounts = Array.isArray(state.accounts) ? state.accounts : [];
+    const names = Array.from(new Set(allAccounts.map((x) => String(x?.name || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+
+    dom.trafficAccountFilter.innerHTML = "";
+    dom.tokenAccountFilter.innerHTML = "";
+    const addOption = (selectEl, value, text) => {
+      const opt = document.createElement("option");
+      opt.value = value;
+      opt.textContent = text;
+      selectEl.appendChild(opt);
+    };
+    addOption(dom.trafficAccountFilter, "all", t("group.all"));
+    addOption(dom.tokenAccountFilter, "all", t("group.all"));
+    names.forEach((name) => {
+      addOption(dom.trafficAccountFilter, name, name);
+      addOption(dom.tokenAccountFilter, name, name);
+    });
+    dom.trafficAccountFilter.value = names.includes(currentTraffic) ? currentTraffic : "all";
+    dom.tokenAccountFilter.value = names.includes(currentToken) ? currentToken : "all";
+    state.trafficAccountFilter = dom.trafficAccountFilter.value;
+    state.tokenAccountFilter = dom.tokenAccountFilter.value;
+    refreshCustomSelects();
+  }
+
+  function renderTrafficLogs() {
+    if (!dom.trafficBody) return;
+    const allItems = Array.isArray(state.trafficLogs) ? state.trafficLogs : [];
+    const keyword = String(state.trafficKeyword || "").trim().toLowerCase();
+    let filtered = allItems;
+    if (state.trafficQuickFilter === "error") {
+      filtered = filtered.filter((it) => Number(it?.status) >= 400);
+    }
+    if (keyword) {
+      filtered = filtered.filter((it) => {
+        const text = [
+          it?.account,
+          it?.model,
+          it?.path,
+          it?.method,
+          it?.protocol,
+          it?.status
+        ].map((x) => String(x || "").toLowerCase()).join(" ");
+        return text.includes(keyword);
+      });
+    }
+
+    const pageSize = Math.max(1, Number(state.trafficPageSize || 50));
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    state.trafficPage = Math.max(1, Math.min(totalPages, Number(state.trafficPage || 1)));
+    const start = (state.trafficPage - 1) * pageSize;
+    const items = filtered.slice(start, start + pageSize);
+
+    if (total <= 0) {
+      dom.trafficBody.innerHTML = `<tr><td colspan="9" class="table-empty-cell">${escapeHtml(t("traffic.empty"))}</td></tr>`;
+      if (dom.trafficPageInfo) dom.trafficPageInfo.textContent = t("traffic.page_info_empty");
+      if (dom.trafficPrevBtn) dom.trafficPrevBtn.disabled = true;
+      if (dom.trafficNextBtn) dom.trafficNextBtn.disabled = true;
+      return;
+    }
+    dom.trafficBody.innerHTML = items.map((it) => {
+      const status = Number(it?.status);
+      const statusText = Number.isFinite(status) && status > 0 ? String(status) : "-";
+      const method = String(it?.method || "-").toUpperCase();
+      const model = String(it?.model || "-");
+      const protocol = String(it?.protocol || "-");
+      const account = String(it?.account || "-");
+      const path = String(it?.path || "-");
+      const tokenValue = Number(it?.totalTokens);
+      const tokenText = Number.isFinite(tokenValue) && tokenValue >= 0
+        ? formatTokenNumber(tokenValue)
+        : "-";
+      const elapsed = Number(it?.elapsedMs);
+      const elapsedText = Number.isFinite(elapsed) && elapsed >= 0 ? `${elapsed} ms` : "-";
+      const calledAtText = String(it?.calledAtText || "-");
+      return `
+        <tr>
+          <td>${escapeHtml(statusText)}</td>
+          <td>${escapeHtml(method)}</td>
+          <td>${escapeHtml(model)}</td>
+          <td>${escapeHtml(protocol)}</td>
+          <td title="${escapeHtml(account)}">${escapeHtml(account)}</td>
+          <td title="${escapeHtml(path)}">${escapeHtml(path)}</td>
+          <td>${escapeHtml(tokenText)}</td>
+          <td>${escapeHtml(elapsedText)}</td>
+          <td>${escapeHtml(calledAtText)}</td>
+        </tr>
+      `;
+    }).join("");
+    if (dom.trafficPageInfo) dom.trafficPageInfo.textContent =
+      t("traffic.page_info", { page: state.trafficPage, totalPages, total });
+    if (dom.trafficPrevBtn) dom.trafficPrevBtn.disabled = state.trafficPage <= 1;
+    if (dom.trafficNextBtn) dom.trafficNextBtn.disabled = state.trafficPage >= totalPages;
+  }
+
+  function renderTokenStats() {
+    const stats = state.tokenStats || {};
+    if (dom.tokenInputValue) dom.tokenInputValue.textContent = formatTokenNumber(stats.inputTokens);
+    if (dom.tokenOutputValue) dom.tokenOutputValue.textContent = formatTokenNumber(stats.outputTokens);
+    if (dom.tokenTotalValue) dom.tokenTotalValue.textContent = formatTokenNumber(stats.totalTokens);
+    if (dom.tokenActiveAccount) {
+      const name = String(stats.activeAccount || "").trim();
+      dom.tokenActiveAccount.textContent = name || "-";
+    }
+    if (!dom.tokenModelBody) return;
+    const models = Array.isArray(stats.models) ? stats.models : [];
+    if (models.length <= 0) {
+      dom.tokenModelBody.innerHTML = `<tr><td colspan="3" class="table-empty-cell">${escapeHtml(t("token.model_stats.empty"))}</td></tr>`;
+      return;
+    }
+    dom.tokenModelBody.innerHTML = models.map((it) => `
+      <tr>
+        <td title="${escapeHtml(String(it?.name || "-"))}">${escapeHtml(String(it?.name || "-"))}</td>
+        <td>${escapeHtml(formatTokenNumber(it?.outputTokens))}</td>
+        <td>${escapeHtml(formatTokenNumber(it?.totalTokens))}</td>
+      </tr>
+    `).join("");
+
+    if (dom.tokenTrendModelBtn && dom.tokenTrendAccountBtn) {
+      dom.tokenTrendModelBtn.classList.toggle("active", state.tokenTrendMode === "model");
+      dom.tokenTrendAccountBtn.classList.toggle("active", state.tokenTrendMode === "account");
+    }
+    if (dom.tokenTrendList) {
+      const trend = stats.trend || {};
+      const labels = Array.isArray(trend.labels) ? trend.labels.map((x) => String(x || "")) : [];
+      const list = state.tokenTrendMode === "account"
+        ? (Array.isArray(trend.byAccount) ? trend.byAccount : [])
+        : (Array.isArray(trend.byModel) ? trend.byModel : []);
+      if (!list.length) {
+        dom.tokenTrendList.innerHTML = `<div class="table-empty-cell">${escapeHtml(t("token.trend.empty"))}</div>`;
+      } else {
+        const periodText = state.tokenPeriod === "hour"
+          ? t("token.trend.period.hour")
+          : (state.tokenPeriod === "week" ? t("token.trend.period.week") : t("token.trend.period.day"));
+        const rangeStart = Number(trend.rangeStartSec);
+        const rangeEnd = Number(trend.rangeEndSec);
+        const hasRange = Number.isFinite(rangeStart) && Number.isFinite(rangeEnd) && rangeStart > 0 && rangeEnd > 0;
+        const axisStart = hasRange
+          ? formatTrendDateTime(rangeStart, state.tokenPeriod !== "hour")
+          : (labels.length > 0 ? labels[0] : "-");
+        const axisEnd = hasRange
+          ? formatTrendDateTime(rangeEnd, state.tokenPeriod !== "hour")
+          : (labels.length > 0 ? labels[labels.length - 1] : "-");
+        dom.tokenTrendList.innerHTML = list.map((row) => {
+          const vals = Array.isArray(row?.values) ? row.values.map((x) => Number(x) || 0) : [];
+          const maxVal = vals.reduce((a, b) => Math.max(a, b), 0);
+          const bars = vals.map((v, idx) => {
+            const h = maxVal > 0 ? Math.max(2, Math.round((v / maxVal) * 28)) : 2;
+            const label = labels[idx] || `#${idx + 1}`;
+            return `<span style="height:${h}px" title="${escapeHtml(label)} | ${escapeHtml(formatTokenNumber(v))} token"></span>`;
+          }).join("");
+          return `
+            <div class="token-trend-row">
+              <div class="token-trend-head">
+                <span>${escapeHtml(String(row?.name || "-"))}</span>
+                <strong>${escapeHtml(formatTokenNumber(row?.totalTokens))}</strong>
+              </div>
+              <div class="token-trend-axis">
+                <span>${escapeHtml(periodText)}</span>
+                <span>${escapeHtml(axisStart)} -> ${escapeHtml(axisEnd)}</span>
+              </div>
+              <div class="token-spark" style="--col-count:${Math.max(1, vals.length)}">${bars}</div>
+              <div class="token-trend-ticks">
+                <span>${escapeHtml(axisStart)}</span>
+                <span>${escapeHtml(axisEnd)}</span>
+              </div>
+            </div>
+          `;
+        }).join("");
+      }
+    }
+    if (dom.tokenAccountBody) {
+      const accounts = Array.isArray(stats.accounts) ? stats.accounts : [];
+      if (!accounts.length) {
+        dom.tokenAccountBody.innerHTML = `<tr><td colspan="4" class="table-empty-cell">${escapeHtml(t("token.account_stats.empty"))}</td></tr>`;
+      } else {
+        dom.tokenAccountBody.innerHTML = accounts.map((it) => `
+          <tr>
+            <td title="${escapeHtml(String(it?.name || "-"))}">${escapeHtml(String(it?.name || "-"))}</td>
+            <td>${escapeHtml(formatTokenNumber(it?.calls))}</td>
+            <td>${escapeHtml(formatTokenNumber(it?.outputTokens))}</td>
+            <td>${escapeHtml(formatTokenNumber(it?.totalTokens))}</td>
+          </tr>
+        `).join("");
+      }
+    }
+  }
+
+  function requestTrafficLogs(force = false) {
+    const now = Date.now();
+    if (!force && (now - Number(state.lastTrafficFetchAt || 0)) < 1200) {
+      return;
+    }
+    state.lastTrafficFetchAt = now;
+    post("get_traffic_logs", {
+      account: String(state.trafficAccountFilter || "all"),
+      limit: 1000
+    });
+  }
+
+  function requestAccountsList(force = false) {
+    const now = Date.now();
+    if (!force && (now - Number(state.lastAccountsFetchAt || 0)) < 1200) {
+      return;
+    }
+    state.lastAccountsFetchAt = now;
+    post("list_accounts");
+  }
+
+  function requestTokenStats(force = false) {
+    const now = Date.now();
+    if (!force && (now - Number(state.lastTokenFetchAt || 0)) < 1200) {
+      return;
+    }
+    state.lastTokenFetchAt = now;
+    post("get_token_stats", {
+      account: String(state.tokenAccountFilter || "all"),
+      period: String(state.tokenPeriod || "day")
+    });
+  }
+
+  function startAutoRefreshLoop() {
+    if (state.autoRefreshLoopTimer) {
+      clearInterval(state.autoRefreshLoopTimer);
+      state.autoRefreshLoopTimer = null;
+    }
+    state.autoRefreshLoopTimer = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      const activeTab = document.querySelector(".tab-btn.active")?.getAttribute("data-tab") || "";
+      const now = Date.now();
+      if (activeTab === "dashboard" || activeTab === "accounts") {
+        if ((now - Number(state.lastAccountsFetchAt || 0)) >= Number(state.accountsAutoRefreshMs || 8000)) {
+          requestAccountsList();
+        }
+      } else if (activeTab === "traffic") {
+        if ((now - Number(state.lastTrafficFetchAt || 0)) >= Number(state.trafficAutoRefreshMs || 6000)) {
+          requestTrafficLogs();
+        }
+      } else if (activeTab === "token") {
+        if ((now - Number(state.lastTokenFetchAt || 0)) >= Number(state.tokenAutoRefreshMs || 8000)) {
+          requestTokenStats();
+        }
+      }
+    }, 1000);
   }
 
   function applyCountText() {
     const total = state.filteredAccounts.length;
     dom.countText.textContent = total > 0 ? t("count.format", { total }) : t("count.empty");
+  }
+
+  function renderApiState() {
+    const hasCurrent = (Array.isArray(state.accounts) ? state.accounts : []).some((x) => x && x.isCurrent);
+    dom.apiSendBtn.disabled = state.apiRequestBusy || !hasCurrent;
+    dom.apiSendBtn.classList.toggle("loading", state.apiRequestBusy);
+  }
+
+  function renderProxyStatus() {
+    const running = !!state.proxyRunning;
+    const portText = String(dom.proxyPortInput.value || "8045");
+    dom.proxyStatusText.textContent = running
+      ? t("proxy.status_running", { port: portText })
+      : t("proxy.status_stopped");
+    dom.proxyStatusDot.classList.toggle("running", running);
+    dom.proxyStartBtn.disabled = running;
+    dom.proxyStopBtn.disabled = !running;
+    if (!state.proxyApiKeyEditing) {
+      dom.proxyApiKeyInput.value = state.proxyApiKey || "";
+    }
+    dom.proxyAllowLanHint.textContent = state.proxyAllowLan
+      ? t("proxy.allow_lan_hint_on")
+      : t("proxy.allow_lan_hint_off");
+  }
+
+  function renderProxyFixedAccountOptions() {
+    if (!dom.proxyFixedAccountSelect) return;
+    dom.proxyFixedAccountSelect.innerHTML = "";
+    const currentOpt = document.createElement("option");
+    currentOpt.value = "current::";
+    currentOpt.textContent = t("proxy.fixed_account_current");
+    dom.proxyFixedAccountSelect.appendChild(currentOpt);
+    dom.proxyFixedAccountSelect.value = "current::";
+    dom.proxyFixedAccountSelect.disabled = true;
+  }
+
+  function renderApiModelOptions() {
+    if (!dom.apiModelList) return;
+    const models = state.apiModels.length > 0 ? state.apiModels : FALLBACK_API_MODELS;
+    dom.apiModelList.innerHTML = "";
+    if (dom.apiModelSelect) {
+      dom.apiModelSelect.innerHTML = "";
+    }
+    for (const id of models) {
+      const option = document.createElement("option");
+      option.value = id;
+      dom.apiModelList.appendChild(option);
+      if (dom.apiModelSelect) {
+        const selectOption = document.createElement("option");
+        selectOption.value = id;
+        selectOption.textContent = id;
+        dom.apiModelSelect.appendChild(selectOption);
+      }
+    }
+    if (dom.apiModelSelect && models.length > 0 && !dom.apiModelSelect.value) {
+      const preferred = models.find((x) => x === "gpt-5.3-codex") || models[0];
+      dom.apiModelSelect.value = preferred;
+    }
+  }
+
+  function switchApiSubTab(tab) {
+    state.apiSubTab = tab === "proxy" ? "proxy" : "test";
+    dom.apiSubTabTestBtn.classList.toggle("active", state.apiSubTab === "test");
+    dom.apiSubTabProxyBtn.classList.toggle("active", state.apiSubTab === "proxy");
+    dom.apiPaneTest.classList.toggle("active", state.apiSubTab === "test");
+    dom.apiPaneProxy.classList.toggle("active", state.apiSubTab === "proxy");
   }
 
   function mapStatusMessage(msg) {
@@ -811,6 +2211,18 @@
       return t(key);
     }
     return String(msg?.message || code);
+  }
+
+  function isOAuthTerminalCode(code) {
+    return [
+      "oauth_success",
+      "oauth_timeout",
+      "oauth_error",
+      "browser_open_failed",
+      "no_auth_code",
+      "token_request_failed",
+      "invalid_token_response"
+    ].includes(String(code || ""));
   }
 
   function makeAccountKey(name, group) {
@@ -892,7 +2304,8 @@
   function renderImportBusy() {
     const isCurrentBusy = state.importMode === "current";
     const isOAuthBusy = state.importMode === "oauth";
-    const disableAny = isCurrentBusy || isOAuthBusy;
+    const isManualBusy = state.importMode === "manual";
+    const disableAny = isCurrentBusy || isOAuthBusy || isManualBusy;
 
     dom.addCurrentBtn.disabled = disableAny;
     dom.addCurrentBtn.classList.toggle("loading", disableAny);
@@ -905,6 +2318,18 @@
 
     dom.addAccountImportOAuthBtn.disabled = disableAny;
     dom.addAccountImportOAuthBtn.classList.toggle("loading", isOAuthBusy);
+
+    dom.addAccountOAuthBtn.disabled = disableAny;
+    dom.addAccountOAuthBtn.classList.toggle("loading", isOAuthBusy);
+
+    dom.addAccountManualImportBtn.disabled = disableAny;
+    dom.addAccountManualImportBtn.classList.toggle("loading", isManualBusy);
+    dom.addAccountCancelBtn.disabled = isOAuthBusy;
+    dom.addTabOAuthBtn.disabled = isOAuthBusy;
+    dom.addTabManualBtn.disabled = isOAuthBusy;
+    dom.addTabCurrentBtn.disabled = isOAuthBusy;
+    dom.addTabFileBtn.disabled = isOAuthBusy;
+    renderOAuthFlowPanel();
   }
 
   function formatRemain(v) {
@@ -922,7 +2347,7 @@
   function normalizeGroupValue(group) {
     const value = String(group || "").toLowerCase();
     if (value === "personal" || value === "business" ||
-        value === "free" || value === "plus" || value === "team" || value === "pro") {
+      value === "free" || value === "plus" || value === "team" || value === "pro") {
       return value;
     }
     return "personal";
@@ -1066,7 +2491,16 @@
       lowQuotaAutoPrompt: state.lowQuotaAutoPrompt,
       autoRefreshAllMinutes: state.autoRefreshAllMinutes,
       autoRefreshCurrentMinutes: state.autoRefreshCurrentMinutes,
-      theme: state.themeMode
+      theme: state.themeMode,
+      proxyPort: Math.max(1, Math.min(65535, Number(dom.proxyPortInput.value || 8045))),
+      proxyTimeoutSec: Math.max(30, Math.min(7200, Number(dom.proxyTimeoutInput.value || 120))),
+      proxyAllowLan: !!state.proxyAllowLan,
+      proxyAutoStart: !!state.proxyAutoStart,
+      proxyApiKey: String(dom.proxyApiKeyInput.value || "").trim(),
+      proxyStealthMode: !!state.proxyStealthMode,
+      proxyDispatchMode: String(state.proxyDispatchMode || "round_robin"),
+      proxyFixedAccount: "",
+      proxyFixedGroup: "personal"
     };
   }
 
@@ -1090,6 +2524,13 @@
     const msgAutoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
     const msgAutoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, 5);
     const msgTheme = normalizeThemeMode(msg.theme || "auto");
+    const msgProxyAllowLan = msg.proxyAllowLan === true || msg.proxyAllowLan === "true";
+    const msgProxyAutoStart = msg.proxyAutoStart === true || msg.proxyAutoStart === "true";
+    const msgProxyApiKey = String(msg.proxyApiKey || "").trim();
+    const msgProxyStealthMode = msg.proxyStealthMode === true || msg.proxyStealthMode === "true";
+    const msgProxyDispatchMode = String(msg.proxyDispatchMode || "round_robin");
+    const msgProxyFixedAccount = String(msg.proxyFixedAccount || "");
+    const msgProxyFixedGroup = String(msg.proxyFixedGroup || "personal");
     return msgLanguage === pending.language
       && msgIdeExe === pending.ideExe
       && msgAutoUpdate === pending.autoUpdate
@@ -1097,7 +2538,14 @@
       && msgLowQuotaAutoPrompt === pending.lowQuotaAutoPrompt
       && msgAutoRefreshAllMinutes === pending.autoRefreshAllMinutes
       && msgAutoRefreshCurrentMinutes === pending.autoRefreshCurrentMinutes
-      && msgTheme === pending.theme;
+      && msgTheme === pending.theme
+      && msgProxyAllowLan === pending.proxyAllowLan
+      && msgProxyAutoStart === pending.proxyAutoStart
+      && msgProxyApiKey === String(pending.proxyApiKey || "").trim()
+      && msgProxyStealthMode === !!pending.proxyStealthMode
+      && msgProxyDispatchMode === String(pending.proxyDispatchMode || "round_robin")
+      && msgProxyFixedAccount === String(pending.proxyFixedAccount || "")
+      && msgProxyFixedGroup === String(pending.proxyFixedGroup || "personal");
   }
 
   function saveConfigNow() {
@@ -1109,6 +2557,7 @@
     state.pendingConfigAckTimer = setTimeout(() => {
       clearPendingConfigState();
     }, 5000);
+    try { localStorage.setItem('cas_theme', state.themeMode || 'auto'); } catch(e) {}
     post("set_config", payload);
   }
 
@@ -1145,7 +2594,7 @@
     normalizeSelectedKeys();
 
     if (!state.filteredAccounts.length) {
-      dom.accountsBody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#6b7c93;">${escapeHtml(t("accounts.empty"))}</td></tr>`;
+      dom.accountsBody.innerHTML = `<tr><td colspan="5" class="table-empty-cell">${escapeHtml(t("accounts.empty"))}</td></tr>`;
       renderBulkControls();
       return;
     }
@@ -1179,12 +2628,12 @@
       return `
       <tr>
         <td class="select-col">
-          <input class="row-select" type="checkbox" data-select-account="1" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" ${checked ? "checked" : ""} ${!state.multiSelectMode || bulkBusy ? "disabled" : ""} style="visibility:${state.multiSelectMode ? "visible" : "hidden"};" />
+          <input class="row-select ${state.multiSelectMode ? "is-visible" : "is-hidden"}" type="checkbox" data-select-account="1" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" ${checked ? "checked" : ""} ${!state.multiSelectMode || bulkBusy ? "disabled" : ""} />
         </td>
         <td>
           <div class="account-cell" title="${escapeHtml(item.name)}">
             <span class="account-name">${escapeHtml(shortName(item.name))}</span>
-            ${item.isCurrent ? `<span class="tag">${escapeHtml(t("tag.current"))}</span>` : ""}
+            ${item.isCurrent ? `<span class="tag current">${escapeHtml(t("tag.current"))}</span>` : ""}
             <span class="tag plan ${escapeHtml(planClass)}">${escapeHtml(formatPlanTypeLabel(item.planType))}</span>
           </div>
         </td>
@@ -1192,20 +2641,20 @@
           <div class="quota-box">
             <span class="quota-name">Codex</span>
             ${item.usageOk
-                ? escapeHtml(
-                  isFreePlan
-                    ? t("quota.format_free", {
-                        q7: formatRemain(freeQ7Value),
-                        r7: formatHoursFromSeconds(freeR7Value)
-                      })
-                    : t("quota.format", {
-                        q5: formatRemain(item.quota5hRemainingPercent),
-                        q7: formatRemain(item.quota7dRemainingPercent),
-                        r5: formatHoursFromSeconds(item.quota5hResetAfterSeconds),
-                        r7: formatHoursFromSeconds(item.quota7dResetAfterSeconds)
-                      })
-                )
-              : escapeHtml(quotaErrorText)}
+          ? escapeHtml(
+            isFreePlan
+              ? t("quota.format_free", {
+                q7: formatRemain(freeQ7Value),
+                r7: formatHoursFromSeconds(freeR7Value)
+              })
+              : t("quota.format", {
+                q5: formatRemain(item.quota5hRemainingPercent),
+                q7: formatRemain(item.quota7dRemainingPercent),
+                r5: formatHoursFromSeconds(item.quota5hResetAfterSeconds),
+                r7: formatHoursFromSeconds(item.quota7dResetAfterSeconds)
+              })
+          )
+          : escapeHtml(quotaErrorText)}
           </div>
         </td>
         <td>${escapeHtml(item.updatedAt || "-")}</td>
@@ -1222,6 +2671,10 @@
     }).join("");
 
     renderBulkControls();
+
+    if (dom.accountsWrap) {
+      dom.accountsWrap.classList.toggle("mode-multiselect", state.multiSelectMode);
+    }
   }
 
   function applySearch() {
@@ -1236,6 +2689,59 @@
   function bindEvents() {
     document.addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("dragstart", (e) => e.preventDefault());
+    document.addEventListener("selectstart", (e) => {
+      const target = e.target;
+      const allow =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable) ||
+        target === dom.logEl;
+      if (!allow) {
+        e.preventDefault();
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey) return;
+      if (String(e.key).toLowerCase() !== "a") return;
+      const active = document.activeElement;
+      const inInput =
+        active instanceof HTMLInputElement ||
+        active instanceof HTMLTextAreaElement ||
+        (active instanceof HTMLElement && active.isContentEditable);
+      if (inInput) {
+        if (active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) {
+          active.select();
+        } else {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(active);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      e.preventDefault();
+    }, true);
+    document.addEventListener("focusout", (e) => {
+      const target = e.target;
+      const editable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (!editable) return;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) {
+        try {
+          target.setSelectionRange(0, 0);
+        } catch (_) {
+        }
+      }
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        selection.removeAllRanges();
+      }
+    }, true);
 
     document.querySelectorAll(".tab-btn").forEach((btn) => {
       btn.addEventListener("click", () => switchTab(btn.getAttribute("data-tab") || "accounts"));
@@ -1245,11 +2751,158 @@
         switchSettingsSubTab(btn.getAttribute("data-settings-tab") || "general");
       });
     });
+    document.querySelectorAll("[data-api-subtab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        switchApiSubTab(btn.getAttribute("data-api-subtab") || "test");
+      });
+    });
 
     dom.searchInput.addEventListener("input", applySearch);
     dom.dashboardSwitchBtn.addEventListener("click", () => switchTab("accounts"));
+    dom.apiSendBtn.addEventListener("click", () => {
+      if (state.apiRequestBusy) return;
+      const model = String(dom.apiModelInput.value || "").trim();
+      const content = String(dom.apiPromptTextarea.value || "").trim();
+      const hasCurrent = (Array.isArray(state.accounts) ? state.accounts : []).some((x) => x && x.isCurrent);
+      if (!hasCurrent) {
+        showToast(t("status_code.api_no_selected_account"), "warning");
+        return;
+      }
+      if (!model || !content) {
+        showToast(t("status_code.api_invalid_input"), "warning");
+        return;
+      }
+      state.apiRequestBusy = true;
+      renderApiState();
+      dom.apiOutputTextarea.value = "";
+      post("send_api_request", {
+        model,
+        content
+      });
+    });
+    dom.proxyStartBtn.addEventListener("click", () => {
+      const port = Math.max(1, Math.min(65535, Number(dom.proxyPortInput.value || 8045)));
+      const timeoutSec = Math.max(30, Math.min(7200, Number(dom.proxyTimeoutInput.value || 120)));
+      post("start_proxy_service", {
+        port,
+        timeoutSec,
+        allowLan: !!state.proxyAllowLan,
+        dispatchMode: String(state.proxyDispatchMode || "round_robin"),
+        fixedAccount: "",
+        fixedGroup: "personal"
+      });
+    });
+    dom.proxyStopBtn.addEventListener("click", () => {
+      post("stop_proxy_service");
+    });
+    if (dom.trafficRefreshBtn) {
+      dom.trafficRefreshBtn.addEventListener("click", () => requestTrafficLogs(true));
+    }
+    if (dom.trafficAccountFilter) {
+      dom.trafficAccountFilter.addEventListener("change", () => {
+        state.trafficAccountFilter = String(dom.trafficAccountFilter.value || "all");
+        requestTrafficLogs(true);
+      });
+    }
+    if (dom.trafficQuickFilter) {
+      dom.trafficQuickFilter.addEventListener("change", () => {
+        state.trafficQuickFilter = String(dom.trafficQuickFilter.value || "all");
+        state.trafficPage = 1;
+        renderTrafficLogs();
+      });
+    }
+    if (dom.trafficSearchInput) {
+      dom.trafficSearchInput.addEventListener("input", () => {
+        state.trafficKeyword = String(dom.trafficSearchInput.value || "");
+        state.trafficPage = 1;
+        renderTrafficLogs();
+      });
+    }
+    if (dom.trafficPageSizeSelect) {
+      dom.trafficPageSizeSelect.addEventListener("change", () => {
+        state.trafficPageSize = Number(dom.trafficPageSizeSelect.value || 50);
+        state.trafficPage = 1;
+        renderTrafficLogs();
+      });
+    }
+    if (dom.trafficPrevBtn) {
+      dom.trafficPrevBtn.addEventListener("click", () => {
+        state.trafficPage = Math.max(1, Number(state.trafficPage || 1) - 1);
+        renderTrafficLogs();
+      });
+    }
+    if (dom.trafficNextBtn) {
+      dom.trafficNextBtn.addEventListener("click", () => {
+        state.trafficPage = Number(state.trafficPage || 1) + 1;
+        renderTrafficLogs();
+      });
+    }
+    if (dom.tokenRefreshBtn) {
+      dom.tokenRefreshBtn.addEventListener("click", () => requestTokenStats(true));
+    }
+    if (dom.tokenAccountFilter) {
+      dom.tokenAccountFilter.addEventListener("change", () => {
+        state.tokenAccountFilter = String(dom.tokenAccountFilter.value || "all");
+        requestTokenStats(true);
+      });
+    }
+    if (dom.tokenPeriodSelect) {
+      dom.tokenPeriodSelect.addEventListener("change", () => {
+        state.tokenPeriod = String(dom.tokenPeriodSelect.value || "day");
+        requestTokenStats(true);
+      });
+    }
+    if (dom.tokenTrendModelBtn) {
+      dom.tokenTrendModelBtn.addEventListener("click", () => {
+        state.tokenTrendMode = "model";
+        renderTokenStats();
+      });
+    }
+    if (dom.tokenTrendAccountBtn) {
+      dom.tokenTrendAccountBtn.addEventListener("click", () => {
+        state.tokenTrendMode = "account";
+        renderTokenStats();
+      });
+    }
+    dom.proxyPortInput.addEventListener("change", () => {
+      renderProxyStatus();
+      queueSaveConfig();
+    });
+    dom.proxyTimeoutInput.addEventListener("change", queueSaveConfig);
+    dom.proxyDispatchModeSelect.addEventListener("change", () => {
+      state.proxyDispatchMode = String(dom.proxyDispatchModeSelect.value || "round_robin");
+      renderProxyFixedAccountOptions();
+      queueSaveConfig();
+    });
+    dom.proxyStealthModeToggle.addEventListener("change", () => {
+      state.proxyStealthMode = dom.proxyStealthModeToggle.checked;
+      queueSaveConfig();
+    });
+    dom.proxyApiKeyInput.addEventListener("focus", () => {
+      state.proxyApiKeyEditing = true;
+    });
+    dom.proxyApiKeyInput.addEventListener("change", () => {
+      dom.proxyApiKeyInput.value = String(dom.proxyApiKeyInput.value || "").trim();
+      state.proxyApiKey = dom.proxyApiKeyInput.value;
+      state.proxyApiKeyEditing = false;
+      queueSaveConfig();
+    });
+    dom.proxyApiKeyInput.addEventListener("blur", () => {
+      state.proxyApiKeyEditing = false;
+      state.proxyApiKey = String(dom.proxyApiKeyInput.value || "").trim();
+      renderProxyStatus();
+    });
+    dom.proxyAutoStartToggle.addEventListener("change", () => {
+      state.proxyAutoStart = dom.proxyAutoStartToggle.checked;
+      queueSaveConfig();
+    });
+    dom.proxyAllowLanToggle.addEventListener("change", () => {
+      state.proxyAllowLan = dom.proxyAllowLanToggle.checked;
+      renderProxyStatus();
+      queueSaveConfig();
+    });
     dom.addCurrentBtn.addEventListener("click", () => {
-      dom.addAccountModal.classList.add("show");
+      openAddAccountModal();
     });
 
     dom.multiSelectToggleBtn.addEventListener("click", () => {
@@ -1321,11 +2974,21 @@
       const group = target.getAttribute("data-group") || "personal";
       if (!name) return;
       if (action === "switch") {
-        post("switch_account", {
-          account: name,
-          group,
-          language: state.currentLanguage,
-          ideExe: state.currentIdeExe
+        const ide = getIdeDisplayName(state.currentIdeExe);
+        const message = state.proxyStealthMode
+          ? t("confirm.switch_proxy_mode", { name, ide })
+          : t("confirm.switch_restart_ide", { name, ide });
+        openConfirm({
+          title: t("dialog.confirm.title"),
+          message,
+          onConfirm: () => {
+            post("switch_account", {
+              account: name,
+              group,
+              language: state.currentLanguage,
+              ideExe: state.currentIdeExe
+            });
+          }
         });
       } else if (action === "rename") {
         state.renameTargetName = name;
@@ -1467,20 +3130,68 @@
       state.renameTargetGroup = "personal";
     });
 
-    dom.addAccountCancelBtn.addEventListener("click", () => dom.addAccountModal.classList.remove("show"));
+    dom.addAccountCancelBtn.addEventListener("click", () => closeAddAccountModal(true));
 
     dom.addAccountModal.addEventListener("click", (e) => {
-      if (e.target === dom.addAccountModal) dom.addAccountModal.classList.remove("show");
+      if (e.target === dom.addAccountModal) return;
     });
+
+    document.querySelectorAll("[data-add-tab]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        switchAddAccountTab(btn.getAttribute("data-add-tab") || "oauth");
+      });
+    });
+
+    dom.addAccountOAuthBtn.addEventListener("click", () => {
+      if (state.importMode) return;
+      state.oauthFlowActive = true;
+      state.oauthFlowStage = "listening";
+      state.oauthFlowMessage = "";
+      setImportBusy("oauth");
+      openAddAccountModal();
+      switchAddAccountTab("oauth");
+      renderOAuthFlowPanel();
+      post("start_oauth_login");
+    });
+
+    dom.oauthOpenLinkBtn.addEventListener("click", () => {
+      const url = String(dom.oauthAuthLinkInput.value || "").trim();
+      if (!url) return;
+      post("open_external_url", { url });
+    });
+
+    dom.oauthSubmitCallbackBtn.addEventListener("click", () => {
+      if (!state.oauthFlowActive || state.importMode !== "oauth") return;
+      const callbackUrl = String(dom.oauthCallbackTextarea.value || "").trim();
+      if (!callbackUrl) {
+        dom.oauthCallbackTextarea.focus();
+        return;
+      }
+      post("submit_oauth_callback", { callbackUrl });
+    });
+
+    dom.addAccountManualImportBtn.addEventListener("click", () => {
+      if (state.importMode) return;
+      const tokenText = dom.manualTokenTextarea.value.trim();
+      if (!tokenText) {
+        dom.manualTokenTextarea.focus();
+        return;
+      }
+      setImportBusy("manual");
+      post("import_manual_token", { tokenData: tokenText });
+      dom.manualTokenTextarea.value = "";
+      closeAddAccountModal(true);
+    });
+
     dom.addAccountImportCurrentBtn.addEventListener("click", () => {
       if (state.importMode) return;
-      dom.addAccountModal.classList.remove("show");
+      closeAddAccountModal(true);
       setImportBusy("current");
       post("backup_current_auto");
     });
     dom.addAccountImportOAuthBtn.addEventListener("click", () => {
       if (state.importMode) return;
-      dom.addAccountModal.classList.remove("show");
+      closeAddAccountModal(true);
       setImportBusy("oauth");
       post("import_auth_json");
     });
@@ -1509,16 +3220,49 @@
       const url = state.repoUrl || "https://github.com/isxlan0/Codex_AccountSwitch";
       post("open_external_url", { url });
     });
-    dom.addAccountLoginNewBtn.addEventListener("click", () => {
-      dom.addAccountModal.classList.remove("show");
-      openConfirm({
-        title: t("dialog.login_new.title"),
-        message: t("dialog.login_new.message", { ide: getIdeDisplayName(state.currentIdeExe) }),
-        onConfirm: () => post("login_new_account")
-      });
-    });
 
     dom.debugNotifyBtn.addEventListener("click", () => post("debug_test_low_quota_notify"));
+    if (dom.quickLangBtn) {
+      dom.quickLangBtn.addEventListener("click", () => {
+        state.quickLangMenuOpen = !state.quickLangMenuOpen;
+        if (dom.quickLangMenu) dom.quickLangMenu.classList.toggle("show", state.quickLangMenuOpen);
+        dom.quickLangBtn.classList.toggle("active", state.quickLangMenuOpen);
+      });
+    }
+    if (dom.quickThemeBtn) {
+      dom.quickThemeBtn.addEventListener("click", () => {
+        const current = normalizeThemeMode(state.themeMode || "auto");
+        const next = current === "auto" ? "light" : (current === "light" ? "dark" : "auto");
+        setThemeWithButtonTransition(dom.quickThemeBtn, next);
+      });
+    }
+
+    if (dom.quickLangMenu) {
+      dom.quickLangMenu.addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-quick-lang]");
+        if (!btn) return;
+        const code = String(btn.getAttribute("data-quick-lang") || "");
+        applyLanguageByCode(code);
+        closeQuickLangMenu();
+      });
+    }
+
+    document.addEventListener("click", (e) => {
+      if (dom.toolbarQuick && !dom.toolbarQuick.contains(e.target)) {
+        closeQuickLangMenu();
+      }
+      const targetEl = e.target instanceof Element ? e.target : null;
+      if (!targetEl || !targetEl.closest(".custom-select-wrap")) {
+        customSelectRegistry.forEach((entry) => entry.closeMenu());
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        closeQuickLangMenu();
+        customSelectRegistry.forEach((entry) => entry.closeMenu());
+      }
+    });
   }
 
   function bindWebViewMessages() {
@@ -1529,22 +3273,174 @@
       if (msg && typeof msg === "object" && msg.type === "accounts_list") {
         state.accounts = Array.isArray(msg.accounts)
           ? msg.accounts.map((x) => ({
-              ...x,
-              group: normalizeGroupValue(x.group),
-              planType: String(x.planType || ""),
-              usageError: String(x.usageError || ""),
-              isCurrent: x.isCurrent === true || x.isCurrent === "true",
-              usageOk: x.usageOk === true || x.usageOk === "true"
-            }))
+            ...x,
+            group: normalizeGroupValue(x.group),
+            planType: String(x.planType || ""),
+            usageError: String(x.usageError || ""),
+            isCurrent: x.isCurrent === true || x.isCurrent === "true",
+            usageOk: x.usageOk === true || x.usageOk === "true"
+          }))
           : [];
         applySearch();
         renderDashboard();
+        renderProxyFixedAccountOptions();
+        renderTrafficAccountOptions();
+        renderTrafficLogs();
+        renderTokenStats();
+        renderApiState();
+        post("get_api_models");
         log(`host: accounts loaded (${state.accounts.length})`);
+        return;
+      }
+
+      if (msg && typeof msg === "object" && msg.type === "api_models") {
+        const models = Array.isArray(msg.models) ? msg.models.map((x) => String(x || "").trim()).filter(Boolean) : [];
+        state.apiModels = models;
+        renderApiModelOptions();
+        return;
+      }
+
+      if (msg && typeof msg === "object" && msg.type === "proxy_status") {
+        state.proxyRunning = msg.running === true || msg.running === "true";
+        const port = Number(msg.port);
+        const timeoutSec = Number(msg.timeoutSec);
+        if (Number.isFinite(port) && port > 0) {
+          dom.proxyPortInput.value = String(port);
+        }
+        if (Number.isFinite(timeoutSec) && timeoutSec > 0) {
+          dom.proxyTimeoutInput.value = String(timeoutSec);
+        }
+        if (msg.allowLan === true || msg.allowLan === "true") {
+          state.proxyAllowLan = true;
+        } else if (msg.allowLan === false || msg.allowLan === "false") {
+          state.proxyAllowLan = false;
+        }
+        if (typeof msg.apiKey === "string") {
+          state.proxyApiKey = msg.apiKey;
+        }
+        if (typeof msg.dispatchMode === "string") {
+          state.proxyDispatchMode = msg.dispatchMode;
+          dom.proxyDispatchModeSelect.value = state.proxyDispatchMode;
+        }
+        if (typeof msg.fixedAccount === "string") {
+          state.proxyFixedAccount = msg.fixedAccount;
+        }
+        if (typeof msg.fixedGroup === "string") {
+          state.proxyFixedGroup = msg.fixedGroup || "personal";
+        }
+        renderProxyFixedAccountOptions();
+        renderProxyStatus();
+        return;
+      }
+
+      if (msg && typeof msg === "object" && msg.type === "traffic_logs") {
+        state.trafficLogs = Array.isArray(msg.items) ? msg.items : [];
+        state.trafficPage = 1;
+        renderTrafficLogs();
+        return;
+      }
+
+      if (msg && typeof msg === "object" && msg.type === "token_stats") {
+        state.tokenStats = {
+          inputTokens: Number(msg.inputTokens),
+          outputTokens: Number(msg.outputTokens),
+          totalTokens: Number(msg.totalTokens),
+          activeAccount: String(msg.activeAccount || ""),
+          models: Array.isArray(msg.models) ? msg.models : [],
+          accounts: Array.isArray(msg.accounts) ? msg.accounts : [],
+          trend: (msg.trend && typeof msg.trend === "object") ? msg.trend : {}
+        };
+        renderTokenStats();
+        return;
+      }
+
+      if (msg && typeof msg === "object" && msg.type === "debug_log") {
+        const scope = String(msg.scope || "host");
+        const text = String(msg.message || "");
+        log(`host.${scope}: ${text}`);
+        return;
+      }
+
+      if (msg && typeof msg === "object" && msg.type === "oauth_flow") {
+        const stage = String(msg.stage || "");
+        const authUrl = String(msg.authUrl || "").trim();
+        const message = String(msg.message || "").trim();
+        const flowCode = String(msg.code || "").trim();
+        const portNum = Number(msg.port);
+        if (Number.isFinite(portNum) && portNum > 0) {
+          state.oauthPort = Math.floor(portNum);
+        }
+        if (authUrl) {
+          state.oauthAuthUrl = authUrl;
+        }
+        if (message) {
+          let flowMessage = message;
+          if (flowCode) {
+            const key = `status_code.${flowCode}`;
+            if (state.i18n[key]) {
+              flowMessage = t(key);
+              const detail = message.replace(/^[^:：]+[:：]\s*/, "").trim();
+              if (detail && detail !== message) {
+                flowMessage += `: ${detail}`;
+              }
+            }
+          }
+          state.oauthFlowMessage = flowMessage;
+        } else if (stage !== "completed") {
+          state.oauthFlowMessage = "";
+        }
+        if (stage) {
+          state.oauthFlowStage = stage;
+        }
+        if (["listening", "browser_opened", "callback_received"].includes(stage)) {
+          state.oauthFlowActive = true;
+          setImportBusy("oauth");
+          openAddAccountModal();
+          switchAddAccountTab("oauth");
+        } else if (["completed", "browser_open_failed", "timeout", "error"].includes(stage)) {
+          state.oauthFlowActive = false;
+          if (state.importMode === "oauth") {
+            setImportBusy("");
+          }
+          renderOAuthFlowPanel();
+        } else {
+          renderOAuthFlowPanel();
+        }
+        return;
+      }
+
+      if (msg && typeof msg === "object" && msg.type === "api_result") {
+        state.apiRequestBusy = false;
+        renderApiState();
+        if (msg.ok) {
+          dom.apiOutputTextarea.value = String(msg.content || "");
+        } else {
+          const err = String(msg.error || "api_request_failed");
+          const status = Number(msg.status);
+          dom.apiOutputTextarea.value = `ERROR: ${err}${Number.isFinite(status) && status > 0 ? ` (HTTP ${status})` : ""}\n\n${String(msg.raw || "")}`;
+        }
         return;
       }
 
       if (msg && typeof msg === "object" && msg.type === "status") {
         log(`host status: level=${msg.level || "info"} code=${msg.code || ""}`);
+        const statusCode = String(msg.code || "");
+        if (statusCode === "config_saved") {
+          return;
+        }
+        if (["api_request_success", "api_request_failed", "api_invalid_input", "api_no_selected_account", "api_account_auth_missing"].includes(String(msg.code || ""))) {
+          state.apiRequestBusy = false;
+          renderApiState();
+        }
+        const switchCode = String(msg.code || "");
+        const isManualSwitchSuccess = switchCode === "switch_success" || switchCode === "switch_success_proxy_mode";
+        const isAutoSwitch = switchCode === "proxy_auto_switched" || switchCode === "proxy_fixed_auto_switched";
+        if (isManualSwitchSuccess || isAutoSwitch) {
+          requestAccountsList(true);
+        }
+        if (isManualSwitchSuccess) {
+          switchTab("accounts");
+        }
         if (msg.code === "quota_refreshed" || msg.code === "account_quota_refreshed") {
           setRefreshBusy("", "");
           if (state.importMode === "current") {
@@ -1569,12 +3465,17 @@
           }
         }
 
-        if (state.importMode === "oauth" && [
+        if (state.importMode === "oauth" && ([
           "import_cancelled",
           "import_auth_batch_done",
           "import_auth_batch_partial",
           "import_auth_batch_failed"
-        ].includes(String(msg.code || ""))) {
+        ].includes(String(msg.code || "")) || isOAuthTerminalCode(msg.code) || msg.level === "error")) {
+          setImportBusy("");
+          state.oauthFlowActive = false;
+          renderOAuthFlowPanel();
+        }
+        if (state.importMode === "manual") {
           setImportBusy("");
         }
         if (state.importMode === "current" && msg.level === "error") {
@@ -1608,7 +3509,17 @@
           state.autoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
           state.autoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, 5);
           state.themeMode = normalizeThemeMode(msg.theme || "auto");
-          applyTheme();
+          try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) {}
+          state.proxyAllowLan = msg.proxyAllowLan === true || msg.proxyAllowLan === "true";
+          state.proxyAutoStart = msg.proxyAutoStart === true || msg.proxyAutoStart === "true";
+          state.proxyApiKey = typeof msg.proxyApiKey === "string" ? msg.proxyApiKey : "";
+          state.proxyStealthMode = msg.proxyStealthMode === true || msg.proxyStealthMode === "true";
+          state.proxyDispatchMode = String(msg.proxyDispatchMode || "round_robin");
+          state.proxyFixedAccount = String(msg.proxyFixedAccount || "");
+          state.proxyFixedGroup = String(msg.proxyFixedGroup || "personal");
+          if (Number.isFinite(Number(msg.proxyPort))) dom.proxyPortInput.value = String(Number(msg.proxyPort));
+          if (Number.isFinite(Number(msg.proxyTimeoutSec))) dom.proxyTimeoutInput.value = String(Number(msg.proxyTimeoutSec));
+          if (document.documentElement.getAttribute("data-theme") !== resolveEffectiveTheme()) applyTheme();
           state.firstRun = msg.firstRun === true || msg.firstRun === "true";
           post("get_languages", { code: state.currentLanguage });
           if (state.autoUpdate && !state.didAutoCheckUpdate) {
@@ -1637,7 +3548,17 @@
           state.autoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
           state.lowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
           state.themeMode = normalizeThemeMode(msg.theme || state.themeMode || "auto");
-          applyTheme();
+          try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) {}
+          state.proxyAllowLan = msg.proxyAllowLan === true || msg.proxyAllowLan === "true";
+          state.proxyAutoStart = msg.proxyAutoStart === true || msg.proxyAutoStart === "true";
+          state.proxyApiKey = typeof msg.proxyApiKey === "string" ? msg.proxyApiKey : state.proxyApiKey;
+          state.proxyStealthMode = msg.proxyStealthMode === true || msg.proxyStealthMode === "true";
+          state.proxyDispatchMode = String(msg.proxyDispatchMode || state.proxyDispatchMode || "round_robin");
+          state.proxyFixedAccount = String(msg.proxyFixedAccount || state.proxyFixedAccount || "");
+          state.proxyFixedGroup = String(msg.proxyFixedGroup || state.proxyFixedGroup || "personal");
+          if (Number.isFinite(Number(msg.proxyPort))) dom.proxyPortInput.value = String(Number(msg.proxyPort));
+          if (Number.isFinite(Number(msg.proxyTimeoutSec))) dom.proxyTimeoutInput.value = String(Number(msg.proxyTimeoutSec));
+          if (document.documentElement.getAttribute("data-theme") !== resolveEffectiveTheme()) applyTheme();
           refreshSettingsOptions();
           renderRefreshCountdowns();
         }
@@ -1664,11 +3585,14 @@
           return;
         }
         state.lowQuotaPromptOpen = true;
+        const winRaw = String(msg.currentWindow || "").toLowerCase();
+        const winText = winRaw.includes("7") ? t("low_quota.window_7d") : t("low_quota.window_5h");
         openConfirm({
           title: t("low_quota.prompt_title"),
-          message: t("low_quota.prompt_message", {
+          message: t("low_quota.prompt_message_dynamic", {
             current: msg.currentName || "-",
             currentQuota: msg.currentQuota ?? "-",
+            window: winText,
             best: msg.bestName || "-",
             bestQuota: msg.bestQuota ?? "-"
           }),
@@ -1730,7 +3654,9 @@
     initLanguageIndexFallback();
     renderLanguageOptions();
     bindEvents();
+    initCustomSelects();
     bindWebViewMessages();
+    startAutoRefreshLoop();
     window.addEventListener("beforeunload", flushPendingConfigWrite);
     window.addEventListener("pagehide", flushPendingConfigWrite);
     document.addEventListener("visibilitychange", () => {
@@ -1753,13 +3679,17 @@
     dom.logEl.style.display = state.debug ? "block" : "none";
     dom.debugPanel.style.display = state.debug ? "block" : "none";
     renderRefreshCountdowns();
+    renderTrafficAccountOptions();
+    renderTrafficLogs();
+    renderTokenStats();
+    renderQuickSwitchers();
 
     post("get_app_info");
     post("get_config");
     post("get_languages", { code: "zh-CN" });
-    post("list_accounts");
+    requestAccountsList(true);
+    post("get_proxy_status");
   }
 
   bootstrap();
 })();
-

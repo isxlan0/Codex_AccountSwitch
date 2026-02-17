@@ -3,7 +3,11 @@
 #include <atomic>
 #include <chrono>
 #include <string>
+#include <utility>
+#include <vector>
 
+#define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
 #include <windows.h>
 #include <wrl.h>
 
@@ -39,7 +43,9 @@ private:
     void TriggerRefreshCurrent();
     void EnsureTrayIcon();
     void RemoveTrayIcon();
-    void ShowLowQuotaBalloon(const std::wstring& currentName, int currentQuota, const std::wstring& bestName, const std::wstring& bestGroup, int bestQuota);
+    void ShowTrayContextMenu();
+    bool HandleTrayCommand(UINT commandId);
+    void ShowLowQuotaBalloon(const std::wstring& currentName, int currentQuota, const std::wstring& currentWindow, const std::wstring& bestName, const std::wstring& bestGroup, int bestQuota);
     void HandleLowQuotaPromptClick();
 
     Microsoft::WRL::ComPtr<ICoreWebView2Controller> controller_;
@@ -58,11 +64,14 @@ private:
     int currentRefreshRemainingSec_ = 300;
     bool currentAutoRefreshEnabled_ = true;
     bool lowQuotaPromptEnabled_ = true;
+    bool proxyStealthModeEnabled_ = false;
     std::wstring pendingBestAccountName_;
     std::wstring pendingBestAccountGroup_;
     std::wstring pendingCurrentAccountName_;
+    std::wstring pendingCurrentQuotaWindow_;
     int pendingCurrentQuota_ = -1;
     int pendingBestQuota_ = -1;
     std::wstring lastLowQuotaPromptAccountKey_;
     std::chrono::steady_clock::time_point lastLowQuotaPromptAt_{};
+    std::vector<std::pair<std::wstring, std::wstring>> traySwitchTargets_;
 };

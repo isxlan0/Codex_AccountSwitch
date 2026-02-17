@@ -1,11 +1,39 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
   <title>Codex Account Switch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
+  <style>
+    @media (prefers-color-scheme: dark) {
+
+      html,
+      body {
+        background: #0a0e17;
+        color: #dbe1e8;
+      }
+    }
+  </style>
   <link rel="stylesheet" href="./css/styles.css" />
+  <script>
+    (function () {
+      try {
+        var theme = localStorage.getItem('cas_theme') || 'auto';
+        var isDark = theme === 'dark' || (theme === 'auto' && (!window.matchMedia || window.matchMedia('(prefers-color-scheme: dark)').matches));
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+      } catch (e) { }
+    })();
+  </script>
 </head>
+
 <body>
   <div class="shell">
     <div class="toolbar">
@@ -14,9 +42,18 @@
       <nav class="top-tabs">
         <button class="tab-btn active" data-tab="dashboard" id="tabBtnDashboard"></button>
         <button class="tab-btn" data-tab="accounts" id="tabBtnAccounts"></button>
+        <button class="tab-btn" data-tab="api" id="tabBtnApi"></button>
+        <button class="tab-btn" data-tab="traffic" id="tabBtnTraffic"></button>
+        <button class="tab-btn" data-tab="token" id="tabBtnToken"></button>
         <button class="tab-btn" data-tab="about" id="tabBtnAbout"></button>
         <button class="tab-btn" data-tab="settings" id="tabBtnSettings"></button>
       </nav>
+
+      <div class="toolbar-quick" id="toolbarQuick">
+        <button class="quick-btn" id="quickThemeBtn" title="">☼</button>
+        <button class="quick-btn" id="quickLangBtn" title="">ZH</button>
+        <div class="quick-menu" id="quickLangMenu"></div>
+      </div>
 
       <div></div>
 
@@ -36,19 +73,23 @@
             <p class="dashboard-subtitle" id="dashboardSubtitle"></p>
           </div>
           <div class="dashboard-cards">
-            <article class="dashboard-card">
+            <article class="dashboard-card card-total">
+              <div class="dashboard-card-icon icon-total">📦</div>
               <div class="dashboard-card-label" id="dashTotalLabel"></div>
               <div class="dashboard-card-value" id="dashTotalValue">0</div>
             </article>
-            <article class="dashboard-card">
+            <article class="dashboard-card card-avg5">
+              <div class="dashboard-card-icon icon-avg5">⚡</div>
               <div class="dashboard-card-label" id="dashAvg5Label"></div>
               <div class="dashboard-card-value" id="dashAvg5Value">-</div>
             </article>
-            <article class="dashboard-card">
+            <article class="dashboard-card card-avg7">
+              <div class="dashboard-card-icon icon-avg7">📅</div>
               <div class="dashboard-card-label" id="dashAvg7Label"></div>
               <div class="dashboard-card-value" id="dashAvg7Value">-</div>
             </article>
-            <article class="dashboard-card low">
+            <article class="dashboard-card low card-low">
+              <div class="dashboard-card-icon icon-low">⚠️</div>
               <div class="dashboard-card-label" id="dashLowLabel"></div>
               <div class="dashboard-card-value" id="dashLowValue">0</div>
             </article>
@@ -84,50 +125,55 @@
       </section>
 
       <section class="tab-panel" id="tab-accounts">
-        <div class="search-row">
-          <input class="search" id="searchInput" />
-          <div class="group-filter">
-            <button class="group-btn active" data-group-filter="all" id="groupAllBtn"></button>
-            <button class="group-btn" data-group-filter="free" id="groupFreeBtn"></button>
-            <button class="group-btn" data-group-filter="plus" id="groupPlusBtn"></button>
-            <button class="group-btn" data-group-filter="team" id="groupTeamBtn"></button>
-            <button class="group-btn" data-group-filter="pro" id="groupProBtn"></button>
+        <div class="accounts-wrap">
+          <div class="accounts-head">
+            <h2 class="accounts-title" id="accountsSectionTitle"></h2>
           </div>
-        </div>
-
-        <div class="bulk-row" id="bulkRow">
-          <button class="tool-btn" id="multiSelectToggleBtn"></button>
-          <button class="tool-btn" id="bulkRefreshBtn" disabled></button>
-          <button class="tool-btn" id="bulkDeleteBtn" disabled></button>
-          <span class="bulk-selected" id="bulkSelectedText"></span>
-        </div>
-
-        <div class="card">
-          <table class="table">
-            <thead>
-              <tr>
-                <th style="width: 5%;" class="select-col">
-                  <input type="checkbox" id="selectAllCheckbox" />
-                </th>
-                <th style="width: 28%;" id="thAccount"></th>
-                <th style="width: 31%;" id="thQuota"></th>
-                <th style="width: 14%;" id="thRecent"></th>
-                <th style="width: 22%;" id="thAction"></th>
-              </tr>
-            </thead>
-            <tbody id="accountsBody"></tbody>
-          </table>
-        </div>
-
-        <div id="log">WebUI ready.</div>
-
-        <div class="debug-panel" id="debugPanel">
-          <div class="debug-title" id="debugTitle"></div>
-          <div class="debug-actions">
-            <button class="tool-btn" id="debugNotifyBtn"></button>
+          <div class="search-row">
+            <input class="search" id="searchInput" />
+            <div class="group-filter">
+              <button class="group-btn active" data-group-filter="all" id="groupAllBtn"></button>
+              <button class="group-btn" data-group-filter="free" id="groupFreeBtn"></button>
+              <button class="group-btn" data-group-filter="plus" id="groupPlusBtn"></button>
+              <button class="group-btn" data-group-filter="team" id="groupTeamBtn"></button>
+              <button class="group-btn" data-group-filter="pro" id="groupProBtn"></button>
+            </div>
           </div>
-        </div>
 
+          <div class="bulk-row" id="bulkRow">
+            <button class="tool-btn" id="multiSelectToggleBtn"></button>
+            <button class="tool-btn" id="bulkRefreshBtn" disabled></button>
+            <button class="tool-btn" id="bulkDeleteBtn" disabled></button>
+            <span class="bulk-selected" id="bulkSelectedText"></span>
+          </div>
+
+          <div class="card">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th class="select-col">
+                    <input type="checkbox" id="selectAllCheckbox" />
+                  </th>
+                  <th style="width: 28%;" id="thAccount"></th>
+                  <th style="width: 31%;" id="thQuota"></th>
+                  <th style="width: 14%;" id="thRecent"></th>
+                  <th style="width: 22%;" id="thAction"></th>
+                </tr>
+              </thead>
+              <tbody id="accountsBody"></tbody>
+            </table>
+          </div>
+
+          <div id="log">WebUI ready.</div>
+
+          <div class="debug-panel" id="debugPanel">
+            <div class="debug-title" id="debugTitle"></div>
+            <div class="debug-actions">
+              <button class="tool-btn" id="debugNotifyBtn"></button>
+            </div>
+          </div>
+
+        </div>
       </section>
 
       <section class="tab-panel" id="tab-about">
@@ -137,19 +183,265 @@
           <div class="about-sub" id="aboutSubtitle"></div>
           <div class="about-grid">
             <div class="about-item">
+              <div class="about-item-icon">👨‍💻</div>
               <div class="about-label" id="aboutAuthorLabel"></div>
               <div class="about-value" id="aboutAuthorValue"></div>
             </div>
             <div class="about-item">
+              <div class="about-item-icon">📝</div>
               <div class="about-label" id="aboutRepoLabel"></div>
               <div class="about-value">
-                <a class="about-link" href="https://github.com/isxlan0/Codex_AccountSwitch" target="_blank" rel="noopener noreferrer" id="aboutRepoLink"></a>
+                <a class="about-link" href="https://github.com/isxlan0/Codex_AccountSwitch" target="_blank"
+                  rel="noopener noreferrer" id="aboutRepoLink"></a>
               </div>
             </div>
           </div>
           <div class="about-check-row">
             <button class="tool-btn primary" id="checkUpdateBtn"></button>
             <span class="about-version" id="versionText">v1.0.0</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-api">
+        <div class="settings-wrap">
+          <div class="settings-card">
+            <div class="settings-title" id="apiTitle"></div>
+            <div class="settings-sub" id="apiSub"></div>
+
+            <div class="settings-tabs">
+              <button class="settings-tab-btn active" id="apiSubTabProxyBtn" data-api-subtab="proxy"></button>
+              <button class="settings-tab-btn" id="apiSubTabTestBtn" data-api-subtab="test"></button>
+            </div>
+
+            <div class="settings-pane active" id="apiPaneProxy">
+              <div class="proxy-config">
+                <div class="proxy-head">
+                  <div class="proxy-head-main">
+                    <div class="settings-label proxy-title" id="proxyTitle">服务配置</div>
+                    <div class="proxy-status-line">
+                      <span class="proxy-status-dot" id="proxyStatusDot"></span>
+                      <span class="proxy-status-text" id="proxyStatusText">服务已停止</span>
+                    </div>
+                  </div>
+                  <div class="proxy-head-right">
+                    <div class="proxy-head-actions">
+                      <button class="tool-btn primary" id="proxyStartBtn">启动服务</button>
+                      <button class="tool-btn" id="proxyStopBtn">停止服务</button>
+                    </div>
+                    <div class="proxy-stealth-switch">
+                      <label class="switch-toggle" for="proxyStealthModeToggle">
+                        <input type="checkbox" id="proxyStealthModeToggle" />
+                        <span class="switch-slider"></span>
+                      </label>
+                      <div class="proxy-stealth-info">
+                        <span class="proxy-stealth-label" id="proxyStealthModeLabel">Codex 客户端使用本地反代模式</span>
+                        <span class="proxy-stealth-hint" id="proxyStealthModeHint"></span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="proxy-grid">
+                  <div class="settings-group proxy-item">
+                    <div class="settings-label" id="proxyPortLabel">监听端口</div>
+                    <input class="settings-number-input proxy-input" id="proxyPortInput" type="number" min="1"
+                      max="65535" value="8045" />
+                    <div class="settings-sub-note" id="proxyPortHint">本地 API 代理监听端口，默认 8045。</div>
+                  </div>
+
+                  <div class="settings-group proxy-item">
+                    <div class="settings-label" id="proxyTimeoutLabel">请求超时（秒）</div>
+                    <input class="settings-number-input proxy-input" id="proxyTimeoutInput" type="number" min="30"
+                      max="7200" value="120" />
+                    <div class="settings-sub-note" id="proxyTimeoutHint">默认 120 秒，范围 30-7200 秒。用于等待上游响应（含长文本/长推理）。</div>
+                  </div>
+
+                  <div class="settings-group proxy-item proxy-item--toggle">
+                    <div class="settings-label" id="proxyAutoStartLabel">跟随应用自动启动</div>
+                    <div class="toggle-row">
+                      <label class="switch-toggle" for="proxyAutoStartToggle">
+                        <input type="checkbox" id="proxyAutoStartToggle" />
+                        <span class="switch-slider"></span>
+                      </label>
+                    </div>
+                    <div class="settings-sub-note" id="proxyAutoStartHint">应用启动时自动启动本地 API 代理服务。</div>
+                  </div>
+
+                  <div class="settings-group proxy-item proxy-item--toggle">
+                    <div class="settings-label" id="proxyAllowLanLabel">允许局域网访问</div>
+                    <div class="toggle-row">
+                      <label class="switch-toggle" for="proxyAllowLanToggle">
+                        <input type="checkbox" id="proxyAllowLanToggle" />
+                        <span class="switch-slider"></span>
+                      </label>
+                    </div>
+                    <div class="settings-sub-note" id="proxyAllowLanHint">仅监听 127.0.0.1，仅本机可访问（隐私优先）。</div>
+                  </div>
+
+                  <div class="settings-group proxy-item">
+                    <div class="settings-label" id="proxyDispatchModeLabel">账号调度模式</div>
+                    <select class="settings-number-input proxy-input" id="proxyDispatchModeSelect">
+                      <option value="round_robin">轮询账号</option>
+                      <option value="random">随机账号</option>
+                      <option value="fixed">固定账号</option>
+                    </select>
+                    <div class="settings-sub-note" id="proxyDispatchModeHint">决定反向代理请求使用哪个账号。</div>
+                  </div>
+
+
+                  <div class="settings-group proxy-item proxy-item--full">
+                    <div class="settings-label" id="proxyApiKeyLabel">API 密钥</div>
+                    <input class="settings-number-input proxy-input proxy-secret-input" id="proxyApiKeyInput"
+                      type="text" />
+                    <div class="settings-sub-note" id="proxyApiKeyHint">调用代理时请在请求头传入：Authorization: Bearer
+                      &lt;API_KEY&gt; 或 x-api-key。</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-pane" id="apiPaneTest">
+              <div class="settings-group">
+                <div class="settings-label" id="apiModelLabel"></div>
+                <input class="settings-number-input proxy-input" id="apiModelInput" type="text" value="gpt-5.3-codex" />
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="apiPromptLabel"></div>
+                <textarea class="modal-textarea" id="apiPromptTextarea" spellcheck="false"></textarea>
+              </div>
+
+              <div class="settings-group">
+                <button class="tool-btn primary" id="apiSendBtn"></button>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="apiOutputLabel"></div>
+                <textarea class="modal-textarea" id="apiOutputTextarea" spellcheck="false" readonly></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-traffic">
+        <div class="settings-wrap">
+          <div class="settings-card">
+            <div class="settings-title" id="trafficTitle"></div>
+            <div class="settings-sub" id="trafficSubtitle"></div>
+            <div class="settings-inline">
+              <label class="settings-inline-label" for="trafficAccountFilter" id="trafficAccountFilterLabel"></label>
+              <select class="settings-number-input" id="trafficAccountFilter"></select>
+              <label class="settings-inline-label" for="trafficQuickFilter" id="trafficQuickFilterLabel"></label>
+              <select class="settings-number-input" id="trafficQuickFilter">
+                <option value="all"></option>
+                <option value="error"></option>
+              </select>
+              <input class="settings-number-input" id="trafficSearchInput" type="text" />
+              <button class="tool-btn" id="trafficRefreshBtn"></button>
+            </div>
+            <div class="card traffic-table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th id="trafficThStatus"></th>
+                    <th id="trafficThMethod"></th>
+                    <th id="trafficThModel"></th>
+                    <th id="trafficThProtocol"></th>
+                    <th id="trafficThAccount"></th>
+                    <th id="trafficThPath"></th>
+                    <th id="trafficThTokens"></th>
+                    <th id="trafficThElapsed"></th>
+                    <th id="trafficThCalledAt"></th>
+                  </tr>
+                </thead>
+                <tbody id="trafficBody"></tbody>
+              </table>
+            </div>
+            <div class="settings-inline traffic-pager">
+              <label class="settings-inline-label" for="trafficPageSizeSelect" id="trafficPageSizeLabel"></label>
+              <select class="settings-number-input" id="trafficPageSizeSelect">
+                <option value="20">20</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+              </select>
+              <button class="tool-btn" id="trafficPrevBtn"></button>
+              <button class="tool-btn" id="trafficNextBtn"></button>
+              <span class="settings-sub-note" id="trafficPageInfo"></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-token">
+        <div class="settings-wrap">
+          <div class="settings-card">
+            <div class="settings-title" id="tokenTitle"></div>
+            <div class="settings-sub" id="tokenSubtitle"></div>
+            <div class="settings-inline">
+              <label class="settings-inline-label" for="tokenAccountFilter" id="tokenAccountFilterLabel"></label>
+              <select class="settings-number-input" id="tokenAccountFilter"></select>
+              <label class="settings-inline-label" for="tokenPeriodSelect" id="tokenPeriodSelectLabel"></label>
+              <select class="settings-number-input" id="tokenPeriodSelect">
+                <option value="hour"></option>
+                <option value="day" selected></option>
+                <option value="week"></option>
+              </select>
+              <button class="tool-btn" id="tokenRefreshBtn"></button>
+            </div>
+            <div class="dashboard-cards">
+              <article class="dashboard-card card-avg5">
+                <div class="dashboard-card-label" id="tokenCardInputLabel"></div>
+                <div class="dashboard-card-value" id="tokenInputValue">0</div>
+              </article>
+              <article class="dashboard-card card-avg7">
+                <div class="dashboard-card-label" id="tokenCardActiveLabel"></div>
+                <div class="dashboard-card-value" id="tokenActiveAccount">-</div>
+              </article>
+              <article class="dashboard-card card-total">
+                <div class="dashboard-card-label" id="tokenCardOutputLabel"></div>
+                <div class="dashboard-card-value" id="tokenOutputValue">0</div>
+              </article>
+              <article class="dashboard-card card-low">
+                <div class="dashboard-card-label" id="tokenCardTotalLabel"></div>
+                <div class="dashboard-card-value" id="tokenTotalValue">0</div>
+              </article>
+            </div>
+            <div class="card token-trend-card">
+              <div class="settings-inline">
+                <div class="settings-label" id="tokenTrendTitle"></div>
+                <button class="tool-btn" id="tokenTrendModelBtn"></button>
+                <button class="tool-btn" id="tokenTrendAccountBtn"></button>
+              </div>
+              <div id="tokenTrendList"></div>
+            </div>
+            <div class="card token-account-card">
+              <div class="settings-label" id="tokenAccountStatsTitle"></div>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th id="tokenAccountThAccount"></th>
+                    <th id="tokenAccountThCalls"></th>
+                    <th id="tokenAccountThOutput"></th>
+                    <th id="tokenAccountThTotal"></th>
+                  </tr>
+                </thead>
+                <tbody id="tokenAccountBody"></tbody>
+              </table>
+            </div>
+            <div class="card token-table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th id="tokenModelThModel"></th>
+                    <th id="tokenModelThOutput"></th>
+                    <th id="tokenModelThTotal"></th>
+                  </tr>
+                </thead>
+                <tbody id="tokenModelBody"></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -204,8 +496,10 @@
               <div class="settings-group">
                 <div class="settings-label" id="settingsAutoRefreshAllLabel"></div>
                 <div class="settings-inline">
-                  <label class="settings-inline-label" for="autoRefreshAllMinutesInput" id="settingsAllMinutesLabel"></label>
-                  <input class="settings-number-input" id="autoRefreshAllMinutesInput" type="number" min="1" max="240" />
+                  <label class="settings-inline-label" for="autoRefreshAllMinutesInput"
+                    id="settingsAllMinutesLabel"></label>
+                  <input class="settings-number-input" id="autoRefreshAllMinutesInput" type="number" min="1"
+                    max="240" />
                 </div>
                 <div class="settings-sub-note" id="settingsAutoRefreshAllHint"></div>
                 <div class="settings-countdown" id="settingsAllRefreshCountdown"></div>
@@ -220,8 +514,10 @@
                   </label>
                 </div>
                 <div class="settings-inline">
-                  <label class="settings-inline-label" for="autoRefreshCurrentMinutesInput" id="settingsCurrentMinutesLabel"></label>
-                  <input class="settings-number-input" id="autoRefreshCurrentMinutesInput" type="number" min="1" max="240" />
+                  <label class="settings-inline-label" for="autoRefreshCurrentMinutesInput"
+                    id="settingsCurrentMinutesLabel"></label>
+                  <input class="settings-number-input" id="autoRefreshCurrentMinutesInput" type="number" min="1"
+                    max="240" />
                 </div>
                 <div class="settings-sub-note" id="settingsAutoRefreshCurrentHint"></div>
                 <div class="settings-countdown" id="settingsCurrentRefreshCountdown"></div>
@@ -312,12 +608,49 @@
   </div>
 
   <div class="modal-mask" id="addAccountModal">
-    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="addAccountTitle">
+    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="addAccountTitle">
       <div class="modal-head" id="addAccountTitle"></div>
       <div class="modal-body">
-        <button class="tool-btn" id="addAccountImportCurrentBtn"></button>
-        <button class="tool-btn" id="addAccountImportOAuthBtn"></button>
-        <button class="tool-btn" id="addAccountLoginNewBtn"></button>
+        <div class="add-account-tabs">
+          <button class="add-account-tab-btn active" data-add-tab="oauth" id="addTabOAuthBtn"></button>
+          <button class="add-account-tab-btn" data-add-tab="manual" id="addTabManualBtn"></button>
+          <button class="add-account-tab-btn" data-add-tab="current" id="addTabCurrentBtn"></button>
+          <button class="add-account-tab-btn" data-add-tab="file" id="addTabFileBtn"></button>
+        </div>
+        <div class="add-account-pane active" id="addPaneOAuth">
+          <div class="add-account-desc" id="addPaneOAuthDesc"></div>
+          <button class="tool-btn primary add-account-action-btn" id="addAccountOAuthBtn"></button>
+          <div class="oauth-monitor" id="oauthMonitorPanel">
+            <div class="oauth-monitor-title" id="oauthMonitorTitle"></div>
+            <div class="oauth-monitor-status" id="oauthMonitorStatus"></div>
+            <div class="oauth-monitor-row">
+              <label class="modal-label" id="oauthAuthLinkLabel" for="oauthAuthLinkInput"></label>
+              <div class="oauth-link-row">
+                <input class="modal-input oauth-link-input" id="oauthAuthLinkInput" type="text" readonly />
+                <button class="mini" id="oauthOpenLinkBtn"></button>
+              </div>
+            </div>
+            <div class="oauth-monitor-row">
+              <label class="modal-label" id="oauthCallbackLabel" for="oauthCallbackTextarea"></label>
+              <textarea class="modal-textarea oauth-callback-textarea" id="oauthCallbackTextarea" placeholder=""
+                spellcheck="false"></textarea>
+              <button class="tool-btn add-account-action-btn" id="oauthSubmitCallbackBtn"></button>
+            </div>
+          </div>
+        </div>
+        <div class="add-account-pane" id="addPaneManual">
+          <div class="add-account-desc" id="addPaneManualDesc"></div>
+          <textarea class="modal-textarea" id="manualTokenTextarea" placeholder="" spellcheck="false"></textarea>
+          <button class="tool-btn primary add-account-action-btn" id="addAccountManualImportBtn"></button>
+        </div>
+        <div class="add-account-pane" id="addPaneCurrent">
+          <div class="add-account-desc" id="addPaneCurrentDesc"></div>
+          <button class="tool-btn primary add-account-action-btn" id="addAccountImportCurrentBtn"></button>
+        </div>
+        <div class="add-account-pane" id="addPaneFile">
+          <div class="add-account-desc" id="addPaneFileDesc"></div>
+          <button class="tool-btn primary add-account-action-btn" id="addAccountImportOAuthBtn"></button>
+        </div>
       </div>
       <div class="modal-actions">
         <button class="mini" id="addAccountCancelBtn"></button>
@@ -327,4 +660,5 @@
 
   <script src="./js/app.js"></script>
 </body>
+
 </html>

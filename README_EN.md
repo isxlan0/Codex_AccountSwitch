@@ -1,8 +1,8 @@
 <h1 align="center"><b>Codex Account Switch</b></h1>
 
 <p align="center">
-  <b>A fast, local-first multi-account manager for Codex</b><br/>
-  Built with <code>C++ / Win32 / WebView2</code> for performance and reliability.
+  <b>Local-first, multi-account, visual manager for Codex accounts</b><br/>
+  Built with <code>C++ / Win32 / WebView2</code> for stability and speed.
 </p>
 
 <p align="center">
@@ -11,44 +11,62 @@
 
 ## Core Features
 
-- One-stop account backup / switch / delete workflow
-- Import / export backup bundles (ZIP)
-- Fast import for existing OAuth auth files
-- Quota refresh support (5H / 7D windows and reset info)
-- Automatic account plan detection (Free / Plus / Team / Pro)
-- Theme modes: Auto / Light / Dark
-- Multi-language UI via `webui/lang/*.json`
+- Unified workflow for backup / switch / delete / rename accounts
+- Batch actions (batch refresh, batch delete)
+- Import/export backup bundles (ZIP)
+- Import current login, manual token paste, and quick OAuth file import
+- Built-in OAuth login flow (callback listener + manual callback URL submit)
+- Quota dashboard, auto-refresh (5H / 7D), low-quota alerts and switch prompts
+- API proxy service (port, timeout, LAN access, API key, dispatch strategy)
+- Traffic logs and token statistics pages
+- Multi-language UI and themes (Auto / Light / Dark)
+
+## Codex Client Local API Proxy for Seamless Number Switching
+- API Reverse Proxy - Start Service
+- API Reverse Proxy - Codex Client Uses Local Reverse Proxy Mode
+- Enables seamless account switching without restarting
+- Settings - Account - Automatic Account Switching Prompt for Low Credit Limit. Enabling this feature allows for automatic number switching to continue development work when credit limits are insufficient.
 
 ## UI Preview
 
-### 1. Dashboard
+### 1. Dashboard (Light)
 <p align="center">
-  <img src="./image/1en.png" alt="Dashboard" width="70%" />
+  <img src="./image/en/1.png" alt="Dashboard (Light)" width="75%" />
 </p>
 
-### 2.1 Account Management - Add Account
+### 1B. Dashboard (Dark)
 <p align="center">
-  <img src="./image/2.1en.png" alt="Account Management - Add Account" width="70%" />
+  <img src="./image/en/1_b.png" alt="Dashboard (Dark)" width="75%" />
 </p>
 
-### 2. Account Management
+### 2. Accounts
 <p align="center">
-  <img src="./image/2en.png" alt="Account Management" width="70%" />
+  <img src="./image/en/2.png" alt="Accounts" width="75%" />
 </p>
 
-### 3. About
+### 3. API Proxy
 <p align="center">
-  <img src="./image/3en.png" alt="About" width="70%" />
+  <img src="./image/en/3.png" alt="API Proxy" width="75%" />
 </p>
 
-### 4. Settings - General
+### 4. Traffic Logs
 <p align="center">
-  <img src="./image/4en.png" alt="Settings - General" width="70%" />
+  <img src="./image/en/4.png" alt="Traffic Logs" width="75%" />
 </p>
 
-### 5. Settings - Account
+### 5. Token Stats
 <p align="center">
-  <img src="./image/5en.png" alt="Settings - Account" width="70%" />
+  <img src="./image/en/5.png" alt="Token Stats" width="75%" />
+</p>
+
+### 6. About
+<p align="center">
+  <img src="./image/en/6.png" alt="About" width="75%" />
+</p>
+
+### 7. Settings
+<p align="center">
+  <img src="./image/en/7.png" alt="Settings" width="75%" />
 </p>
 
 ## Technical Architecture
@@ -56,13 +74,13 @@
 - Native layer: `C++ / Win32 / WebView2`
 - Frontend layer: `HTML + CSS + JavaScript`
 - Bridge: WebView `postMessage` + host action routing
-- Storage: local JSON files in user profile data path
+- Storage: local JSON files under user profile path
 
 Main folders:
 
 - `Codex_AccountSwitch/`: core C++ source
 - `webui/`: frontend assets
-- `installer/`: setup build scripts
+- `installer/`: installer scripts
 - `image/`: README screenshots
 
 ## Data Directory
@@ -83,7 +101,7 @@ Runtime data is stored in:
 ### Build
 
 1. Open solution: `Codex_AccountSwitch.slnx`
-2. Choose `Release | x64`
+2. Select `Release | x64`
 3. Build outputs:
    - `x64/Release/Codex_AccountSwitch.exe`
    - `x64/Release/WebView2Loader.dll`
@@ -95,10 +113,12 @@ Runtime data is stored in:
 
 Output folder: `dist/`
 
-## Thanks
+## Acknowledgements
 
-- Thanks to the `Microsoft Edge WebView2` team for the stable, high-performance embedded web runtime.
-- Thanks to all users and contributors who reported issues and shared feedback.
+- Thanks to the `Microsoft Edge WebView2` team for a stable, high-performance embedded web runtime.
+- Thanks to all users and contributors for testing, bug reports, and feedback.
+- Thanks to [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) for shared implementation ideas around Codex requests and OAuth retrieval.
+- Thanks to [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) for shared UI and interaction design ideas.
 
 ## Contributors
 
@@ -110,4 +130,4 @@ Licensed under the `MIT License`. See `LICENSE`.
 
 ## Security Notice
 
-All account data is stored locally by default. Data never leaves your device unless you explicitly export/share it.
+All account data is stored locally by default. Data never leaves your device unless you explicitly export or share it.

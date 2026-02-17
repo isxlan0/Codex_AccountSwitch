@@ -1,8 +1,8 @@
 <h1 align="center"><b>Codex Account Switch</b></h1>
 
 <p align="center">
-  <b>本地化、多账号、高效率的 Codex 账号管理与切换工具</b><br/>
-  基于 <code>C++ / Win32 / WebView2</code>，专注稳定与速度。
+  <b>本地优先、多账号、可视化的 Codex 账号管理工具</b><br/>
+  基于 <code>C++ / Win32 / WebView2</code> 构建，强调稳定与效率。
 </p>
 
 <p align="center">
@@ -11,51 +11,69 @@
 
 ## 核心功能
 
-- 账号备份/切换/删除，一站式管理
-- 支持导入/导出账号备份包（ZIP）
-- 支持快速导入已有 OAuth 授权文件
-- 支持额度自动刷新（5H / 7D 额度与重置信息）
-- 支持账号套餐自动识别 Free/Plus/Team/Pro
-- 支持主题模式：自动 / 浅色 / 深色
-- 支持多语言 UI（`webui/lang/*.json`）
+- 账号备份 / 切换 / 删除 / 重命名一体化管理
+- 支持批量操作（批量刷新、批量删除）
+- 支持导入/导出账号备份（ZIP）
+- 支持导入当前登录账号、手动粘贴 Token、OAuth 文件快速导入
+- 内置 OAuth 登录流程（含回调监听与手动粘贴回调链接）
+- 配额看板与自动刷新（5H / 7D）、低额度提醒与切换提示
+- API 反代服务（端口、超时、LAN、API Key、调度模式）
+- 流量日志与 Token 统计页面
+- 多语言与主题（自动 / 浅色 / 深色）
+
+## Codex客户端本地API代理 实现无感换号效果
+- APi反代-启动服务
+- APi反代-Codex客户端使用本地反代模式
+- 即可实现无需重启切换账号使用
+- 设置-账号-低额度自动提示切换账号 开启后额度不够时自动换号进行继续开发工作
 
 ## 界面预览
 
-### 1. 仪表盘
+### 1. 仪表盘（浅色）
 <p align="center">
-  <img src="./image/1cn.png" alt="仪表盘" width="70%" />
+  <img src="./image/cn/1.png" alt="仪表盘（浅色）" width="75%" />
 </p>
 
-### 2.1 账号管理-添加账号
+### 1B. 仪表盘（深色）
 <p align="center">
-  <img src="./image/2.1cn.png" alt="账号管理-添加账号" width="70%" />
+  <img src="./image/cn/1_b.png" alt="仪表盘（深色）" width="75%" />
 </p>
 
 ### 2. 账号管理
 <p align="center">
-  <img src="./image/2cn.png" alt="账号管理" width="70%" />
+  <img src="./image/cn/2.png" alt="账号管理" width="75%" />
 </p>
 
-### 3. 关于
+### 3. API 反代
 <p align="center">
-  <img src="./image/3cn.png" alt="关于" width="70%" />
+  <img src="./image/cn/3.png" alt="API 反代" width="75%" />
 </p>
 
-### 4. 设置-通用
+### 4. 流量日志
 <p align="center">
-  <img src="./image/4cn.png" alt="设置-通用" width="70%" />
+  <img src="./image/cn/4.png" alt="流量日志" width="75%" />
 </p>
 
-### 5. 设置-账号
+### 5. Token 统计
 <p align="center">
-  <img src="./image/5cn.png" alt="设置-账号" width="70%" />
+  <img src="./image/cn/5.png" alt="Token 统计" width="75%" />
+</p>
+
+### 6. 关于
+<p align="center">
+  <img src="./image/cn/6.png" alt="关于" width="75%" />
+</p>
+
+### 7. 设置
+<p align="center">
+  <img src="./image/cn/7.png" alt="设置" width="75%" />
 </p>
 
 ## 技术架构
 
 - 原生层：`C++ / Win32 / WebView2`
 - 前端层：`HTML + CSS + JavaScript`
-- 通信方式：WebView `postMessage` 与 Host Action 路由
+- 通信方式：WebView `postMessage` + Host Action 路由
 - 数据存储：本地 JSON 文件（用户目录）
 
 主要目录：
@@ -84,7 +102,7 @@
 
 1. 打开解决方案：`Codex_AccountSwitch.slnx`
 2. 选择 `Release | x64`
-3. 编译后产物：
+3. 编译产物：
    - `x64/Release/Codex_AccountSwitch.exe`
    - `x64/Release/WebView2Loader.dll`
 
@@ -95,10 +113,12 @@
 
 输出目录：`dist/`
 
-## 感谢
+## 致谢
 
-- 感谢 `Microsoft Edge WebView2` 团队提供稳定高性能的嵌入式 Web 运行时支持。
+- 感谢 `Microsoft Edge WebView2` 团队提供稳定高性能的嵌入式 Web 运行时。
 - 感谢所有参与测试、反馈问题和提出建议的用户与开发者。
+- 感谢 [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 分享 Codex 请求与 OAuth 获取相关实现思路。
+- 感谢 [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) 分享 UI 与功能设计思路。
 
 ## 贡献者
 
@@ -110,4 +130,4 @@
 
 ## 安全说明
 
-所有账号数据默认仅保存在本地。除非你主动导出或分享，否则数据不会离开设备。
+所有账号数据默认仅保存在本地。除非你主动导出或分享，数据不会离开你的设备。
