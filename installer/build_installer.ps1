@@ -1,6 +1,8 @@
 param(
   [string]$IsccPath = "iscc",
-  [switch]$SkipPortable
+  [switch]$SkipPortable,
+  [string]$TargetPlatform = "windows",
+  [string]$TargetArchitecture = "x64"
 )
 
 $ErrorActionPreference = "Stop"
@@ -55,16 +57,24 @@ if (-not ($major.Success -and $minor.Success -and $patch.Success)) {
 }
 $appVersion = "$($major.Groups['v'].Value).$($minor.Groups['v'].Value).$($patch.Groups['v'].Value)"
 $resolvedIsccPath = Resolve-IsccExecutable $IsccPath
+$normalizedPlatform = $TargetPlatform.Trim().ToLowerInvariant()
+$normalizedArch = $TargetArchitecture.Trim().ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($normalizedPlatform)) {
+  $normalizedPlatform = "windows"
+}
+if ([string]::IsNullOrWhiteSpace($normalizedArch)) {
+  $normalizedArch = "x64"
+}
 
 Push-Location $rootDir
 try {
-  & $resolvedIsccPath "/DMyAppVersion=$appVersion" $issPath
+  & $resolvedIsccPath "/DMyAppVersion=$appVersion" "/DPackagePlatform=$normalizedPlatform" "/DPackageArchitecture=$normalizedArch" $issPath
   if ($LASTEXITCODE -ne 0) {
     throw "ISCC failed with exit code $LASTEXITCODE"
   }
 
   if (-not $SkipPortable) {
-    & $portableBuildScriptPath -Configuration "Release" -Platform "x64"
+    & $portableBuildScriptPath -Configuration "Release" -Platform $normalizedArch -TargetPlatform $normalizedPlatform -TargetArchitecture $normalizedArch
     if ($LASTEXITCODE -ne 0) {
       throw "Portable build failed with exit code $LASTEXITCODE"
     }

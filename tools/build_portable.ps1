@@ -1,6 +1,8 @@
 param(
   [string]$Configuration = "Release",
-  [string]$Platform = "x64"
+  [string]$Platform = "x64",
+  [string]$TargetPlatform = "windows",
+  [string]$TargetArchitecture = "x64"
 )
 
 $ErrorActionPreference = "Stop"
@@ -25,7 +27,16 @@ if (-not ($major.Success -and $minor.Success -and $patch.Success)) {
 }
 
 $appVersion = "$($major.Groups['v'].Value).$($minor.Groups['v'].Value).$($patch.Groups['v'].Value)"
-$portableName = "Codex_AccountSwitch_Portable_v$appVersion"
+$normalizedPlatform = $TargetPlatform.Trim().ToLowerInvariant()
+$normalizedArch = $TargetArchitecture.Trim().ToLowerInvariant()
+if ([string]::IsNullOrWhiteSpace($normalizedPlatform)) {
+  $normalizedPlatform = "windows"
+}
+if ([string]::IsNullOrWhiteSpace($normalizedArch)) {
+  $normalizedArch = "x64"
+}
+
+$portableName = "Codex_AccountSwitch_Portable_${normalizedPlatform}_${normalizedArch}_v$appVersion"
 $portableDir = Join-Path $stageRoot $portableName
 $zipPath = Join-Path $distDir "$portableName.zip"
 

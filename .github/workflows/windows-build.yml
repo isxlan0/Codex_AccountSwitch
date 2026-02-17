@@ -43,19 +43,16 @@ jobs:
         shell: powershell
         run: .\installer\build_installer.ps1 -IsccPath "iscc"
 
-      - name: Upload build artifacts
+      - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Codex_AccountSwitch-windows
-          path: |
-            dist\*.exe
-            dist\*.zip
+          name: Codex_AccountSwitch_Setup_windows_x64
+          path: dist\Codex_AccountSwitch_Setup_*.exe
           if-no-files-found: error
 
-      - name: Publish GitHub Release assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
         with:
-          files: |
-            dist\*.exe
-            dist\*.zip
+          name: Codex_AccountSwitch_Portable_windows_x64
+          path: dist\Codex_AccountSwitch_Portable_*.zip
+          if-no-files-found: error

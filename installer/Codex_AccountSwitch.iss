@@ -9,6 +9,12 @@
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0"
 #endif
+#ifndef PackagePlatform
+  #define PackagePlatform "windows"
+#endif
+#ifndef PackageArchitecture
+  #define PackageArchitecture "x64"
+#endif
 
 [Setup]
 AppId={{0ACAA3F5-9AE4-4E3E-9D0D-7B9A7A7D1C21}
@@ -23,7 +29,7 @@ DefaultDirName={code:GetInstallDir}
 DefaultGroupName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 OutputDir=..\dist
-OutputBaseFilename=Codex_AccountSwitch_Setup_v{#MyAppVersion}
+OutputBaseFilename=Codex_AccountSwitch_Setup_{#PackagePlatform}_{#PackageArchitecture}_v{#MyAppVersion}
 SetupIconFile=..\logo.ico
 LicenseFile=..\LICENSE
 InfoBeforeFile=INFO_BEFORE_INSTALL_EN.txt
