@@ -15,6 +15,19 @@ permissions:
 jobs:
   build:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch_label: x64
+            msbuild_platform: x64
+            package_arch: x64
+          - arch_label: x86
+            msbuild_platform: Win32
+            package_arch: x86
+          - arch_label: ARM
+            msbuild_platform: ARM64
+            package_arch: arm
 
     steps:
       - name: Checkout
@@ -29,8 +42,8 @@ jobs:
       - name: Restore NuGet packages
         run: nuget restore Codex_AccountSwitch\Codex_AccountSwitch.vcxproj -PackagesDirectory packages
 
-      - name: Build Release x64
-        run: msbuild Codex_AccountSwitch\Codex_AccountSwitch.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:OutDir=${{ github.workspace }}\x64\Release\ /m
+      - name: Build Release (${{ matrix.arch_label }})
+        run: msbuild Codex_AccountSwitch\Codex_AccountSwitch.vcxproj /p:Configuration=Release /p:Platform=${{ matrix.msbuild_platform }} /p:PlatformToolset=v143 /m
 
       - name: Install Inno Setup
         shell: powershell
@@ -41,18 +54,18 @@ jobs:
 
       - name: Build installer
         shell: powershell
-        run: .\installer\build_installer.ps1 -IsccPath "iscc"
+        run: .\installer\build_installer.ps1 -IsccPath "iscc" -TargetPlatform "windows" -TargetArchitecture "${{ matrix.package_arch }}"
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Codex_AccountSwitch_Setup_windows_x64
-          path: dist\Codex_AccountSwitch_Setup_*.exe
+          name: Codex_AccountSwitch_Setup_windows_${{ matrix.package_arch }}
+          path: dist\Codex_AccountSwitch_Setup_windows_${{ matrix.package_arch }}_*.exe
           if-no-files-found: error
 
       - name: Upload portable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Codex_AccountSwitch_Portable_windows_x64
-          path: dist\Codex_AccountSwitch_Portable_*.zip
+          name: Codex_AccountSwitch_Portable_windows_${{ matrix.package_arch }}
+          path: dist\Codex_AccountSwitch_Portable_windows_${{ matrix.package_arch }}_*.zip
           if-no-files-found: error

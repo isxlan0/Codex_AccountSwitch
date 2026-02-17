@@ -95,16 +95,17 @@ Runtime data is stored in:
 
 ### Requirements
 
-- Windows 10/11 x64
+- Windows 10/11 (x64/x86/ARM64 target build supported)
 - WebView2 Runtime
 
 ### Build
 
 1. Open solution: `Codex_AccountSwitch.slnx`
-2. Select `Release | x64`
+2. Select one of: `Release | x64`, `Release | x86`, `Release | ARM64`
 3. Build outputs:
-   - `x64/Release/Codex_AccountSwitch.exe`
-   - `x64/Release/WebView2Loader.dll`
+   - `Release/x64/Codex_AccountSwitch.exe`
+   - `Release/x86/Codex_AccountSwitch.exe`
+   - `Release/ARM/Codex_AccountSwitch.exe`
 
 ### Build Installer
 

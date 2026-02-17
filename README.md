@@ -95,16 +95,17 @@
 
 ### 运行环境
 
-- Windows 10/11 x64
+- Windows 10/11 (x64/x86/ARM64 目标构建已支持)
 - WebView2 Runtime
 
 ### 编译
 
 1. 打开解决方案：`Codex_AccountSwitch.slnx`
-2. 选择 `Release | x64`
+2. 选择其一：`Release | x64`、`Release | x86`、`Release | ARM64`
 3. 编译产物：
-   - `x64/Release/Codex_AccountSwitch.exe`
-   - `x64/Release/WebView2Loader.dll`
+   - `Release/x64/Codex_AccountSwitch.exe`
+   - `Release/x86/Codex_AccountSwitch.exe`
+   - `Release/ARM/Codex_AccountSwitch.exe`
 
 ### 打包安装程序
 

@@ -15,6 +15,15 @@
 #ifndef PackageArchitecture
   #define PackageArchitecture "x64"
 #endif
+#ifndef BinarySubDir
+  #define BinarySubDir "x64"
+#endif
+#ifndef InstallerArchitecturesAllowed
+  #define InstallerArchitecturesAllowed "x64compatible"
+#endif
+#ifndef InstallerArchitecturesInstallIn64BitMode
+  #define InstallerArchitecturesInstallIn64BitMode "x64compatible"
+#endif
 
 [Setup]
 AppId={{0ACAA3F5-9AE4-4E3E-9D0D-7B9A7A7D1C21}
@@ -37,8 +46,8 @@ InfoAfterFile=INFO_AFTER_INSTALL_EN.txt
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesAllowed=x64compatible
-ArchitecturesInstallIn64BitMode=x64compatible
+ArchitecturesAllowed={#InstallerArchitecturesAllowed}
+ArchitecturesInstallIn64BitMode={#InstallerArchitecturesInstallIn64BitMode}
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 VersionInfoVersion={#MyAppVersion}.0
@@ -56,8 +65,8 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; App binaries
-Source: "..\x64\Release\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
-Source: "..\x64\Release\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\Release\{#BinarySubDir}\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\Release\{#BinarySubDir}\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
 
 ; Web UI
 Source: "..\webui\*"; DestDir: "{app}\webui"; Flags: ignoreversion recursesubdirs createallsubdirs

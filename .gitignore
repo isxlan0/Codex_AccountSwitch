@@ -36,6 +36,16 @@
 *.FileListAbsolute.txt
 *.log
 
+# Additional MSBuild/VS build artifacts
+/Release/
+/Debug/
+/Codex_AccountSwitch/Release/
+/Codex_AccountSwitch/Debug/
+/Codex_AccountSwitch/obj/
+/Codex_AccountSwitch/Codex_Ac.*/
+bin/
+obj/
+
 # Local environment or secret-like files
 *.env
 *.env.*

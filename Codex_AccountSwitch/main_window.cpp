@@ -14,6 +14,16 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
   }
 
   switch (msg) {
+  case kActivateExistingInstanceMessage:
+    if (IsIconic(hwnd)) {
+      ShowWindow(hwnd, SW_RESTORE);
+    } else {
+      ShowWindow(hwnd, SW_SHOW);
+    }
+    BringWindowToTop(hwnd);
+    SetForegroundWindow(hwnd);
+    return 0;
+
   case WM_CREATE:
     g_webviewHost.Initialize(hwnd);
     return 0;

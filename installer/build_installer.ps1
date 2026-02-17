@@ -2,7 +2,8 @@ param(
   [string]$IsccPath = "iscc",
   [switch]$SkipPortable,
   [string]$TargetPlatform = "windows",
-  [string]$TargetArchitecture = "x64"
+  [string]$TargetArchitecture = "x64",
+  [string[]]$TargetArchitectures
 )
 
 $ErrorActionPreference = "Stop"
@@ -58,25 +59,80 @@ if (-not ($major.Success -and $minor.Success -and $patch.Success)) {
 $appVersion = "$($major.Groups['v'].Value).$($minor.Groups['v'].Value).$($patch.Groups['v'].Value)"
 $resolvedIsccPath = Resolve-IsccExecutable $IsccPath
 $normalizedPlatform = $TargetPlatform.Trim().ToLowerInvariant()
-$normalizedArch = $TargetArchitecture.Trim().ToLowerInvariant()
 if ([string]::IsNullOrWhiteSpace($normalizedPlatform)) {
   $normalizedPlatform = "windows"
 }
-if ([string]::IsNullOrWhiteSpace($normalizedArch)) {
-  $normalizedArch = "x64"
+
+if ($null -eq $TargetArchitectures -or $TargetArchitectures.Count -eq 0) {
+  if ($PSBoundParameters.ContainsKey("TargetArchitecture")) {
+    $TargetArchitectures = @($TargetArchitecture)
+  } else {
+    $TargetArchitectures = @("x64", "x86", "arm")
+  }
+}
+
+function Resolve-NormalizedArchitecture([string]$arch) {
+  $value = $arch.Trim().ToLowerInvariant()
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return $null
+  }
+
+  switch ($value) {
+    "win32" { return "x86" }
+    "arm64" { return "arm" }
+    "amd64" { return "x64" }
+    "x64" { return "x64" }
+    "x86" { return "x86" }
+    "arm" { return "arm" }
+    default { return $null }
+  }
+}
+
+$normalizedArchitectures = @()
+foreach ($arch in $TargetArchitectures) {
+  $normalizedArch = Resolve-NormalizedArchitecture $arch
+  if (-not $normalizedArch) {
+    throw "Unsupported architecture: $arch. Expected x64, x86, or arm."
+  }
+
+  if ($normalizedArchitectures -notcontains $normalizedArch) {
+    $normalizedArchitectures += $normalizedArch
+  }
+}
+
+if ($normalizedArchitectures.Count -eq 0) {
+  throw "No target architectures resolved. Expected x64, x86, or arm."
 }
 
 Push-Location $rootDir
 try {
-  & $resolvedIsccPath "/DMyAppVersion=$appVersion" "/DPackagePlatform=$normalizedPlatform" "/DPackageArchitecture=$normalizedArch" $issPath
-  if ($LASTEXITCODE -ne 0) {
-    throw "ISCC failed with exit code $LASTEXITCODE"
-  }
+  foreach ($normalizedArch in $normalizedArchitectures) {
+    $binarySubDir = switch ($normalizedArch) {
+      "x64" { "x64" }
+      "x86" { "x86" }
+      "arm" { "ARM" }
+    }
+    $installerAllowed = switch ($normalizedArch) {
+      "x64" { "x64compatible" }
+      "x86" { "x86compatible" }
+      "arm" { "arm64" }
+    }
+    $installerMode = switch ($normalizedArch) {
+      "x64" { "x64compatible" }
+      "x86" { "x86" }
+      "arm" { "arm64" }
+    }
 
-  if (-not $SkipPortable) {
-    & $portableBuildScriptPath -Configuration "Release" -Platform $normalizedArch -TargetPlatform $normalizedPlatform -TargetArchitecture $normalizedArch
+    & $resolvedIsccPath "/DMyAppVersion=$appVersion" "/DPackagePlatform=$normalizedPlatform" "/DPackageArchitecture=$normalizedArch" "/DBinarySubDir=$binarySubDir" "/DInstallerArchitecturesAllowed=$installerAllowed" "/DInstallerArchitecturesInstallIn64BitMode=$installerMode" $issPath
     if ($LASTEXITCODE -ne 0) {
-      throw "Portable build failed with exit code $LASTEXITCODE"
+      throw "ISCC failed for $normalizedArch with exit code $LASTEXITCODE"
+    }
+
+    if (-not $SkipPortable) {
+      & $portableBuildScriptPath -Configuration "Release" -Platform $normalizedArch -TargetPlatform $normalizedPlatform -TargetArchitecture $normalizedArch
+      if ($LASTEXITCODE -ne 0) {
+        throw "Portable build failed for $normalizedArch with exit code $LASTEXITCODE"
+      }
     }
   }
 }

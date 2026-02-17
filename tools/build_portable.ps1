@@ -10,7 +10,6 @@ $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = Resolve-Path (Join-Path $scriptDir "..")
 $versionHeaderPath = Join-Path $rootDir "Codex_AccountSwitch\app_version.h"
-$binDir = Join-Path $rootDir "$Platform\$Configuration"
 $distDir = Join-Path $rootDir "dist"
 $stageRoot = Join-Path $distDir "portable_stage"
 
@@ -33,8 +32,28 @@ if ([string]::IsNullOrWhiteSpace($normalizedPlatform)) {
   $normalizedPlatform = "windows"
 }
 if ([string]::IsNullOrWhiteSpace($normalizedArch)) {
+  $normalizedArch = $Platform.Trim().ToLowerInvariant()
+}
+if ([string]::IsNullOrWhiteSpace($normalizedArch)) {
   $normalizedArch = "x64"
 }
+
+switch ($normalizedArch) {
+  "win32" { $normalizedArch = "x86" }
+  "arm64" { $normalizedArch = "arm" }
+  "amd64" { $normalizedArch = "x64" }
+}
+
+$binarySubDir = switch ($normalizedArch) {
+  "x64" { "x64" }
+  "x86" { "x86" }
+  "arm" { "ARM" }
+  default { $null }
+}
+if (-not $binarySubDir) {
+  throw "Unsupported TargetArchitecture: $TargetArchitecture. Expected x64, x86, or arm."
+}
+$binDir = Join-Path $rootDir "Release\$binarySubDir"
 
 $portableName = "Codex_AccountSwitch_Portable_${normalizedPlatform}_${normalizedArch}_v$appVersion"
 $portableDir = Join-Path $stageRoot $portableName
