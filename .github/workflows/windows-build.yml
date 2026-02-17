@@ -30,7 +30,7 @@ jobs:
         run: nuget restore Codex_AccountSwitch\Codex_AccountSwitch.vcxproj -PackagesDirectory packages
 
       - name: Build Release x64
-        run: msbuild Codex_AccountSwitch\Codex_AccountSwitch.vcxproj /p:Configuration=Release /p:Platform=x64 /m
+        run: msbuild Codex_AccountSwitch\Codex_AccountSwitch.vcxproj /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /m
 
       - name: Install Inno Setup
         shell: powershell
