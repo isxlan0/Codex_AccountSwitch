@@ -70,6 +70,10 @@
     "settings.auto_update_label": "Auto Update",
     "settings.auto_update_hint": "Check update automatically at startup and prompt before downloading.",
     "settings.quota_refresh_section": "Quota Refresh",
+    "settings.enable_auto_refresh_quota_label": "Enable Auto Quota Refresh",
+    "settings.enable_auto_refresh_quota_hint": "When enabled, importing accounts will auto-refresh plan type and quota.",
+    "settings.auto_mark_abnormal_accounts_label": "Auto Mark Abnormal Accounts",
+    "settings.auto_mark_abnormal_accounts_hint": "When enabled, token-invalid or unauthorized accounts are marked abnormal and skipped for auto retry.",
     "settings.auto_refresh_all_label": "Auto Refresh All Accounts",
     "settings.auto_refresh_all_hint": "Refresh all accounts every {minutes} minutes in background.",
     "settings.auto_refresh_current_label": "Auto Refresh Current Account",
@@ -233,6 +237,7 @@
     "dialog.login_new.message": "Clear current login files and restart {ide}?",
     "accounts.empty": "No account backups",
     "tag.current": "Current",
+    "tag.abnormal": "Abnormal",
     "tag.group_business": "Business",
     "tag.group_personal": "Personal",
     "tag.plan_free": "Free",
@@ -317,7 +322,9 @@
     "low_quota.prompt_message_dynamic": "Current account {current} is down to {currentQuota}% in {window} window.\nSwitch to {best} ({bestQuota}%) and restart IDE?",
     "status_code.switch_success_proxy_mode": "Switched successfully in proxy mode. Restart IDE or CLI to take effect.",
     "status_code.proxy_usage_limit_reached": "Current account quota exhausted. Auto-switching and retrying request.",
+    "status_code.proxy_account_abnormal": "Current account is abnormal and unavailable. Switching and retrying request.",
     "status_code.proxy_auto_switched": "Auto-switched to another account and retrying request.",
+    "status_code.proxy_abnormal_auto_switched": "Abnormal account skipped. Auto-switched to another account and retrying request.",
     "status_code.proxy_fixed_auto_switched": "Fixed account quota unavailable. Auto-switched to another account.",
     "status_code.proxy_low_quota": "Proxy mode detected low quota on current account.",
     "status_code.debug_action_ok": "Debug action triggered",
@@ -328,6 +335,8 @@
     "status_code.open_url_success": "Link opened",
     "status_code.save_config_failed": "Failed to save settings",
     "status_code.quota_refreshed": "Quota refreshed",
+    "status_code.quota_refresh_running": "Quota refresh is already running, please wait...",
+    "status_code.quota_refresh_failed": "Quota refresh failed",
     "status_code.account_quota_refreshed": "Account quota refreshed",
     "status_code.batch_refresh_done": "Batch quota refresh completed",
     "status_code.batch_delete_done": "Batch delete completed",
@@ -361,7 +370,10 @@
     "status_text.proxy_low_quota_suggest": ", recommended switch to {account} ({quota}%)",
     "status_text.proxy_usage_limit_reached": "Account {account} quota exhausted (usage_limit_reached)",
     "status_text.proxy_usage_limit_switching_retry": ", switching and retrying request",
+    "status_text.proxy_account_abnormal_marked": "Account {account} request failed ({reason}), marked as abnormal",
+    "status_text.proxy_abnormal_switching_retry": ", switching and retrying request",
     "status_text.proxy_auto_switched_retry": "Auto-switched to {account}, retrying request",
+    "status_text.proxy_abnormal_auto_switched_retry": "Auto-switched to {account} after abnormal account, retrying request",
     "status_text.proxy_auto_switch_failed": "Auto account switch failed: {error}",
     "status_text.proxy_fixed_auto_switched": "Fixed account quota unavailable, auto-switched to {account} and continuing request",
     "status_text.tray_switched_account": "Tray switched to account {account}",
@@ -369,6 +381,7 @@
     "tray.notify_title": "Codex Quota Alert",
     "tray.proxy_auto_switching_suffix": ", auto switching account",
     "tray.proxy_auto_switched_retry": "Auto-switched to account {account}, and retrying current request",
+    "tray.proxy_abnormal_auto_switched_retry": "Abnormal account skipped, switched to {account} and retrying",
     "tray.proxy_fixed_auto_switched": "Fixed account quota unavailable, auto-switched to {account}",
     "tray.low_quota_window_default": "quota",
     "tray.low_quota_window_suffix": "{window} quota",
@@ -430,6 +443,10 @@
     "settings.auto_update_label": "自动更新",
     "settings.auto_update_hint": "启动时自动检查更新，并在下载前提示。",
     "settings.quota_refresh_section": "额度刷新",
+    "settings.enable_auto_refresh_quota_label": "开启自动刷新额度",
+    "settings.enable_auto_refresh_quota_hint": "开启后，导入账号时会自动刷新账号类型和额度。",
+    "settings.auto_mark_abnormal_accounts_label": "自动标记异常账号",
+    "settings.auto_mark_abnormal_accounts_hint": "开启后，遇到 token 失效或鉴权失败的账号会被标记为异常，并在自动重试时跳过。",
     "settings.minutes_hint": "输入 1-240",
     "settings.first_run_toast": "首次启动请先确认默认设置",
     "dialog.backup.title": "备份当前账号",
@@ -449,6 +466,7 @@
     "dialog.login_new.message": "将清理当前登录文件并重启 {ide}，是否继续？",
     "accounts.empty": "暂无账号备份",
     "tag.current": "当前",
+    "tag.abnormal": "异常",
     "tag.group_business": "企业",
     "tag.group_personal": "个人",
     "quota.gpt": "Codex",
@@ -482,6 +500,8 @@
     "status_code.open_url_success": "链接已打开",
     "status_code.save_config_failed": "设置保存失败",
     "status_code.quota_refreshed": "额度已刷新",
+    "status_code.quota_refresh_running": "额度刷新正在进行中，请稍候…",
+    "status_code.quota_refresh_failed": "额度刷新失败",
     "status_code.account_quota_refreshed": "账号额度已刷新",
     "status_code.unknown_action": "未知操作",
     "update.failed": "检查更新失败，请稍后重试",
@@ -511,6 +531,10 @@
     "toolbar.import": "导入备份",
     "toolbar.export": "导出备份",
     "settings.refresh_minutes_label": "间隔（分钟）",
+    "settings.enable_auto_refresh_quota_label": "开启自动刷新额度",
+    "settings.enable_auto_refresh_quota_hint": "开启后，导入账号时会自动刷新账号类型和额度。",
+    "settings.auto_mark_abnormal_accounts_label": "自动标记异常账号",
+    "settings.auto_mark_abnormal_accounts_hint": "开启后，遇到 token 失效或鉴权失败的账号会被标记为异常，并在自动重试时跳过。",
     "settings.auto_refresh_all_label": "后台自动刷新全部账号额度",
     "settings.auto_refresh_current_label": "自动刷新当前活动账号额度",
     "settings.auto_refresh_all_hint": "每 {minutes} 分钟自动刷新一次全部账号额度。",
@@ -673,6 +697,8 @@
     "bulk.delete_confirm_title": "批量删除账号",
     "bulk.delete_confirm_message": "确认删除已选中的 {count} 个账号吗？",
     "status_code.batch_refresh_done": "批量刷新额度完成",
+    "status_code.quota_refresh_running": "额度刷新正在进行中，请稍候…",
+    "status_code.quota_refresh_failed": "额度刷新失败",
     "status_code.batch_delete_done": "批量删除完成",
     "status_code.batch_delete_partial": "批量删除部分完成",
     "status_code.batch_delete_failed": "批量删除失败",
@@ -724,7 +750,9 @@
     "status_code.random_gen_failed": "生成安全随机字节失败",
     "status_code.switch_success_proxy_mode": "反代模式下切换成功，请重启 IDE 或 CLI 生效。",
     "status_code.proxy_usage_limit_reached": "当前账号额度已用尽，正在自动切换并重试请求。",
+    "status_code.proxy_account_abnormal": "当前账号鉴权异常，正在自动切换并重试请求。",
     "status_code.proxy_auto_switched": "已自动切换到其他账号并重试请求。",
+    "status_code.proxy_abnormal_auto_switched": "已跳过异常账号并自动切换重试。",
     "status_code.proxy_fixed_auto_switched": "固定账号额度不可用，已自动切换到其他账号。",
     "status_code.proxy_low_quota": "反代模式检测到当前账号额度较低。",
     "low_quota.prompt_message": "当前账号 {current} 在 {window} 窗口额度已降至 {currentQuota}% 。\n是否切换到 {best}（{bestQuota}%）并重启 IDE？",
@@ -735,7 +763,10 @@
     "status_text.proxy_low_quota_suggest": "，建议切换到 {account}（{quota}%）",
     "status_text.proxy_usage_limit_reached": "账号 {account} 已用尽额度（usage_limit_reached）",
     "status_text.proxy_usage_limit_switching_retry": "，正在切换并重试请求",
+    "status_text.proxy_account_abnormal_marked": "账号 {account} 请求失败（{reason}），已标记为异常",
+    "status_text.proxy_abnormal_switching_retry": "，正在切换并重试请求",
     "status_text.proxy_auto_switched_retry": "已自动切换到 {account}，正在重试请求",
+    "status_text.proxy_abnormal_auto_switched_retry": "因异常账号已自动切换到 {account}，正在重试请求",
     "status_text.proxy_auto_switch_failed": "自动切换账号失败: {error}",
     "status_text.proxy_fixed_auto_switched": "固定账号额度不可用，已自动切换到 {account} 并继续请求",
     "status_text.tray_switched_account": "托盘已切换到账号 {account}",
@@ -743,6 +774,7 @@
     "tray.notify_title": "Codex额度提醒",
     "tray.proxy_auto_switching_suffix": "，正在自动切换账号",
     "tray.proxy_auto_switched_retry": "已自动切换到账号 {account}，并继续重试当前请求",
+    "tray.proxy_abnormal_auto_switched_retry": "已跳过异常账号并切换到 {account} 重试",
     "tray.proxy_fixed_auto_switched": "固定账号额度不可用，已自动切换到 {account}",
     "tray.low_quota_window_default": "额度",
     "tray.low_quota_window_suffix": "{window}额度",
@@ -826,6 +858,10 @@
     settingsAutoUpdateLabel: document.getElementById("settingsAutoUpdateLabel"),
     settingsAutoUpdateHint: document.getElementById("settingsAutoUpdateHint"),
     settingsQuotaSectionTitle: document.getElementById("settingsQuotaSectionTitle"),
+    settingsDisableAutoRefreshQuotaLabel: document.getElementById("settingsDisableAutoRefreshQuotaLabel"),
+    settingsDisableAutoRefreshQuotaHint: document.getElementById("settingsDisableAutoRefreshQuotaHint"),
+    settingsAutoMarkAbnormalAccountsLabel: document.getElementById("settingsAutoMarkAbnormalAccountsLabel"),
+    settingsAutoMarkAbnormalAccountsHint: document.getElementById("settingsAutoMarkAbnormalAccountsHint"),
     settingsAutoRefreshAllLabel: document.getElementById("settingsAutoRefreshAllLabel"),
     settingsAutoRefreshAllHint: document.getElementById("settingsAutoRefreshAllHint"),
     settingsAllRefreshCountdown: document.getElementById("settingsAllRefreshCountdown"),
@@ -842,6 +878,8 @@
     languageOptions: document.getElementById("languageOptions"),
     ideOptions: document.getElementById("ideOptions"),
     autoUpdateToggle: document.getElementById("autoUpdateToggle"),
+    disableAutoRefreshQuotaToggle: document.getElementById("disableAutoRefreshQuotaToggle"),
+    autoMarkAbnormalAccountsToggle: document.getElementById("autoMarkAbnormalAccountsToggle"),
     autoRefreshCurrentToggle: document.getElementById("autoRefreshCurrentToggle"),
     dashboardTitle: document.getElementById("dashboardTitle"),
     dashboardSubtitle: document.getElementById("dashboardSubtitle"),
@@ -1036,6 +1074,8 @@
     currentLanguage: "zh-CN",
     currentIdeExe: "Code.exe",
     autoUpdate: true,
+    enableAutoRefreshQuota: true,
+    autoMarkAbnormalAccounts: true,
     autoRefreshCurrent: true,
     lowQuotaAutoPrompt: true,
     autoRefreshAllMinutes: 15,
@@ -1190,6 +1230,13 @@
   function applyLanguageStrings(code, strings) {
     state.i18n = { ...DEFAULT_I18N, ...(strings || {}) };
     state.currentLanguage = code || state.currentLanguage || "zh-CN";
+    const langCode = String(state.currentLanguage || "").toLowerCase();
+    if (langCode === "zh-cn" || langCode === "zh-tw") {
+      state.i18n["settings.enable_auto_refresh_quota_label"] = "开启自动刷新额度";
+      state.i18n["settings.enable_auto_refresh_quota_hint"] = "开启后，导入账号时会自动刷新账号类型和额度。";
+      state.i18n["settings.auto_mark_abnormal_accounts_label"] = "自动标记异常账号";
+      state.i18n["settings.auto_mark_abnormal_accounts_hint"] = "开启后，遇到 token 失效或鉴权失败的账号会被标记为异常，并在自动重试时跳过。";
+    }
     applyI18n();
     refreshSettingsOptions();
     renderAccounts();
@@ -1602,6 +1649,8 @@
       x.classList.toggle("active", x.getAttribute("data-theme-option") === state.themeMode);
     });
     dom.autoRefreshCurrentToggle.checked = state.autoRefreshCurrent;
+    dom.disableAutoRefreshQuotaToggle.checked = state.enableAutoRefreshQuota;
+    dom.autoMarkAbnormalAccountsToggle.checked = state.autoMarkAbnormalAccounts;
     dom.lowQuotaAutoPromptToggle.checked = state.lowQuotaAutoPrompt;
     dom.settingsAutoRefreshAllHint.textContent = t("settings.auto_refresh_all_hint", { minutes: state.autoRefreshAllMinutes });
     dom.settingsAutoRefreshCurrentHint.textContent = t("settings.auto_refresh_current_hint", { minutes: state.autoRefreshCurrentMinutes });
@@ -1667,6 +1716,10 @@
     dom.settingsAutoUpdateLabel.textContent = t("settings.auto_update_label");
     dom.settingsAutoUpdateHint.textContent = t("settings.auto_update_hint");
     dom.settingsQuotaSectionTitle.textContent = t("settings.quota_refresh_section");
+    dom.settingsDisableAutoRefreshQuotaLabel.textContent = t("settings.enable_auto_refresh_quota_label");
+    dom.settingsDisableAutoRefreshQuotaHint.textContent = t("settings.enable_auto_refresh_quota_hint");
+    dom.settingsAutoMarkAbnormalAccountsLabel.textContent = t("settings.auto_mark_abnormal_accounts_label");
+    dom.settingsAutoMarkAbnormalAccountsHint.textContent = t("settings.auto_mark_abnormal_accounts_hint");
     dom.settingsAutoRefreshAllLabel.textContent = t("settings.auto_refresh_all_label");
     dom.settingsAutoRefreshAllHint.textContent = t("settings.auto_refresh_all_hint", { minutes: state.autoRefreshAllMinutes });
     dom.settingsAllMinutesLabel.textContent = t("settings.refresh_minutes_label");
@@ -2100,8 +2153,8 @@
   }
 
   function renderApiState() {
-    const hasCurrent = (Array.isArray(state.accounts) ? state.accounts : []).some((x) => x && x.isCurrent);
-    dom.apiSendBtn.disabled = state.apiRequestBusy || !hasCurrent;
+    const hasAnyAccount = Array.isArray(state.accounts) && state.accounts.length > 0;
+    dom.apiSendBtn.disabled = state.apiRequestBusy || !hasAnyAccount;
     dom.apiSendBtn.classList.toggle("loading", state.apiRequestBusy);
   }
 
@@ -2244,9 +2297,12 @@
     dom.refreshBtn.classList.toggle("loading", mode === "all" || isImportBusy);
 
     if (isBusy) {
-      state.refreshBusyTimer = setTimeout(() => {
-        setRefreshBusy("", "");
-      }, 20000);
+      const timeoutMs = mode === "account" ? 120000 : 0;
+      if (timeoutMs > 0) {
+        state.refreshBusyTimer = setTimeout(() => {
+          setRefreshBusy("", "");
+        }, timeoutMs);
+      }
     }
 
     renderAccounts();
@@ -2482,11 +2538,25 @@
     return Math.round(n);
   }
 
+  function parseEnableAutoRefreshQuota(msg, fallback = true) {
+    const hasEnable = !!(msg && Object.prototype.hasOwnProperty.call(msg, "enableAutoRefreshQuota"));
+    if (hasEnable) {
+      return msg.enableAutoRefreshQuota === true || msg.enableAutoRefreshQuota === "true";
+    }
+    const hasDisable = !!(msg && Object.prototype.hasOwnProperty.call(msg, "disableAutoRefreshQuota"));
+    if (hasDisable) {
+      return !(msg.disableAutoRefreshQuota === true || msg.disableAutoRefreshQuota === "true");
+    }
+    return fallback;
+  }
+
   function buildConfigPayload() {
     return {
       language: state.currentLanguage,
       ideExe: state.currentIdeExe,
       autoUpdate: state.autoUpdate,
+      enableAutoRefreshQuota: state.enableAutoRefreshQuota,
+      autoMarkAbnormalAccounts: state.autoMarkAbnormalAccounts,
       autoRefreshCurrent: state.autoRefreshCurrent,
       lowQuotaAutoPrompt: state.lowQuotaAutoPrompt,
       autoRefreshAllMinutes: state.autoRefreshAllMinutes,
@@ -2519,6 +2589,8 @@
     const msgLanguage = msg.language || "zh-CN";
     const msgIdeExe = msg.ideExe || "Code.exe";
     const msgAutoUpdate = msg.autoUpdate !== false && msg.autoUpdate !== "false";
+    const msgEnableAutoRefreshQuota = parseEnableAutoRefreshQuota(msg, true);
+    const msgAutoMarkAbnormalAccounts = msg.autoMarkAbnormalAccounts !== false && msg.autoMarkAbnormalAccounts !== "false";
     const msgAutoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
     const msgLowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
     const msgAutoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
@@ -2534,6 +2606,8 @@
     return msgLanguage === pending.language
       && msgIdeExe === pending.ideExe
       && msgAutoUpdate === pending.autoUpdate
+      && msgEnableAutoRefreshQuota === !!pending.enableAutoRefreshQuota
+      && msgAutoMarkAbnormalAccounts === !!pending.autoMarkAbnormalAccounts
       && msgAutoRefreshCurrent === pending.autoRefreshCurrent
       && msgLowQuotaAutoPrompt === pending.lowQuotaAutoPrompt
       && msgAutoRefreshAllMinutes === pending.autoRefreshAllMinutes
@@ -2584,6 +2658,11 @@
   }
 
   function renderRefreshCountdowns() {
+    if (!state.enableAutoRefreshQuota) {
+      dom.settingsAllRefreshCountdown.textContent = `${t("settings.countdown_prefix")}${t("refresh.disabled")}`;
+      dom.settingsCurrentRefreshCountdown.textContent = `${t("settings.countdown_prefix")}${t("refresh.disabled")}`;
+      return;
+    }
     dom.settingsAllRefreshCountdown.textContent = `${t("settings.countdown_prefix")}${formatCountdown(state.allRefreshRemainSec)}`;
     dom.settingsCurrentRefreshCountdown.textContent = state.autoRefreshCurrent
       ? `${t("settings.countdown_prefix")}${formatCountdown(state.currentRefreshRemainSec)}`
@@ -2634,6 +2713,7 @@
           <div class="account-cell" title="${escapeHtml(item.name)}">
             <span class="account-name">${escapeHtml(shortName(item.name))}</span>
             ${item.isCurrent ? `<span class="tag current">${escapeHtml(t("tag.current"))}</span>` : ""}
+            ${item.abnormal ? `<span class="tag abnormal" title="${escapeHtml(item.abnormalReason || "")}">${escapeHtml(t("tag.abnormal"))}</span>` : ""}
             <span class="tag plan ${escapeHtml(planClass)}">${escapeHtml(formatPlanTypeLabel(item.planType))}</span>
           </div>
         </td>
@@ -2763,8 +2843,8 @@
       if (state.apiRequestBusy) return;
       const model = String(dom.apiModelInput.value || "").trim();
       const content = String(dom.apiPromptTextarea.value || "").trim();
-      const hasCurrent = (Array.isArray(state.accounts) ? state.accounts : []).some((x) => x && x.isCurrent);
-      if (!hasCurrent) {
+      const hasAnyAccount = Array.isArray(state.accounts) && state.accounts.length > 0;
+      if (!hasAnyAccount) {
         showToast(t("status_code.api_no_selected_account"), "warning");
         return;
       }
@@ -3037,6 +3117,18 @@
       queueSaveConfig();
     });
 
+    dom.disableAutoRefreshQuotaToggle.addEventListener("change", () => {
+      state.enableAutoRefreshQuota = dom.disableAutoRefreshQuotaToggle.checked;
+      refreshSettingsOptions();
+      renderRefreshCountdowns();
+      queueSaveConfig();
+    });
+    dom.autoMarkAbnormalAccountsToggle.addEventListener("change", () => {
+      state.autoMarkAbnormalAccounts = dom.autoMarkAbnormalAccountsToggle.checked;
+      refreshSettingsOptions();
+      queueSaveConfig();
+    });
+
     document.querySelectorAll("[data-theme-option]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.themeMode = normalizeThemeMode(btn.getAttribute("data-theme-option"));
@@ -3278,7 +3370,10 @@
             planType: String(x.planType || ""),
             usageError: String(x.usageError || ""),
             isCurrent: x.isCurrent === true || x.isCurrent === "true",
-            usageOk: x.usageOk === true || x.usageOk === "true"
+            usageOk: x.usageOk === true || x.usageOk === "true",
+            abnormal: x.abnormal === true || x.abnormal === "true",
+            abnormalReason: String(x.abnormalReason || ""),
+            abnormalAt: String(x.abnormalAt || "")
           }))
           : [];
         applySearch();
@@ -3434,7 +3529,7 @@
         }
         const switchCode = String(msg.code || "");
         const isManualSwitchSuccess = switchCode === "switch_success" || switchCode === "switch_success_proxy_mode";
-        const isAutoSwitch = switchCode === "proxy_auto_switched" || switchCode === "proxy_fixed_auto_switched";
+        const isAutoSwitch = switchCode === "proxy_auto_switched" || switchCode === "proxy_fixed_auto_switched" || switchCode === "proxy_abnormal_auto_switched";
         if (isManualSwitchSuccess || isAutoSwitch) {
           requestAccountsList(true);
         }
@@ -3458,7 +3553,15 @@
           if (state.bulkMode === "delete") {
             setBulkBusy("");
           }
-        } else if (state.refreshMode && (msg.level === "error" || msg.level === "warning")) {
+        } else if (
+          state.refreshMode &&
+          [
+            "account_quota_refresh_failed",
+            "account_quota_refresh_skipped",
+            "quota_refresh_failed",
+            "quota_refresh_running"
+          ].includes(statusCode)
+        ) {
           setRefreshBusy("", "");
           if (state.bulkMode === "refresh") {
             setBulkBusy("");
@@ -3504,6 +3607,8 @@
           }
           state.currentIdeExe = msg.ideExe || "Code.exe";
           state.autoUpdate = msg.autoUpdate !== false && msg.autoUpdate !== "false";
+          state.enableAutoRefreshQuota = parseEnableAutoRefreshQuota(msg, true);
+          state.autoMarkAbnormalAccounts = msg.autoMarkAbnormalAccounts !== false && msg.autoMarkAbnormalAccounts !== "false";
           state.autoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
           state.lowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
           state.autoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
@@ -3543,6 +3648,8 @@
           state.currentLanguage = msg.language || state.currentLanguage || "zh-CN";
           state.currentIdeExe = msg.ideExe || state.currentIdeExe || "Code.exe";
           state.autoUpdate = msg.autoUpdate !== false && msg.autoUpdate !== "false";
+          state.enableAutoRefreshQuota = parseEnableAutoRefreshQuota(msg, state.enableAutoRefreshQuota);
+          state.autoMarkAbnormalAccounts = msg.autoMarkAbnormalAccounts !== false && msg.autoMarkAbnormalAccounts !== "false";
           state.autoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, state.autoRefreshAllMinutes || 15);
           state.autoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, state.autoRefreshCurrentMinutes || 5);
           state.autoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
@@ -3567,6 +3674,10 @@
 
       if (msg && typeof msg === "object" && msg.type === "refresh_timers") {
         if (!state.hasPendingConfigWrite) {
+          if (msg.enableAutoRefreshQuota === false || msg.enableAutoRefreshQuota === "false") state.enableAutoRefreshQuota = false;
+          if (msg.enableAutoRefreshQuota === true || msg.enableAutoRefreshQuota === "true") state.enableAutoRefreshQuota = true;
+          if (msg.autoRefreshQuotaDisabled === false || msg.autoRefreshQuotaDisabled === "false") state.enableAutoRefreshQuota = true;
+          if (msg.autoRefreshQuotaDisabled === true || msg.autoRefreshQuotaDisabled === "true") state.enableAutoRefreshQuota = false;
           if (msg.currentEnabled === false || msg.currentEnabled === "false") state.autoRefreshCurrent = false;
           if (msg.currentEnabled === true || msg.currentEnabled === "true") state.autoRefreshCurrent = true;
           state.autoRefreshAllMinutes = clampRefreshMinutes(Number(msg.allIntervalSec) / 60, state.autoRefreshAllMinutes || 15);

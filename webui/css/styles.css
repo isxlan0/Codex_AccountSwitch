@@ -758,6 +758,11 @@ body.has-floating-toolbar-actions .content {
   animation: tagPulse 2.5s ease-in-out infinite;
 }
 
+.tag.abnormal {
+  background: #ffecec;
+  color: #b42318;
+}
+
 @keyframes tagPulse {
 
   0%,
@@ -2525,6 +2530,11 @@ body.compact-ui .dashboard-title {
 :root[data-theme="dark"] .tag.current {
   background: #273a61;
   color: #c8d9ff;
+}
+
+:root[data-theme="dark"] .tag.abnormal {
+  background: #4a2626;
+  color: #ffb3b3;
 }
 
 :root[data-theme="dark"] .tag.group.personal {

@@ -62,6 +62,7 @@ private:
     int currentRefreshIntervalSec_ = 300;
     int allRefreshRemainingSec_ = 900;
     int currentRefreshRemainingSec_ = 300;
+    bool autoRefreshQuotaDisabled_ = false;
     bool currentAutoRefreshEnabled_ = true;
     bool lowQuotaPromptEnabled_ = true;
     bool proxyStealthModeEnabled_ = false;
