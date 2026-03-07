@@ -189,9 +189,19 @@ jobs:
             throw 'No release assets found under dist.'
           }
 
-          $releaseJson = gh release view $tag --json body,name,tagName 2>$null
-          $releaseJsonText = ($releaseJson | Out-String).Trim()
-          if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($releaseJsonText)) {
+          $releaseJsonText = ''
+          $releaseExists = $false
+          $previousErrorActionPreference = $ErrorActionPreference
+          try {
+            $ErrorActionPreference = 'Continue'
+            $releaseJson = & gh release view $tag --json body,name,tagName 2>$null
+            $releaseJsonText = ($releaseJson | Out-String).Trim()
+            $releaseExists = ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($releaseJsonText))
+          } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+          }
+
+          if ($releaseExists) {
             $release = $releaseJsonText | ConvertFrom-Json
             $hasPlaceholderBody = -not [string]::IsNullOrWhiteSpace($release.body) -and $release.body.Trim().StartsWith("Release $tag")
             $shouldRefreshBody = [string]::IsNullOrWhiteSpace($release.body) -or $hasPlaceholderBody
