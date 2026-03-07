@@ -8,6 +8,10 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$utf8NoBom = [System.Text.UTF8Encoding]::new($false)
+[Console]::InputEncoding = $utf8NoBom
+[Console]::OutputEncoding = $utf8NoBom
+$OutputEncoding = $utf8NoBom
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
@@ -56,7 +60,7 @@ function Get-ChangelogSection {
     return $null
   }
 
-  $lines = Get-Content $Path
+  $lines = Get-Content -Encoding UTF8 $Path
   $escapedVersion = [regex]::Escape($Version)
   $headingPattern = "^\s*(#{1,6})\s*\[?v?$escapedVersion\]?\b.*$"
 
@@ -105,7 +109,7 @@ function Get-PreviousTag {
 
   Push-Location $Root
   try {
-    $output = git describe --tags --abbrev=0 2>$null
+    $output = & git -c i18n.logOutputEncoding=utf-8 describe --tags --abbrev=0 2>$null
     if ($LASTEXITCODE -ne 0) {
       return $null
     }
@@ -116,12 +120,12 @@ function Get-PreviousTag {
     }
 
     if ($tag -eq $CurrentTag) {
-      $headParent = git rev-parse --verify HEAD^ 2>$null
+      $headParent = & git rev-parse --verify HEAD^ 2>$null
       if ($LASTEXITCODE -ne 0) {
         return $null
       }
 
-      $previousOutput = git describe --tags --abbrev=0 HEAD^ 2>$null
+      $previousOutput = & git -c i18n.logOutputEncoding=utf-8 describe --tags --abbrev=0 HEAD^ 2>$null
       if ($LASTEXITCODE -ne 0) {
         return $null
       }
@@ -149,7 +153,7 @@ function Get-CommitLines {
 
   Push-Location $Root
   try {
-    $arguments = @("log", "--pretty=format:- %s")
+    $arguments = @("-c", "i18n.logOutputEncoding=utf-8", "log", "--pretty=format:- %s")
     if (-not [string]::IsNullOrWhiteSpace($PreviousTag)) {
       $arguments += "$PreviousTag..HEAD"
     }
