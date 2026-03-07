@@ -455,6 +455,7 @@
             <div class="settings-tabs">
               <button class="settings-tab-btn active" data-settings-tab="general" id="settingsTabGeneralBtn"></button>
               <button class="settings-tab-btn" data-settings-tab="account" id="settingsTabAccountBtn"></button>
+              <button class="settings-tab-btn" data-settings-tab="cloud" id="settingsTabCloudBtn"></button>
             </div>
 
             <div class="settings-pane active" id="settingsPaneGeneral">
@@ -554,6 +555,83 @@
                   </label>
                 </div>
                 <div class="settings-sub-note" id="settingsLowQuotaPromptHint"></div>
+              </div>
+            </div>
+
+            <div class="settings-pane" id="settingsPaneCloud">
+              <div class="settings-section-title" id="settingsWebDavSectionTitle"></div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsWebDavEnabledLabel"></div>
+                <div class="toggle-row">
+                  <label class="switch-toggle" for="webdavEnabledToggle">
+                    <input type="checkbox" id="webdavEnabledToggle" />
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+                <div class="settings-sub-note" id="settingsWebDavEnabledHint"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsWebDavUrlLabel"></div>
+                <input class="settings-number-input" id="webdavUrlInput" type="text" autocomplete="off" />
+                <div class="settings-sub-note" id="settingsWebDavUrlHint"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsWebDavRemotePathLabel"></div>
+                <input class="settings-number-input" id="webdavRemotePathInput" type="text" autocomplete="off" />
+                <div class="settings-sub-note" id="settingsWebDavRemotePathHint"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsWebDavUsernameLabel"></div>
+                <input class="settings-number-input" id="webdavUsernameInput" type="text" autocomplete="off" />
+                <div class="settings-sub-note" id="settingsWebDavUsernameHint"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsWebDavPasswordLabel"></div>
+                <input class="settings-number-input" id="webdavPasswordInput" type="password" autocomplete="new-password" />
+                <div class="settings-inline webdav-password-row">
+                  <button class="mini" id="webdavClearPasswordBtn"></button>
+                  <span class="settings-sub-note webdav-password-state" id="webdavPasswordState"></span>
+                </div>
+                <div class="settings-sub-note" id="settingsWebDavPasswordHint"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsWebDavAutoSyncLabel"></div>
+                <div class="toggle-row">
+                  <label class="switch-toggle" for="webdavAutoSyncToggle">
+                    <input type="checkbox" id="webdavAutoSyncToggle" />
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+                <div class="settings-inline">
+                  <label class="settings-inline-label" for="webdavSyncIntervalInput" id="settingsWebDavIntervalLabel"></label>
+                  <input class="settings-number-input" id="webdavSyncIntervalInput" type="number" min="1" max="1440" />
+                </div>
+                <div class="settings-sub-note" id="settingsWebDavAutoSyncHint"></div>
+              </div>
+
+              <div class="settings-group">
+                <div class="settings-label" id="settingsWebDavStatusLabel"></div>
+                <div class="webdav-status-card">
+                  <div class="webdav-status-line">
+                    <span class="proxy-status-dot" id="webdavStatusDot"></span>
+                    <span class="proxy-status-text" id="webdavStatusText"></span>
+                  </div>
+                  <div class="settings-sub-note" id="webdavLastSyncText"></div>
+                  <div class="settings-sub-note" id="webdavNextSyncText"></div>
+                </div>
+              </div>
+
+              <div class="webdav-actions">
+                <button class="tool-btn" id="webdavTestBtn"></button>
+                <button class="tool-btn" id="webdavUploadBtn"></button>
+                <button class="tool-btn" id="webdavDownloadBtn"></button>
+                <button class="tool-btn primary" id="webdavSyncBtn"></button>
               </div>
             </div>
           </div>
@@ -676,6 +754,20 @@
       </div>
       <div class="modal-actions">
         <button class="mini" id="addAccountCancelBtn"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-mask" id="webdavConflictModal">
+    <div class="modal modal--wide" role="dialog" aria-modal="true" aria-labelledby="webdavConflictTitle">
+      <div class="modal-head" id="webdavConflictTitle"></div>
+      <div class="modal-body">
+        <div class="modal-label" id="webdavConflictDesc"></div>
+        <div class="webdav-conflict-list" id="webdavConflictList"></div>
+      </div>
+      <div class="modal-actions">
+        <button class="mini" id="webdavConflictCancelBtn"></button>
+        <button class="mini primary" id="webdavConflictConfirmBtn"></button>
       </div>
     </div>
   </div>

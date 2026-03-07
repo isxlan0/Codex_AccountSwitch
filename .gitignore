@@ -57,3 +57,5 @@ obj/
 
 # Extra safeguard for account backup auth blobs
 **/auth.json
+.dotnet/*
+

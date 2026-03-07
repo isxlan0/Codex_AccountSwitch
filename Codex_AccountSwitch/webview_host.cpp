@@ -83,6 +83,14 @@ namespace
   std::wstring BuildProxyStatusJson();
   std::wstring GenerateProxyApiKey();
   bool LoadConfig(AppConfig &out);
+  bool SaveProtectedWideText(const fs::path &file, const std::wstring &text,
+                             std::wstring &error);
+  bool LoadProtectedWideText(const fs::path &file, std::wstring &text,
+                             std::wstring &error);
+  bool DeleteProtectedFile(const fs::path &file, std::wstring &error);
+  std::wstring Sha256Base64Url(const std::string &input);
+  std::wstring DetectProxyAccountAbnormalReason(const std::wstring &responseBody,
+                                                const DWORD statusCode);
 
   constexpr wchar_t kUsageHost[] = L"chatgpt.com";
   constexpr wchar_t kUsagePath[] = L"/backend-api/wham/usage";
@@ -91,8 +99,11 @@ namespace
   constexpr UINT_PTR kTimerAutoRefresh = 8201;
   constexpr int kDefaultAllRefreshMinutes = 15;
   constexpr int kDefaultCurrentRefreshMinutes = 5;
+  constexpr int kDefaultWebDavSyncMinutes = 15;
   constexpr int kMinRefreshMinutes = 1;
   constexpr int kMaxRefreshMinutes = 240;
+  constexpr int kMinWebDavSyncMinutes = 1;
+  constexpr int kMaxWebDavSyncMinutes = 1440;
   constexpr int kDefaultProxyPort = 8045;
   constexpr int kDefaultProxyTimeoutSec = 120;
   constexpr int kLowQuotaThresholdPercent = 10;
@@ -104,9 +115,13 @@ namespace
   constexpr UINT kTrayCmdSwitchBase = 32100;
   constexpr UINT kTrayCmdSwitchMax = 32299;
   constexpr DWORD kRefreshAllThrottleMs = 100;
+  constexpr wchar_t kWebDavManifestFileName[] = L"manifest.json";
+  constexpr wchar_t kWebDavSecretFileName[] = L"webdav_secret.bin";
+  constexpr wchar_t kWebDavSyncStateFileName[] = L"webdav_sync_state.json";
   constexpr wchar_t kCodexApiPathCompact[] = L"/backend-api/codex/responses";
   HWND g_DebugWebHwnd = nullptr;
   constexpr size_t kTrafficLogMaxEntries = 5000;
+  std::recursive_mutex g_IndexDataMutex;
 
   DWORD ComputeThrottleDelayMs(const DWORD baseMs)
   {
@@ -181,6 +196,24 @@ namespace
     if (x > kMaxRefreshMinutes)
     {
       x = kMaxRefreshMinutes;
+    }
+    return x;
+  }
+
+  int ClampWebDavSyncMinutes(const int v, const int fallback)
+  {
+    int x = v;
+    if (x < kMinWebDavSyncMinutes || x > kMaxWebDavSyncMinutes)
+    {
+      x = fallback;
+    }
+    if (x < kMinWebDavSyncMinutes)
+    {
+      x = kMinWebDavSyncMinutes;
+    }
+    if (x > kMaxWebDavSyncMinutes)
+    {
+      x = kMaxWebDavSyncMinutes;
     }
     return x;
   }
@@ -507,6 +540,16 @@ namespace
 
   fs::path GetConfigPath() { return GetUserDataRoot() / L"config.json"; }
 
+  fs::path GetWebDavSecretPath()
+  {
+    return GetUserDataRoot() / kWebDavSecretFileName;
+  }
+
+  fs::path GetWebDavSyncStatePath()
+  {
+    return GetUserDataRoot() / kWebDavSyncStateFileName;
+  }
+
   fs::path GetLegacyBackupsDir() { return GetLegacyDataRoot() / L"backups"; }
 
   fs::path GetLegacyIndexPath() { return GetLegacyBackupsDir() / L"index.json"; }
@@ -538,6 +581,15 @@ namespace
     std::wstring lastSwitchedAccount;
     std::wstring lastSwitchedGroup;
     std::wstring lastSwitchedAt;
+    bool webdavEnabled = false;
+    bool webdavAutoSync = true;
+    int webdavSyncIntervalMinutes = kDefaultWebDavSyncMinutes;
+    std::wstring webdavUrl;
+    std::wstring webdavRemotePath = L"/CodexAccountSwitch";
+    std::wstring webdavUsername;
+    std::wstring webdavLastSyncAt;
+    std::wstring webdavLastSyncStatus;
+    bool webdavPasswordConfigured = false;
   };
 
   struct LanguageMeta
@@ -1070,6 +1122,8 @@ namespace
     std::wstring error;
     std::wstring planType;
     std::wstring email;
+    DWORD httpStatusCode = 0;
+    std::wstring responseBody;
     int primaryUsedPercent = -1;
     int secondaryUsedPercent = -1;
     long long primaryResetAfterSeconds = -1;
@@ -1158,10 +1212,15 @@ namespace
 
   bool RequestUsageByToken(const std::wstring &accessToken,
                            const std::wstring &accountId,
-                           std::wstring &responseBody, std::wstring &error)
+                           std::wstring &responseBody, std::wstring &error,
+                           DWORD *statusCodeOut = nullptr)
   {
     responseBody.clear();
     error.clear();
+    if (statusCodeOut != nullptr)
+    {
+      *statusCodeOut = 0;
+    }
     if (accessToken.empty() || accountId.empty())
     {
       error = L"missing_token_or_account_id";
@@ -1311,6 +1370,10 @@ namespace
     DebugLogLine(L"usage.http", L"response preview=" + bodyPreview);
 
     responseBody = FromUtf8(payload);
+    if (statusCodeOut != nullptr)
+    {
+      *statusCodeOut = statusCode;
+    }
     if (statusCode < 200 || statusCode >= 300)
     {
       error = L"http_status_not_ok";
@@ -1417,12 +1480,19 @@ namespace
 
     std::wstring body;
     std::wstring requestError;
-    if (!RequestUsageByToken(accessToken, accountId, body, requestError))
+    DWORD statusCode = 0;
+    if (!RequestUsageByToken(accessToken, accountId, body, requestError,
+                             &statusCode))
     {
       out.error = requestError;
+      out.httpStatusCode = statusCode;
+      out.responseBody = body;
       DebugLogLine(L"usage.query", L"http failed: " + requestError);
       return false;
     }
+
+    out.httpStatusCode = statusCode;
+    out.responseBody = body;
 
     if (!ParseUsagePayload(body, out))
     {
@@ -1438,6 +1508,32 @@ namespace
     DebugLogLine(L"usage.query",
                  L"ok plan=" + out.planType + L", email=" + out.email);
     return true;
+  }
+
+  std::wstring DetectUsageRefreshAbnormalReason(const UsageSnapshot &usage)
+  {
+    std::wstring reason =
+        DetectProxyAccountAbnormalReason(usage.responseBody, usage.httpStatusCode);
+    if (!reason.empty())
+    {
+      return reason;
+    }
+
+    const std::wstring error = ToLowerCopy(usage.error);
+    if (error == L"http_status_401" || error == L"http_status_403")
+    {
+      return L"unauthorized";
+    }
+    if (error.find(L"token_invalidated") != std::wstring::npos)
+    {
+      return L"token_invalidated";
+    }
+    if (error.find(L"invalid_token") != std::wstring::npos ||
+        error.find(L"token_invalid") != std::wstring::npos)
+    {
+      return L"invalid_token";
+    }
+    return L"";
   }
 
   bool ReadJsonStringToken(const std::wstring &text, size_t &i,
@@ -1933,6 +2029,110 @@ namespace
     return out.good();
   }
 
+  bool SaveBinaryFile(const fs::path &file, const std::vector<BYTE> &data)
+  {
+    std::error_code ec;
+    fs::create_directories(file.parent_path(), ec);
+    std::ofstream out(file, std::ios::binary | std::ios::trunc);
+    if (!out)
+    {
+      return false;
+    }
+    if (!data.empty())
+    {
+      out.write(reinterpret_cast<const char *>(data.data()),
+                static_cast<std::streamsize>(data.size()));
+    }
+    return out.good();
+  }
+
+  bool ReadBinaryFile(const fs::path &file, std::vector<BYTE> &data)
+  {
+    data.clear();
+    std::ifstream in(file, std::ios::binary);
+    if (!in)
+    {
+      return false;
+    }
+    data.assign(std::istreambuf_iterator<char>(in),
+                std::istreambuf_iterator<char>());
+    return true;
+  }
+
+  bool SaveProtectedWideText(const fs::path &file, const std::wstring &text,
+                             std::wstring &error)
+  {
+    error.clear();
+    DATA_BLOB inBlob{};
+    inBlob.pbData = reinterpret_cast<BYTE *>(const_cast<wchar_t *>(text.data()));
+    inBlob.cbData = static_cast<DWORD>(text.size() * sizeof(wchar_t));
+    DATA_BLOB outBlob{};
+    if (!CryptProtectData(&inBlob, L"CodexAccountSwitchWebDavSecret", nullptr,
+                          nullptr, nullptr, CRYPTPROTECT_UI_FORBIDDEN,
+                          &outBlob))
+    {
+      error = L"protect_failed_" + std::to_wstring(GetLastError());
+      return false;
+    }
+
+    std::vector<BYTE> bytes(outBlob.pbData, outBlob.pbData + outBlob.cbData);
+    LocalFree(outBlob.pbData);
+    if (!SaveBinaryFile(file, bytes))
+    {
+      error = L"write_failed";
+      return false;
+    }
+    return true;
+  }
+
+  bool LoadProtectedWideText(const fs::path &file, std::wstring &text,
+                             std::wstring &error)
+  {
+    text.clear();
+    error.clear();
+    std::vector<BYTE> bytes;
+    if (!ReadBinaryFile(file, bytes))
+    {
+      error = L"not_found";
+      return false;
+    }
+    DATA_BLOB inBlob{};
+    inBlob.pbData = bytes.data();
+    inBlob.cbData = static_cast<DWORD>(bytes.size());
+    DATA_BLOB outBlob{};
+    if (!CryptUnprotectData(&inBlob, nullptr, nullptr, nullptr, nullptr,
+                            CRYPTPROTECT_UI_FORBIDDEN, &outBlob))
+    {
+      error = L"unprotect_failed_" + std::to_wstring(GetLastError());
+      return false;
+    }
+
+    if (outBlob.cbData % sizeof(wchar_t) != 0)
+    {
+      LocalFree(outBlob.pbData);
+      error = L"invalid_secret_blob";
+      return false;
+    }
+
+    text.assign(reinterpret_cast<wchar_t *>(outBlob.pbData),
+                outBlob.cbData / sizeof(wchar_t));
+    LocalFree(outBlob.pbData);
+    return true;
+  }
+
+  bool DeleteProtectedFile(const fs::path &file, std::wstring &error)
+  {
+    error.clear();
+    std::error_code ec;
+    fs::remove(file, ec);
+    if (ec)
+    {
+      error = L"delete_failed";
+      return false;
+    }
+    return true;
+  }
+
   bool OpenExternalUrlByExplorer(const std::wstring &url)
   {
     if (url.empty())
@@ -2001,6 +2201,30 @@ namespace
         ExtractJsonField(json, L"lastSwitchedAccount");
     const std::wstring lastGroup = ExtractJsonField(json, L"lastSwitchedGroup");
     const std::wstring lastAt = ExtractJsonField(json, L"lastSwitchedAt");
+    const bool webdavEnabled =
+        ExtractJsonBoolField(json, L"webdavEnabled", false);
+    const bool webdavAutoSync =
+        ExtractJsonBoolField(json, L"webdavAutoSync", true);
+    const int webdavSyncIntervalMinutes =
+        ExtractJsonIntField(json, L"webdavSyncIntervalMinutes",
+                            kDefaultWebDavSyncMinutes);
+    const std::wstring webdavUrl = ExtractJsonField(json, L"webdavUrl");
+    const std::wstring webdavRemotePath =
+        ExtractJsonField(json, L"webdavRemotePath");
+    const std::wstring webdavUsername =
+        ExtractJsonField(json, L"webdavUsername");
+    const std::wstring webdavLastSyncAt =
+        ExtractJsonField(json, L"webdavLastSyncAt");
+    const std::wstring webdavLastSyncStatus =
+        ExtractJsonField(json, L"webdavLastSyncStatus");
+    const bool hasWebdavPasswordConfigured =
+        json.find(L"\"webdavPasswordConfigured\"") != std::wstring::npos;
+    const bool webdavPasswordConfigured = hasWebdavPasswordConfigured
+                                             ? ExtractJsonBoolField(
+                                                   json,
+                                                   L"webdavPasswordConfigured",
+                                                   false)
+                                             : fs::exists(GetWebDavSecretPath());
 
     out.languageIndex = languageIndex < 0 ? 0 : languageIndex;
     if (!language.empty())
@@ -2047,6 +2271,18 @@ namespace
     out.lastSwitchedAccount = lastAccount;
     out.lastSwitchedGroup = NormalizeGroup(lastGroup);
     out.lastSwitchedAt = lastAt;
+    out.webdavEnabled = webdavEnabled;
+    out.webdavAutoSync = webdavAutoSync;
+    out.webdavSyncIntervalMinutes = ClampWebDavSyncMinutes(
+        webdavSyncIntervalMinutes, kDefaultWebDavSyncMinutes);
+    out.webdavUrl = webdavUrl;
+    out.webdavRemotePath =
+        webdavRemotePath.empty() ? L"/CodexAccountSwitch" : webdavRemotePath;
+    out.webdavUsername = webdavUsername;
+    out.webdavLastSyncAt = webdavLastSyncAt;
+    out.webdavLastSyncStatus = webdavLastSyncStatus;
+    out.webdavPasswordConfigured =
+        webdavPasswordConfigured && fs::exists(GetWebDavSecretPath());
     return true;
   }
 
@@ -2092,6 +2328,14 @@ namespace
       }
       tmp.proxyFixedGroup = NormalizeGroup(tmp.proxyFixedGroup);
       tmp.lastSwitchedGroup = NormalizeGroup(tmp.lastSwitchedGroup);
+      tmp.webdavSyncIntervalMinutes = ClampWebDavSyncMinutes(
+          tmp.webdavSyncIntervalMinutes, kDefaultWebDavSyncMinutes);
+      if (tmp.webdavRemotePath.empty())
+      {
+        tmp.webdavRemotePath = L"/CodexAccountSwitch";
+      }
+      tmp.webdavPasswordConfigured =
+          tmp.webdavPasswordConfigured && fs::exists(GetWebDavSecretPath());
       return tmp;
     }();
 
@@ -2137,7 +2381,25 @@ namespace
     ss << L"  \"lastSwitchedGroup\": \""
        << EscapeJsonString(cfg.lastSwitchedGroup) << L"\",\n";
     ss << L"  \"lastSwitchedAt\": \"" << EscapeJsonString(cfg.lastSwitchedAt)
-       << L"\"\n";
+       << L"\",\n";
+    ss << L"  \"webdavEnabled\": "
+       << (cfg.webdavEnabled ? L"true" : L"false") << L",\n";
+    ss << L"  \"webdavAutoSync\": "
+       << (cfg.webdavAutoSync ? L"true" : L"false") << L",\n";
+    ss << L"  \"webdavSyncIntervalMinutes\": "
+       << cfg.webdavSyncIntervalMinutes << L",\n";
+    ss << L"  \"webdavUrl\": \"" << EscapeJsonString(cfg.webdavUrl)
+       << L"\",\n";
+    ss << L"  \"webdavRemotePath\": \""
+       << EscapeJsonString(cfg.webdavRemotePath) << L"\",\n";
+    ss << L"  \"webdavUsername\": \""
+       << EscapeJsonString(cfg.webdavUsername) << L"\",\n";
+    ss << L"  \"webdavLastSyncAt\": \""
+       << EscapeJsonString(cfg.webdavLastSyncAt) << L"\",\n";
+    ss << L"  \"webdavLastSyncStatus\": \""
+       << EscapeJsonString(cfg.webdavLastSyncStatus) << L"\",\n";
+    ss << L"  \"webdavPasswordConfigured\": "
+       << (cfg.webdavPasswordConfigured ? L"true" : L"false") << L"\n";
     ss << L"}\n";
     const bool saved = WriteUtf8File(GetConfigPath(), ss.str());
     if (saved)
@@ -3104,6 +3366,71 @@ namespace
     std::wstring currentGroup;
   };
 
+  std::wstring BuildAccountNameKey(const std::wstring &name)
+  {
+    return ToLowerCopy(SanitizeAccountName(name));
+  }
+
+  std::wstring BuildIndexEntryKey(const std::wstring &name,
+                                  const std::wstring &group)
+  {
+    return NormalizeGroup(group) + L"::" + BuildAccountNameKey(name);
+  }
+
+  bool ShouldPreferDuplicateGroup(const std::wstring &candidateGroup,
+                                  const std::wstring &currentGroup)
+  {
+    const bool candidateIsPlan = IsPlanGroup(candidateGroup);
+    const bool currentIsPlan = IsPlanGroup(currentGroup);
+    if (candidateIsPlan != currentIsPlan)
+    {
+      return candidateIsPlan;
+    }
+    return false;
+  }
+
+  bool ShouldPreferPreviousMetadataRow(const IndexEntry &candidate,
+                                       const IndexEntry &current)
+  {
+    if (candidate.quotaUsageOk != current.quotaUsageOk)
+    {
+      return candidate.quotaUsageOk;
+    }
+    if (!candidate.quotaPlanType.empty() != !current.quotaPlanType.empty())
+    {
+      return !candidate.quotaPlanType.empty();
+    }
+    if (ShouldPreferDuplicateGroup(candidate.group, current.group))
+    {
+      return true;
+    }
+    if (candidate.abnormal != current.abnormal)
+    {
+      return candidate.abnormal;
+    }
+    if (!candidate.updatedAt.empty() != !current.updatedAt.empty())
+    {
+      return !candidate.updatedAt.empty();
+    }
+    return false;
+  }
+
+  void CopyIndexEntryRuntimeState(IndexEntry &target, const IndexEntry &source)
+  {
+    target.abnormal = source.abnormal;
+    target.abnormalReason = source.abnormalReason;
+    target.abnormalAt = source.abnormalAt;
+    target.quotaUsageOk = source.quotaUsageOk;
+    target.quotaPlanType = source.quotaPlanType;
+    target.quotaEmail = source.quotaEmail;
+    target.quota5hRemainingPercent = source.quota5hRemainingPercent;
+    target.quota7dRemainingPercent = source.quota7dRemainingPercent;
+    target.quota5hResetAfterSeconds = source.quota5hResetAfterSeconds;
+    target.quota7dResetAfterSeconds = source.quota7dResetAfterSeconds;
+    target.quota5hResetAt = source.quota5hResetAt;
+    target.quota7dResetAt = source.quota7dResetAt;
+  }
+
   std::wstring MakeRelativeAuthPath(const std::wstring &group,
                                     const std::wstring &name)
   {
@@ -3140,6 +3467,11 @@ namespace
 
     const fs::path targetAuth =
         GetGroupDir(normalizedTarget) / safeName / L"auth.json";
+    const fs::path sourceAuth = ResolveAuthPathFromIndex(row);
+    if (!fs::exists(sourceAuth))
+    {
+      return false;
+    }
     std::error_code ec;
     fs::create_directories(targetAuth.parent_path(), ec);
     if (ec)
@@ -3147,19 +3479,45 @@ namespace
       return false;
     }
 
-    if (!fs::exists(targetAuth))
+    if (sourceAuth != targetAuth)
     {
-      const fs::path sourceAuth = ResolveAuthPathFromIndex(row);
-      if (!fs::exists(sourceAuth))
-      {
-        return false;
-      }
       ec.clear();
       fs::copy_file(sourceAuth, targetAuth, fs::copy_options::overwrite_existing,
                     ec);
       if (ec)
       {
         return false;
+      }
+
+      auto normalizePathText = [](const fs::path &path)
+      {
+        std::wstring text = path.wstring();
+        std::replace(text.begin(), text.end(), L'/', L'\\');
+        std::transform(text.begin(), text.end(), text.begin(),
+                       [](wchar_t ch) { return static_cast<wchar_t>(towlower(ch)); });
+        return text;
+      };
+      auto isManagedBackupPath = [&](const fs::path &path)
+      {
+        const std::wstring value = normalizePathText(path);
+        auto startsWithRoot = [&](const fs::path &root)
+        {
+          std::wstring rootText = normalizePathText(root);
+          if (!rootText.empty() && rootText.back() != L'\\')
+          {
+            rootText.push_back(L'\\');
+          }
+          return !rootText.empty() && value.rfind(rootText, 0) == 0;
+        };
+        return startsWithRoot(GetBackupsDir()) || startsWithRoot(GetLegacyBackupsDir());
+      };
+
+      if (isManagedBackupPath(sourceAuth))
+      {
+        ec.clear();
+        fs::remove(sourceAuth, ec);
+        ec.clear();
+        fs::remove(sourceAuth.parent_path(), ec);
       }
     }
 
@@ -3286,9 +3644,193 @@ namespace
 
   void EnsureIndexExists()
   {
+    const std::lock_guard<std::recursive_mutex> lock(g_IndexDataMutex);
     IndexData idx;
     if (LoadIndex(idx))
     {
+      IndexData scanned;
+      scanned.currentName = idx.currentName;
+      scanned.currentGroup = NormalizeGroup(idx.currentGroup);
+
+      const fs::path backupsDir = GetBackupsDir();
+      const fs::path legacyBackupsDir = GetLegacyBackupsDir();
+      std::error_code ec;
+      fs::create_directories(backupsDir, ec);
+      for (const std::wstring group :
+           {L"personal", L"business", L"free", L"plus", L"team", L"pro"})
+      {
+        ec.clear();
+        fs::create_directories(backupsDir / group, ec);
+      }
+
+      auto scanBackupsRoot = [&](const fs::path &root)
+      {
+        if (!fs::exists(root))
+        {
+          return;
+        }
+
+        for (const std::wstring group :
+             {L"personal", L"business", L"free", L"plus", L"team", L"pro"})
+        {
+          const fs::path groupDir = root / group;
+          if (!fs::exists(groupDir))
+          {
+            continue;
+          }
+
+          for (const auto &entry : fs::directory_iterator(groupDir, ec))
+          {
+            if (ec || !entry.is_directory())
+            {
+              continue;
+            }
+            const fs::path auth = entry.path() / L"auth.json";
+            if (!fs::exists(auth))
+            {
+              continue;
+            }
+
+            const std::wstring name = entry.path().filename().wstring();
+            const auto duplicated =
+                std::find_if(scanned.accounts.begin(), scanned.accounts.end(),
+                             [&](const IndexEntry &row)
+                             {
+                               return EqualsIgnoreCase(row.name, name);
+                             });
+            if (duplicated != scanned.accounts.end())
+            {
+              if (ShouldPreferDuplicateGroup(group, duplicated->group))
+              {
+                duplicated->group = group;
+                duplicated->path = MakeRelativeAuthPath(group, name);
+                duplicated->updatedAt = FormatFileTime(auth);
+              }
+              continue;
+            }
+
+            IndexEntry row;
+            row.name = name;
+            row.group = group;
+            row.path = MakeRelativeAuthPath(group, row.name);
+            row.updatedAt = FormatFileTime(auth);
+            scanned.accounts.push_back(row);
+          }
+        }
+
+        for (const auto &entry : fs::directory_iterator(root, ec))
+        {
+          if (ec || !entry.is_directory())
+          {
+            continue;
+          }
+
+          const std::wstring folder = entry.path().filename().wstring();
+          const std::wstring folderLower = ToLowerCopy(folder);
+          if (folderLower == L"personal" || folderLower == L"business" ||
+              folderLower == L"free" || folderLower == L"plus" ||
+              folderLower == L"team" || folderLower == L"pro")
+          {
+            continue;
+          }
+
+          const fs::path auth = entry.path() / L"auth.json";
+          if (!fs::exists(auth))
+          {
+            continue;
+          }
+
+          const auto duplicated =
+              std::find_if(scanned.accounts.begin(), scanned.accounts.end(),
+                           [&](const IndexEntry &row)
+                           {
+                             return EqualsIgnoreCase(row.name, folder);
+                           });
+          if (duplicated != scanned.accounts.end())
+          {
+            continue;
+          }
+
+          IndexEntry row;
+          row.name = folder;
+          row.group = L"personal";
+          row.path = MakeRelativeAuthPath(row.group, row.name);
+          row.updatedAt = FormatFileTime(auth);
+          scanned.accounts.push_back(row);
+        }
+      };
+
+      scanBackupsRoot(backupsDir);
+      if (legacyBackupsDir != backupsDir)
+      {
+        scanBackupsRoot(legacyBackupsDir);
+      }
+
+      std::unordered_map<std::wstring, IndexEntry> previousByKey;
+      std::unordered_map<std::wstring, IndexEntry> previousByName;
+      for (const auto &row : idx.accounts)
+      {
+        previousByKey[BuildIndexEntryKey(row.name, row.group)] = row;
+        const std::wstring nameKey = BuildAccountNameKey(row.name);
+        auto existing = previousByName.find(nameKey);
+        if (existing == previousByName.end() ||
+            ShouldPreferPreviousMetadataRow(row, existing->second))
+        {
+          previousByName[nameKey] = row;
+        }
+      }
+
+      for (auto &row : scanned.accounts)
+      {
+        const auto it = previousByKey.find(BuildIndexEntryKey(row.name, row.group));
+        if (it != previousByKey.end())
+        {
+          CopyIndexEntryRuntimeState(row, it->second);
+          continue;
+        }
+
+        const auto fallback = previousByName.find(BuildAccountNameKey(row.name));
+        if (fallback != previousByName.end())
+        {
+          CopyIndexEntryRuntimeState(row, fallback->second);
+        }
+      }
+
+      bool currentExists = false;
+      if (!scanned.currentName.empty())
+      {
+        const std::wstring currentKey =
+            BuildIndexEntryKey(scanned.currentName, scanned.currentGroup);
+        currentExists = std::any_of(scanned.accounts.begin(), scanned.accounts.end(),
+                                    [&](const IndexEntry &row)
+                                    {
+                                      return BuildIndexEntryKey(row.name, row.group) ==
+                                             currentKey;
+                                    });
+        if (!currentExists)
+        {
+          const std::wstring currentNameKey =
+              BuildAccountNameKey(scanned.currentName);
+          const auto sameName =
+              std::find_if(scanned.accounts.begin(), scanned.accounts.end(),
+                           [&](const IndexEntry &row)
+                           {
+                             return BuildAccountNameKey(row.name) == currentNameKey;
+                           });
+          if (sameName != scanned.accounts.end())
+          {
+            scanned.currentGroup = NormalizeGroup(sameName->group);
+            currentExists = true;
+          }
+        }
+      }
+      if (!currentExists)
+      {
+        scanned.currentName.clear();
+        scanned.currentGroup = L"personal";
+      }
+
+      SaveIndex(scanned);
       return;
     }
 
@@ -3337,11 +3879,16 @@ namespace
               std::find_if(generated.accounts.begin(), generated.accounts.end(),
                            [&](const IndexEntry &row)
                            {
-                             return EqualsIgnoreCase(row.name, name) &&
-                                    NormalizeGroup(row.group) == group;
+                             return EqualsIgnoreCase(row.name, name);
                            });
           if (duplicated != generated.accounts.end())
           {
+            if (ShouldPreferDuplicateGroup(group, duplicated->group))
+            {
+              duplicated->group = group;
+              duplicated->path = MakeRelativeAuthPath(group, name);
+              duplicated->updatedAt = FormatFileTime(auth);
+            }
             continue;
           }
 
@@ -3381,8 +3928,7 @@ namespace
             std::find_if(generated.accounts.begin(), generated.accounts.end(),
                          [&](const IndexEntry &row)
                          {
-                           return EqualsIgnoreCase(row.name, folder) &&
-                                  NormalizeGroup(row.group) == L"personal";
+                           return EqualsIgnoreCase(row.name, folder);
                          });
         if (duplicated != generated.accounts.end())
         {
@@ -3405,6 +3951,1116 @@ namespace
     }
 
     SaveIndex(generated);
+  }
+
+  struct WebDavFileEntry
+  {
+    std::wstring account;
+    std::wstring group = L"personal";
+    std::wstring relativePath;
+    std::wstring updatedAt;
+    std::wstring sha256;
+    long long size = 0;
+  };
+
+  struct WebDavManifest
+  {
+    std::wstring generatedAt;
+    std::vector<WebDavFileEntry> files;
+  };
+
+  struct WebDavRequestConfig
+  {
+    bool secure = true;
+    INTERNET_PORT port = INTERNET_DEFAULT_HTTPS_PORT;
+    std::wstring host;
+    std::wstring rootPath;
+    std::wstring basePath;
+    std::wstring authHeader;
+  };
+
+  struct WebDavConflictEntry
+  {
+    WebDavFileEntry localFile;
+    WebDavFileEntry remoteFile;
+  };
+
+  struct WebDavPendingConflictContext
+  {
+    bool active = false;
+    std::wstring mode;
+    WebDavManifest localManifest;
+    WebDavManifest remoteManifest;
+    WebDavManifest baseManifest;
+    std::vector<WebDavConflictEntry> conflicts;
+  };
+
+  std::mutex g_WebDavConflictMutex;
+  WebDavPendingConflictContext g_WebDavPendingConflict;
+
+  std::wstring BuildWebDavAccountKey(const std::wstring &account)
+  {
+    return ToLowerCopy(SanitizeAccountName(account));
+  }
+
+  std::wstring BuildWebDavRelativePath(const std::wstring &group,
+                                       const std::wstring &account)
+  {
+    return NormalizeGroup(group) + L"/" + SanitizeAccountName(account) +
+           L"/auth.json";
+  }
+
+  bool IsSameWebDavState(const WebDavFileEntry &a, const WebDavFileEntry &b)
+  {
+    return EqualsIgnoreCase(a.account, b.account) &&
+           NormalizeGroup(a.group) == NormalizeGroup(b.group) &&
+           a.sha256 == b.sha256;
+  }
+
+  std::wstring NormalizeWebDavRemotePath(const std::wstring &input)
+  {
+    std::wstring path = input;
+    std::replace(path.begin(), path.end(), L'\\', L'/');
+    while (!path.empty() && iswspace(path.front()))
+    {
+      path.erase(path.begin());
+    }
+    while (!path.empty() && iswspace(path.back()))
+    {
+      path.pop_back();
+    }
+    if (path.empty())
+    {
+      path = L"/CodexAccountSwitch";
+    }
+    if (path.front() != L'/')
+    {
+      path.insert(path.begin(), L'/');
+    }
+    while (path.size() > 1 && path.back() == L'/')
+    {
+      path.pop_back();
+    }
+    return path;
+  }
+
+  std::wstring JoinUrlPath(const std::wstring &left, const std::wstring &right)
+  {
+    if (left.empty())
+    {
+      return right;
+    }
+    if (right.empty())
+    {
+      return left;
+    }
+    const bool leftSlash = left.back() == L'/';
+    const bool rightSlash = right.front() == L'/';
+    if (leftSlash && rightSlash)
+    {
+      return left + right.substr(1);
+    }
+    if (!leftSlash && !rightSlash)
+    {
+      return left + L"/" + right;
+    }
+    return left + right;
+  }
+
+  std::wstring WebDavManifestRemotePath(const WebDavRequestConfig &cfg)
+  {
+    return JoinUrlPath(cfg.basePath, kWebDavManifestFileName);
+  }
+
+  std::wstring WebDavRemoteFilePath(const WebDavRequestConfig &cfg,
+                                    const WebDavFileEntry &entry)
+  {
+    return JoinUrlPath(JoinUrlPath(cfg.basePath, L"accounts"),
+                       entry.relativePath);
+  }
+
+  std::wstring Base64EncodeWide(const std::string &input)
+  {
+    if (input.empty())
+    {
+      return L"";
+    }
+    DWORD size = 0;
+    if (!CryptBinaryToStringA(
+            reinterpret_cast<const BYTE *>(input.data()),
+            static_cast<DWORD>(input.size()),
+            CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, nullptr, &size) ||
+        size == 0)
+    {
+      return L"";
+    }
+    std::string out(size, '\0');
+    if (!CryptBinaryToStringA(
+            reinterpret_cast<const BYTE *>(input.data()),
+            static_cast<DWORD>(input.size()),
+            CRYPT_STRING_BASE64 | CRYPT_STRING_NOCRLF, out.data(), &size))
+    {
+      return L"";
+    }
+    if (!out.empty() && out.back() == '\0')
+    {
+      out.pop_back();
+    }
+    return Utf8ToWide(out);
+  }
+
+  bool BuildWebDavRequestConfig(const AppConfig &cfg, WebDavRequestConfig &out,
+                                std::wstring &error)
+  {
+    error.clear();
+    out = WebDavRequestConfig{};
+    if (cfg.webdavUrl.empty())
+    {
+      error = L"missing_url";
+      return false;
+    }
+    if (cfg.webdavUsername.empty())
+    {
+      error = L"missing_username";
+      return false;
+    }
+    std::wstring password;
+    if (!LoadProtectedWideText(GetWebDavSecretPath(), password, error) ||
+        password.empty())
+    {
+      if (error.empty())
+      {
+        error = L"missing_password";
+      }
+      return false;
+    }
+
+    URL_COMPONENTS parts{};
+    parts.dwStructSize = sizeof(parts);
+    parts.dwSchemeLength = static_cast<DWORD>(-1);
+    parts.dwHostNameLength = static_cast<DWORD>(-1);
+    parts.dwUrlPathLength = static_cast<DWORD>(-1);
+    parts.dwExtraInfoLength = static_cast<DWORD>(-1);
+    if (!WinHttpCrackUrl(cfg.webdavUrl.c_str(), 0, 0, &parts))
+    {
+      error = L"invalid_url";
+      return false;
+    }
+    out.secure = parts.nScheme != INTERNET_SCHEME_HTTP;
+    out.port = parts.nPort;
+    out.host.assign(parts.lpszHostName, parts.dwHostNameLength);
+    std::wstring urlPath;
+    if (parts.dwUrlPathLength > 0)
+    {
+      urlPath.append(parts.lpszUrlPath, parts.dwUrlPathLength);
+    }
+    if (parts.dwExtraInfoLength > 0)
+    {
+      urlPath.append(parts.lpszExtraInfo, parts.dwExtraInfoLength);
+    }
+    if (urlPath.empty())
+    {
+      urlPath = L"/";
+    }
+    while (urlPath.size() > 1 && urlPath.back() == L'/')
+    {
+      urlPath.pop_back();
+    }
+    out.rootPath = urlPath;
+    out.basePath = JoinUrlPath(urlPath, NormalizeWebDavRemotePath(cfg.webdavRemotePath));
+    out.authHeader =
+        L"Authorization: Basic " +
+        Base64EncodeWide(WideToUtf8(cfg.webdavUsername + L":" + password)) +
+        L"\r\n";
+    return !out.host.empty();
+  }
+
+  bool SendWebDavRequest(const WebDavRequestConfig &cfg,
+                         const std::wstring &method,
+                         const std::wstring &path,
+                         const std::string &body,
+                         const std::wstring &contentType,
+                         DWORD &statusCode,
+                         std::string &responseBody,
+                         std::wstring &error)
+  {
+    statusCode = 0;
+    responseBody.clear();
+    error.clear();
+
+    HINTERNET hSession = WinHttpOpen(L"Codex Account Switch/1.0",
+                                     WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                     WINHTTP_NO_PROXY_NAME,
+                                     WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession)
+    {
+      error = L"WinHttpOpen_failed";
+      return false;
+    }
+    HINTERNET hConnect =
+        WinHttpConnect(hSession, cfg.host.c_str(), cfg.port, 0);
+    if (!hConnect)
+    {
+      WinHttpCloseHandle(hSession);
+      error = L"WinHttpConnect_failed";
+      return false;
+    }
+    HINTERNET hRequest =
+        WinHttpOpenRequest(hConnect, method.c_str(), path.c_str(), nullptr,
+                           WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                           cfg.secure ? WINHTTP_FLAG_SECURE : 0);
+    if (!hRequest)
+    {
+      WinHttpCloseHandle(hConnect);
+      WinHttpCloseHandle(hSession);
+      error = L"WinHttpOpenRequest_failed";
+      return false;
+    }
+
+    DWORD decompression =
+        WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
+    WinHttpSetOption(hRequest, WINHTTP_OPTION_DECOMPRESSION, &decompression,
+                     sizeof(decompression));
+    WinHttpSetTimeouts(hRequest, 10000, 10000, 30000, 30000);
+
+    std::wstring headers = cfg.authHeader + L"Accept: */*\r\n";
+    if (!contentType.empty())
+    {
+      headers += L"Content-Type: " + contentType + L"\r\n";
+    }
+    BOOL ok = WinHttpSendRequest(
+        hRequest, headers.c_str(), static_cast<DWORD>(-1L),
+        body.empty() ? WINHTTP_NO_REQUEST_DATA
+                     : const_cast<char *>(body.data()),
+        static_cast<DWORD>(body.size()), static_cast<DWORD>(body.size()), 0);
+    if (ok)
+    {
+      ok = WinHttpReceiveResponse(hRequest, nullptr);
+    }
+    if (!ok)
+    {
+      error = L"http_transport_failed";
+      WinHttpCloseHandle(hRequest);
+      WinHttpCloseHandle(hConnect);
+      WinHttpCloseHandle(hSession);
+      return false;
+    }
+
+    DWORD statusSize = sizeof(statusCode);
+    if (!WinHttpQueryHeaders(hRequest,
+                             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                             WINHTTP_HEADER_NAME_BY_INDEX, &statusCode,
+                             &statusSize, WINHTTP_NO_HEADER_INDEX))
+    {
+      error = L"http_status_query_failed";
+      WinHttpCloseHandle(hRequest);
+      WinHttpCloseHandle(hConnect);
+      WinHttpCloseHandle(hSession);
+      return false;
+    }
+
+    for (;;)
+    {
+      DWORD bytesAvailable = 0;
+      if (!WinHttpQueryDataAvailable(hRequest, &bytesAvailable))
+      {
+        error = L"http_query_data_failed";
+        break;
+      }
+      if (bytesAvailable == 0)
+      {
+        break;
+      }
+      std::string chunk(static_cast<size_t>(bytesAvailable), '\0');
+      DWORD bytesRead = 0;
+      if (!WinHttpReadData(hRequest, chunk.data(), bytesAvailable, &bytesRead))
+      {
+        error = L"http_read_failed";
+        break;
+      }
+      responseBody.append(chunk.data(), chunk.data() + bytesRead);
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+    return error.empty();
+  }
+
+  std::vector<std::wstring> SplitWebDavPathSegments(const std::wstring &path)
+  {
+    std::vector<std::wstring> out;
+    std::wstring cleaned = path;
+    std::replace(cleaned.begin(), cleaned.end(), L'\\', L'/');
+    std::wstring current;
+    for (wchar_t ch : cleaned)
+    {
+      if (ch == L'/')
+      {
+        if (!current.empty())
+        {
+          out.push_back(current);
+          current.clear();
+        }
+        continue;
+      }
+      current.push_back(ch);
+    }
+    if (!current.empty())
+    {
+      out.push_back(current);
+    }
+    return out;
+  }
+
+  bool EnsureWebDavDirectoryTree(const WebDavRequestConfig &cfg,
+                                 const std::wstring &path,
+                                 std::wstring &error)
+  {
+    error.clear();
+    std::wstring normalizedPath = path;
+    std::replace(normalizedPath.begin(), normalizedPath.end(), L'\\', L'/');
+    if (normalizedPath.empty())
+    {
+      normalizedPath = L"/";
+    }
+
+    std::wstring root = cfg.rootPath.empty() ? L"/" : cfg.rootPath;
+    std::replace(root.begin(), root.end(), L'\\', L'/');
+    if (root.empty())
+    {
+      root = L"/";
+    }
+    while (root.size() > 1 && root.back() == L'/')
+    {
+      root.pop_back();
+    }
+
+    std::wstring relativePath = normalizedPath;
+    if (relativePath == root)
+    {
+      return true;
+    }
+    if (root != L"/" && relativePath.rfind(root, 0) == 0)
+    {
+      relativePath.erase(0, root.size());
+    }
+    while (!relativePath.empty() && relativePath.front() == L'/')
+    {
+      relativePath.erase(relativePath.begin());
+    }
+
+    std::wstring current = root;
+    const auto segments = SplitWebDavPathSegments(relativePath);
+    for (const auto &segment : segments)
+    {
+      current = JoinUrlPath(current, segment);
+      DWORD statusCode = 0;
+      std::string body;
+      if (!SendWebDavRequest(cfg, L"MKCOL", current, std::string{}, L"",
+                             statusCode, body, error))
+      {
+        return false;
+      }
+      if (!(statusCode == 201 || statusCode == 405 || statusCode == 301 ||
+            statusCode == 302))
+      {
+        error = L"mkcol_http_" + std::to_wstring(statusCode);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool ParseWebDavManifest(const std::wstring &json, WebDavManifest &out)
+  {
+    out = WebDavManifest{};
+    out.generatedAt = UnescapeJsonString(ExtractJsonField(json, L"generatedAt"));
+    std::wstring filesArray;
+    if (!ExtractJsonArrayField(json, L"files", filesArray))
+    {
+      return true;
+    }
+    const auto objects = ExtractTopLevelObjectsFromArray(filesArray);
+    for (const auto &itemJson : objects)
+    {
+      WebDavFileEntry row;
+      row.account = UnescapeJsonString(ExtractJsonField(itemJson, L"account"));
+      row.group = NormalizeGroup(
+          UnescapeJsonString(ExtractJsonField(itemJson, L"group")));
+      row.relativePath =
+          UnescapeJsonString(ExtractJsonField(itemJson, L"relativePath"));
+      row.updatedAt =
+          UnescapeJsonString(ExtractJsonField(itemJson, L"updatedAt"));
+      row.sha256 = UnescapeJsonString(ExtractJsonField(itemJson, L"sha256"));
+      row.size = ExtractJsonInt64Field(itemJson, L"size", 0);
+      if (row.account.empty() || row.relativePath.empty())
+      {
+        continue;
+      }
+      out.files.push_back(row);
+    }
+    return true;
+  }
+
+  std::wstring SerializeWebDavManifest(const WebDavManifest &manifest)
+  {
+    std::wstringstream ss;
+    ss << L"{\n";
+    ss << L"  \"generatedAt\": \"" << EscapeJsonString(manifest.generatedAt)
+       << L"\",\n";
+    ss << L"  \"files\": [\n";
+    for (size_t i = 0; i < manifest.files.size(); ++i)
+    {
+      const auto &row = manifest.files[i];
+      ss << L"    {\"account\":\"" << EscapeJsonString(row.account)
+         << L"\",\"group\":\"" << EscapeJsonString(NormalizeGroup(row.group))
+         << L"\",\"relativePath\":\""
+         << EscapeJsonString(row.relativePath) << L"\",\"updatedAt\":\""
+         << EscapeJsonString(row.updatedAt) << L"\",\"sha256\":\""
+         << EscapeJsonString(row.sha256) << L"\",\"size\":" << row.size
+         << L"}";
+      if (i + 1 < manifest.files.size())
+      {
+        ss << L",";
+      }
+      ss << L"\n";
+    }
+    ss << L"  ]\n";
+    ss << L"}\n";
+    return ss.str();
+  }
+
+  bool LoadWebDavBaseline(WebDavManifest &out)
+  {
+    out = WebDavManifest{};
+    std::wstring json;
+    if (!ReadUtf8File(GetWebDavSyncStatePath(), json))
+    {
+      return false;
+    }
+    return ParseWebDavManifest(json, out);
+  }
+
+  bool SaveWebDavBaseline(const WebDavManifest &manifest)
+  {
+    return WriteUtf8File(GetWebDavSyncStatePath(), SerializeWebDavManifest(manifest));
+  }
+
+  bool ReadLocalAuthJsonFile(const fs::path &path, std::wstring &content,
+                             WebDavFileEntry &entry, std::wstring &error)
+  {
+    error.clear();
+    if (!ReadUtf8File(path, content))
+    {
+      error = L"read_auth_failed";
+      return false;
+    }
+    entry.updatedAt = FormatFileTime(path);
+    entry.size = static_cast<long long>(WideToUtf8(content).size());
+    entry.sha256 = Sha256Base64Url(WideToUtf8(content));
+    return true;
+  }
+
+  bool CollectLocalWebDavManifest(WebDavManifest &out, std::wstring &error)
+  {
+    error.clear();
+    out = WebDavManifest{};
+    out.generatedAt = NowText();
+    std::map<std::wstring, WebDavFileEntry> dedup;
+    auto collectEntry = [&](const std::wstring &group,
+                            const std::wstring &account,
+                            const fs::path &authPath) -> bool
+    {
+      const std::wstring safeName = SanitizeAccountName(account);
+      if (safeName.empty() || !fs::exists(authPath))
+      {
+        return true;
+      }
+      WebDavFileEntry entry;
+      entry.account = safeName;
+      entry.group = NormalizeGroup(group);
+      entry.relativePath = BuildWebDavRelativePath(entry.group, entry.account);
+      std::wstring content;
+      if (!ReadLocalAuthJsonFile(authPath, content, entry, error))
+      {
+        return false;
+      }
+      const std::wstring key = BuildWebDavAccountKey(entry.account);
+      const auto it = dedup.find(key);
+      if (it == dedup.end() || entry.updatedAt >= it->second.updatedAt)
+      {
+        dedup[key] = entry;
+      }
+      return true;
+    };
+
+    auto scanBackupsRoot = [&](const fs::path &root) -> bool
+    {
+      std::error_code ec;
+      if (!fs::exists(root))
+      {
+        return true;
+      }
+      for (const auto &entry : fs::directory_iterator(root, ec))
+      {
+        if (ec || !entry.is_directory())
+        {
+          continue;
+        }
+        const std::wstring folder = entry.path().filename().wstring();
+        const std::wstring lower = ToLowerCopy(folder);
+        if (lower == L"personal" || lower == L"business" || lower == L"free" ||
+            lower == L"plus" || lower == L"team" || lower == L"pro" ||
+            lower == L"enterprise")
+        {
+          for (const auto &accountDir : fs::directory_iterator(entry.path(), ec))
+          {
+            if (ec || !accountDir.is_directory())
+            {
+              continue;
+            }
+            if (!collectEntry(folder, accountDir.path().filename().wstring(),
+                              accountDir.path() / L"auth.json"))
+            {
+              return false;
+            }
+          }
+        }
+        else
+        {
+          if (!collectEntry(L"personal", folder, entry.path() / L"auth.json"))
+          {
+            return false;
+          }
+        }
+      }
+      return true;
+    };
+
+    if (!scanBackupsRoot(GetBackupsDir()))
+    {
+      return false;
+    }
+    if (GetLegacyBackupsDir() != GetBackupsDir() &&
+        !scanBackupsRoot(GetLegacyBackupsDir()))
+    {
+      return false;
+    }
+    for (const auto &pair : dedup)
+    {
+      out.files.push_back(pair.second);
+    }
+    std::sort(out.files.begin(), out.files.end(), [](const WebDavFileEntry &a,
+                                                     const WebDavFileEntry &b)
+              { return ToLowerCopy(a.account) < ToLowerCopy(b.account); });
+    return true;
+  }
+
+  std::map<std::wstring, WebDavFileEntry>
+  BuildWebDavFileMap(const WebDavManifest &manifest)
+  {
+    std::map<std::wstring, WebDavFileEntry> out;
+    for (const auto &entry : manifest.files)
+    {
+      out[BuildWebDavAccountKey(entry.account)] = entry;
+    }
+    return out;
+  }
+
+  bool WebDavGetManifest(const WebDavRequestConfig &cfg, WebDavManifest &manifest,
+                         bool &exists, std::wstring &error)
+  {
+    exists = false;
+    manifest = WebDavManifest{};
+    DWORD statusCode = 0;
+    std::string body;
+    if (!SendWebDavRequest(cfg, L"GET", WebDavManifestRemotePath(cfg), std::string{},
+                           L"", statusCode, body, error))
+    {
+      return false;
+    }
+    if (statusCode == 404)
+    {
+      return true;
+    }
+    if (statusCode != 200)
+    {
+      error = L"manifest_http_" + std::to_wstring(statusCode);
+      return false;
+    }
+    exists = true;
+    return ParseWebDavManifest(Utf8ToWide(body), manifest);
+  }
+
+  bool WebDavPutTextFile(const WebDavRequestConfig &cfg, const std::wstring &path,
+                         const std::wstring &content, std::wstring &error)
+  {
+    const fs::path parent = fs::path(path).parent_path();
+    if (!EnsureWebDavDirectoryTree(cfg, parent.wstring(), error))
+    {
+      return false;
+    }
+    DWORD statusCode = 0;
+    std::string body;
+    if (!SendWebDavRequest(cfg, L"PUT", path, WideToUtf8(content),
+                           L"application/json; charset=utf-8", statusCode, body,
+                           error))
+    {
+      return false;
+    }
+    if (!(statusCode == 200 || statusCode == 201 || statusCode == 204))
+    {
+      error = L"put_http_" + std::to_wstring(statusCode);
+      return false;
+    }
+    return true;
+  }
+
+  bool WebDavDownloadTextFile(const WebDavRequestConfig &cfg,
+                              const std::wstring &path,
+                              std::wstring &content,
+                              std::wstring &error)
+  {
+    content.clear();
+    DWORD statusCode = 0;
+    std::string body;
+    if (!SendWebDavRequest(cfg, L"GET", path, std::string{}, L"", statusCode,
+                           body, error))
+    {
+      return false;
+    }
+    if (statusCode != 200)
+    {
+      error = L"get_http_" + std::to_wstring(statusCode);
+      return false;
+    }
+    content = Utf8ToWide(body);
+    return true;
+  }
+
+  bool UpsertLocalWebDavAccount(const WebDavFileEntry &entry,
+                                const std::wstring &content,
+                                std::wstring &error)
+  {
+    const std::lock_guard<std::recursive_mutex> lock(g_IndexDataMutex);
+    error.clear();
+    const std::wstring safeName = SanitizeAccountName(entry.account);
+    const std::wstring safeGroup = NormalizeGroup(entry.group);
+    const fs::path targetDir = GetGroupDir(safeGroup) / safeName;
+    const fs::path targetAuth = targetDir / L"auth.json";
+    std::error_code ec;
+    fs::create_directories(targetDir, ec);
+    if (ec)
+    {
+      error = L"create_dir_failed";
+      return false;
+    }
+    if (!WriteUtf8File(targetAuth, content))
+    {
+      error = L"write_failed";
+      return false;
+    }
+
+    EnsureIndexExists();
+    IndexData idx;
+    LoadIndex(idx);
+    auto it = std::find_if(idx.accounts.begin(), idx.accounts.end(),
+                           [&](const IndexEntry &row)
+                           {
+                             return EqualsIgnoreCase(row.name, safeName);
+                           });
+    const std::wstring nextPath = MakeRelativeAuthPath(safeGroup, safeName);
+    if (it == idx.accounts.end())
+    {
+      IndexEntry row;
+      row.name = safeName;
+      row.group = safeGroup;
+      row.path = nextPath;
+      row.updatedAt = entry.updatedAt.empty() ? NowText() : entry.updatedAt;
+      idx.accounts.push_back(row);
+    }
+    else
+    {
+      const fs::path oldAuth = ResolveAuthPathFromIndex(*it);
+      it->name = safeName;
+      it->group = safeGroup;
+      it->path = nextPath;
+      it->updatedAt = entry.updatedAt.empty() ? NowText() : entry.updatedAt;
+      if (EqualsIgnoreCase(idx.currentName, safeName))
+      {
+        idx.currentGroup = safeGroup;
+      }
+      if (!oldAuth.empty() && oldAuth != targetAuth)
+      {
+        std::error_code removeEc;
+        fs::remove(oldAuth, removeEc);
+      }
+    }
+    SaveIndex(idx);
+    return true;
+  }
+
+  void StoreWebDavPendingConflictContext(const WebDavPendingConflictContext &ctx)
+  {
+    std::lock_guard<std::mutex> lock(g_WebDavConflictMutex);
+    g_WebDavPendingConflict = ctx;
+  }
+
+  bool LoadWebDavPendingConflictContext(WebDavPendingConflictContext &ctx)
+  {
+    std::lock_guard<std::mutex> lock(g_WebDavConflictMutex);
+    if (!g_WebDavPendingConflict.active)
+    {
+      return false;
+    }
+    ctx = g_WebDavPendingConflict;
+    return true;
+  }
+
+  void ClearWebDavPendingConflictContext()
+  {
+    std::lock_guard<std::mutex> lock(g_WebDavConflictMutex);
+    g_WebDavPendingConflict = WebDavPendingConflictContext{};
+  }
+
+  std::wstring BuildWebDavConflictsJson(
+      const std::vector<WebDavConflictEntry> &conflicts)
+  {
+    std::wstringstream ss;
+    ss << L"{\"type\":\"webdav_sync_conflicts\",\"conflicts\":[";
+    for (size_t i = 0; i < conflicts.size(); ++i)
+    {
+      const auto &item = conflicts[i];
+      ss << L"{\"account\":\"" << EscapeJsonString(item.localFile.account)
+         << L"\",\"localGroup\":\""
+         << EscapeJsonString(NormalizeGroup(item.localFile.group))
+         << L"\",\"localUpdatedAt\":\""
+         << EscapeJsonString(item.localFile.updatedAt)
+         << L"\",\"remoteGroup\":\""
+         << EscapeJsonString(NormalizeGroup(item.remoteFile.group))
+         << L"\",\"remoteUpdatedAt\":\""
+         << EscapeJsonString(item.remoteFile.updatedAt) << L"\"}";
+      if (i + 1 < conflicts.size())
+      {
+        ss << L",";
+      }
+    }
+    ss << L"]}";
+    return ss.str();
+  }
+
+  std::wstring BuildWebDavSyncStateJson(const AppConfig &cfg, const bool running,
+                                        const int remainingSec)
+  {
+    return L"{\"type\":\"webdav_sync_status\",\"enabled\":" +
+           std::wstring(cfg.webdavEnabled ? L"true" : L"false") +
+           L",\"autoSync\":" +
+           std::wstring(cfg.webdavAutoSync ? L"true" : L"false") +
+           L",\"intervalMinutes\":" +
+           std::to_wstring(cfg.webdavSyncIntervalMinutes) +
+           L",\"remainingSec\":" + std::to_wstring(remainingSec < 0 ? 0 : remainingSec) +
+           L",\"running\":" + std::wstring(running ? L"true" : L"false") +
+           L",\"lastSyncAt\":\"" + EscapeJsonString(cfg.webdavLastSyncAt) +
+           L"\",\"lastSyncStatus\":\"" + EscapeJsonString(cfg.webdavLastSyncStatus) +
+           L"\",\"passwordConfigured\":" +
+           std::wstring(cfg.webdavPasswordConfigured ? L"true" : L"false") + L"}";
+  }
+
+  void UpdateWebDavStatusInConfig(const std::wstring &status,
+                                  const bool touchTime,
+                                  AppConfig *cfgOut = nullptr)
+  {
+    AppConfig cfg;
+    LoadConfig(cfg);
+    cfg.webdavLastSyncStatus = status;
+    if (touchTime)
+    {
+      cfg.webdavLastSyncAt = NowText();
+    }
+    cfg.webdavPasswordConfigured = fs::exists(GetWebDavSecretPath());
+    SaveConfig(cfg);
+    if (cfgOut != nullptr)
+    {
+      *cfgOut = cfg;
+    }
+  }
+
+  fs::path ResolveLocalWebDavAuthPath(const WebDavFileEntry &entry)
+  {
+    std::wstring rel = entry.relativePath;
+    std::replace(rel.begin(), rel.end(), L'/', L'\\');
+    const fs::path primary = GetBackupsDir() / rel;
+    if (fs::exists(primary))
+    {
+      return primary;
+    }
+    return GetLegacyBackupsDir() / rel;
+  }
+
+  bool UploadLocalWebDavEntry(const WebDavRequestConfig &cfg,
+                              const WebDavFileEntry &entry,
+                              std::wstring &error)
+  {
+    std::wstring content;
+    WebDavFileEntry refreshed = entry;
+    if (!ReadLocalAuthJsonFile(ResolveLocalWebDavAuthPath(entry), content,
+                               refreshed, error))
+    {
+      return false;
+    }
+    return WebDavPutTextFile(cfg, WebDavRemoteFilePath(cfg, entry), content, error);
+  }
+
+  bool DownloadRemoteWebDavEntry(const WebDavRequestConfig &cfg,
+                                 const WebDavFileEntry &entry,
+                                 std::wstring &error)
+  {
+    std::wstring content;
+    if (!WebDavDownloadTextFile(cfg, WebDavRemoteFilePath(cfg, entry), content,
+                                error))
+    {
+      return false;
+    }
+    return UpsertLocalWebDavAccount(entry, content, error);
+  }
+
+  WebDavManifest BuildMergedWebDavManifest(
+      const std::map<std::wstring, WebDavFileEntry> &mergedMap)
+  {
+    WebDavManifest merged;
+    merged.generatedAt = NowText();
+    for (const auto &pair : mergedMap)
+    {
+      merged.files.push_back(pair.second);
+    }
+    return merged;
+  }
+
+  bool ExecuteWebDavSyncMode(
+      const std::wstring &mode,
+      const std::map<std::wstring, std::wstring> &decisions,
+      bool &needsConflictResolution,
+      std::vector<WebDavConflictEntry> &conflicts,
+      std::wstring &statusText,
+      AppConfig &cfgOut,
+      std::wstring &error)
+  {
+    needsConflictResolution = false;
+    conflicts.clear();
+    statusText.clear();
+    error.clear();
+    cfgOut = AppConfig{};
+
+    AppConfig cfg;
+    LoadConfig(cfg);
+    cfg.webdavPasswordConfigured = fs::exists(GetWebDavSecretPath());
+    WebDavRequestConfig requestCfg;
+    if (!BuildWebDavRequestConfig(cfg, requestCfg, error))
+    {
+      statusText = L"WebDAV 配置不完整，请先填写地址、用户名和密码";
+      return false;
+    }
+    if (!EnsureWebDavDirectoryTree(requestCfg, requestCfg.basePath, error))
+    {
+      statusText = L"无法创建或访问 WebDAV 远端目录";
+      return false;
+    }
+
+    WebDavManifest localManifest;
+    if (!CollectLocalWebDavManifest(localManifest, error))
+    {
+      statusText = L"读取本地账号备份失败";
+      return false;
+    }
+
+    WebDavManifest remoteManifest;
+    bool remoteManifestExists = false;
+    if (!WebDavGetManifest(requestCfg, remoteManifest, remoteManifestExists,
+                           error))
+    {
+      statusText = L"读取 WebDAV 云端清单失败";
+      return false;
+    }
+    if (!remoteManifestExists)
+    {
+      remoteManifest = WebDavManifest{};
+      remoteManifest.generatedAt = NowText();
+    }
+
+    if (mode == L"upload")
+    {
+      int uploaded = 0;
+      for (const auto &entry : localManifest.files)
+      {
+        if (!UploadLocalWebDavEntry(requestCfg, entry, error))
+        {
+          statusText = L"上传账号到 WebDAV 失败";
+          return false;
+        }
+        ++uploaded;
+      }
+      if (!WebDavPutTextFile(requestCfg, WebDavManifestRemotePath(requestCfg),
+                             SerializeWebDavManifest(localManifest), error))
+      {
+        statusText = L"写入 WebDAV 清单失败";
+        return false;
+      }
+      SaveWebDavBaseline(localManifest);
+      UpdateWebDavStatusInConfig(L"手动上传完成", true, &cfgOut);
+      statusText = L"WebDAV 上传完成，共同步 " + std::to_wstring(uploaded) +
+                   L" 个账号";
+      return true;
+    }
+
+    if (mode == L"download")
+    {
+      if (remoteManifest.files.empty())
+      {
+        statusText = L"WebDAV 云端暂无可下载的账号";
+        UpdateWebDavStatusInConfig(statusText, true, &cfgOut);
+        return true;
+      }
+      int downloaded = 0;
+      for (const auto &entry : remoteManifest.files)
+      {
+        if (!DownloadRemoteWebDavEntry(requestCfg, entry, error))
+        {
+          statusText = L"从 WebDAV 下载账号失败";
+          return false;
+        }
+        ++downloaded;
+      }
+      SaveWebDavBaseline(remoteManifest);
+      UpdateWebDavStatusInConfig(L"手动下载完成", true, &cfgOut);
+      statusText = L"WebDAV 下载完成，共同步 " + std::to_wstring(downloaded) +
+                   L" 个账号";
+      return true;
+    }
+
+    WebDavManifest baseManifest;
+    LoadWebDavBaseline(baseManifest);
+    const auto localMap = BuildWebDavFileMap(localManifest);
+    const auto remoteMap = BuildWebDavFileMap(remoteManifest);
+    const auto baseMap = BuildWebDavFileMap(baseManifest);
+
+    std::set<std::wstring> keys;
+    for (const auto &pair : localMap)
+      keys.insert(pair.first);
+    for (const auto &pair : remoteMap)
+      keys.insert(pair.first);
+    for (const auto &pair : baseMap)
+      keys.insert(pair.first);
+
+    std::map<std::wstring, WebDavFileEntry> mergedMap;
+    std::vector<WebDavFileEntry> uploadPlan;
+    std::vector<WebDavFileEntry> downloadPlan;
+
+    for (const auto &key : keys)
+    {
+      const auto localIt = localMap.find(key);
+      const auto remoteIt = remoteMap.find(key);
+      const auto baseIt = baseMap.find(key);
+      const bool hasLocal = localIt != localMap.end();
+      const bool hasRemote = remoteIt != remoteMap.end();
+      const bool hasBase = baseIt != baseMap.end();
+
+      if (hasLocal && hasRemote)
+      {
+        const auto &localEntry = localIt->second;
+        const auto &remoteEntry = remoteIt->second;
+        if (IsSameWebDavState(localEntry, remoteEntry))
+        {
+          mergedMap[key] = localEntry;
+          continue;
+        }
+
+        const auto decisionIt = decisions.find(key);
+        if (decisionIt != decisions.end())
+        {
+          if (decisionIt->second == L"remote")
+          {
+            mergedMap[key] = remoteEntry;
+            downloadPlan.push_back(remoteEntry);
+          }
+          else
+          {
+            mergedMap[key] = localEntry;
+            uploadPlan.push_back(localEntry);
+          }
+          continue;
+        }
+
+        if (!hasBase)
+        {
+          conflicts.push_back({localEntry, remoteEntry});
+          continue;
+        }
+        const bool localChanged = !IsSameWebDavState(localEntry, baseIt->second);
+        const bool remoteChanged = !IsSameWebDavState(remoteEntry, baseIt->second);
+        if (localChanged && !remoteChanged)
+        {
+          mergedMap[key] = localEntry;
+          uploadPlan.push_back(localEntry);
+        }
+        else if (!localChanged && remoteChanged)
+        {
+          mergedMap[key] = remoteEntry;
+          downloadPlan.push_back(remoteEntry);
+        }
+        else
+        {
+          conflicts.push_back({localEntry, remoteEntry});
+        }
+      }
+      else if (hasLocal)
+      {
+        mergedMap[key] = localIt->second;
+        uploadPlan.push_back(localIt->second);
+      }
+      else if (hasRemote)
+      {
+        mergedMap[key] = remoteIt->second;
+        downloadPlan.push_back(remoteIt->second);
+      }
+    }
+
+    if (!conflicts.empty())
+    {
+      needsConflictResolution = true;
+      return true;
+    }
+
+    for (const auto &entry : downloadPlan)
+    {
+      if (!DownloadRemoteWebDavEntry(requestCfg, entry, error))
+      {
+        statusText = L"从 WebDAV 应用远端变更失败";
+        return false;
+      }
+    }
+    for (const auto &entry : uploadPlan)
+    {
+      if (!UploadLocalWebDavEntry(requestCfg, entry, error))
+      {
+        statusText = L"将本地变更上传到 WebDAV 失败";
+        return false;
+      }
+    }
+
+    const WebDavManifest mergedManifest = BuildMergedWebDavManifest(mergedMap);
+    if (!WebDavPutTextFile(requestCfg, WebDavManifestRemotePath(requestCfg),
+                           SerializeWebDavManifest(mergedManifest), error))
+    {
+      statusText = L"写入 WebDAV 清单失败";
+      return false;
+    }
+    SaveWebDavBaseline(mergedManifest);
+    UpdateWebDavStatusInConfig(L"双向同步完成", true, &cfgOut);
+    statusText = L"WebDAV 双向同步完成：上传 " +
+                 std::to_wstring(uploadPlan.size()) + L" 个，下载 " +
+                 std::to_wstring(downloadPlan.size()) + L" 个";
+    return true;
   }
 
   bool BackupCurrentAccount(const std::wstring &name, std::wstring &status,
@@ -5584,10 +7240,60 @@ namespace
     long long quota7dResetAt = -1;
   };
 
+  void ClearIndexEntryQuotaState(IndexEntry &row)
+  {
+    row.quotaUsageOk = false;
+    row.quotaPlanType.clear();
+    row.quotaEmail.clear();
+    row.quota5hRemainingPercent = -1;
+    row.quota7dRemainingPercent = -1;
+    row.quota5hResetAfterSeconds = -1;
+    row.quota7dResetAfterSeconds = -1;
+    row.quota5hResetAt = -1;
+    row.quota7dResetAt = -1;
+  }
+
+  void ClearAccountEntryQuotaState(AccountEntry &item)
+  {
+    item.usageOk = false;
+    item.planType.clear();
+    item.email.clear();
+    item.quota5hRemainingPercent = -1;
+    item.quota7dRemainingPercent = -1;
+    item.quota5hResetAfterSeconds = -1;
+    item.quota7dResetAfterSeconds = -1;
+    item.quota5hResetAt = -1;
+    item.quota7dResetAt = -1;
+  }
+
+  bool ApplyUsageRefreshFailureAsAbnormal(const UsageSnapshot &usage,
+                                          IndexEntry &row,
+                                          AccountEntry &item)
+  {
+    const std::wstring abnormalReason = DetectUsageRefreshAbnormalReason(usage);
+    if (abnormalReason.empty())
+    {
+      return false;
+    }
+
+    ClearIndexEntryQuotaState(row);
+    ClearAccountEntryQuotaState(item);
+    row.abnormal = true;
+    row.abnormalReason = abnormalReason;
+    row.abnormalAt = NowText();
+    row.updatedAt = row.abnormalAt;
+    item.abnormal = true;
+    item.abnormalReason = abnormalReason;
+    item.abnormalAt = row.abnormalAt;
+    item.updatedAt = row.updatedAt;
+    return true;
+  }
+
   std::vector<AccountEntry> CollectAccounts(const bool refreshUsage,
                                             const std::wstring &targetName,
                                             const std::wstring &targetGroup)
   {
+    const std::lock_guard<std::recursive_mutex> lock(g_IndexDataMutex);
     EnsureIndexExists();
 
     std::vector<AccountEntry> result;
@@ -5693,6 +7399,10 @@ namespace
         else
         {
           item.usageError = usage.error;
+          if (ApplyUsageRefreshFailureAsAbnormal(usage, row, item))
+          {
+            indexChanged = true;
+          }
         }
       }
 
@@ -5710,6 +7420,7 @@ namespace
 
   std::vector<AccountEntry> CollectAccountsWithThrottle(const DWORD throttleMs)
   {
+    const std::lock_guard<std::recursive_mutex> lock(g_IndexDataMutex);
     EnsureIndexExists();
 
     std::vector<AccountEntry> result;
@@ -5806,6 +7517,10 @@ namespace
       else
       {
         item.usageError = usage.error;
+        if (ApplyUsageRefreshFailureAsAbnormal(usage, row, item))
+        {
+          indexChanged = true;
+        }
       }
 
       item.group = NormalizeGroup(row.group);
@@ -9414,7 +11129,23 @@ void WebViewHost::SendConfig(bool firstRun) const
       EscapeJsonString(cfg.lastSwitchedAccount) +
       L"\",\"lastSwitchedGroup\":\"" + EscapeJsonString(cfg.lastSwitchedGroup) +
       L"\",\"lastSwitchedAt\":\"" + EscapeJsonString(cfg.lastSwitchedAt) +
-      L"\"}");
+      L"\",\"webdavEnabled\":" +
+      std::wstring(cfg.webdavEnabled ? L"true" : L"false") +
+      L",\"webdavAutoSync\":" +
+      std::wstring(cfg.webdavAutoSync ? L"true" : L"false") +
+      L",\"webdavSyncIntervalMinutes\":" +
+      std::to_wstring(cfg.webdavSyncIntervalMinutes) +
+      L",\"webdavUrl\":\"" + EscapeJsonString(cfg.webdavUrl) +
+      L"\",\"webdavRemotePath\":\"" +
+      EscapeJsonString(cfg.webdavRemotePath) +
+      L"\",\"webdavUsername\":\"" + EscapeJsonString(cfg.webdavUsername) +
+      L"\",\"webdavLastSyncAt\":\"" +
+      EscapeJsonString(cfg.webdavLastSyncAt) +
+      L"\",\"webdavLastSyncStatus\":\"" +
+      EscapeJsonString(cfg.webdavLastSyncStatus) +
+      L"\",\"webdavPasswordConfigured\":" +
+      std::wstring(cfg.webdavPasswordConfigured ? L"true" : L"false") +
+      L"}");
 }
 
 void WebViewHost::SendRefreshTimerState() const
@@ -9438,6 +11169,14 @@ void WebViewHost::SendRefreshTimerState() const
       std::wstring(currentAutoRefreshEnabled_ ? L"true" : L"false") +
       L",\"allRemainingSec\":" + std::to_wstring(allRemain) +
       L",\"currentRemainingSec\":" + std::to_wstring(currentRemain) + L"}");
+}
+
+void WebViewHost::SendWebDavSyncState() const
+{
+  AppConfig cfg;
+  LoadConfig(cfg);
+  SendWebJson(BuildWebDavSyncStateJson(cfg, webDavSyncRunning_.load(),
+                                       webDavSyncRemainingSec_));
 }
 
 std::wstring BuildTrayQuotaText(const IndexEntry &row)
@@ -9922,33 +11661,124 @@ void WebViewHost::TriggerRefreshCurrent()
       .detach();
 }
 
+void WebViewHost::TriggerWebDavSync(const std::wstring &mode,
+                                    const bool notifyStatus)
+{
+  if (webDavSyncRunning_.exchange(true))
+  {
+    if (notifyStatus)
+    {
+      SendWebStatus(L"WebDAV 同步正在进行中，请稍候", L"warning",
+                    L"webdav_sync_running");
+    }
+    return;
+  }
+  webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
+  SendWebDavSyncState();
+
+  const HWND targetHwnd = hwnd_;
+  auto *runningFlag = &webDavSyncRunning_;
+  const int nextRemainingSec = webDavSyncIntervalSec_;
+  std::thread([targetHwnd, mode, notifyStatus, runningFlag, nextRemainingSec]()
+              {
+    bool needsConflictResolution = false;
+    std::vector<WebDavConflictEntry> conflicts;
+    std::wstring statusText;
+    std::wstring error;
+    AppConfig cfgAfter;
+    const bool ok = ExecuteWebDavSyncMode(mode, {}, needsConflictResolution,
+                                          conflicts, statusText, cfgAfter,
+                                          error);
+    runningFlag->store(false);
+
+    if (needsConflictResolution)
+    {
+      WebDavPendingConflictContext ctx;
+      ctx.active = true;
+      ctx.mode = mode;
+      ctx.conflicts = conflicts;
+      StoreWebDavPendingConflictContext(ctx);
+      UpdateWebDavStatusInConfig(L"等待处理 WebDAV 冲突", false, &cfgAfter);
+      PostAsyncWebJson(targetHwnd, BuildWebDavConflictsJson(conflicts));
+      PostAsyncWebJson(targetHwnd,
+                       BuildWebDavSyncStateJson(cfgAfter, false,
+                                                nextRemainingSec));
+      if (notifyStatus)
+      {
+        SendWebStatusThreadSafe(targetHwnd,
+                                L"检测到 WebDAV 冲突，请选择保留本地还是云端版本",
+                                L"warning", L"webdav_conflicts_detected");
+      }
+      return;
+    }
+
+    ClearWebDavPendingConflictContext();
+    if (ok)
+    {
+      PostAsyncWebJson(targetHwnd,
+                       BuildWebDavSyncStateJson(cfgAfter, false,
+                                                nextRemainingSec));
+      PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L""));
+      if (notifyStatus)
+      {
+        SendWebStatusThreadSafe(targetHwnd, statusText, L"success",
+                                L"webdav_sync_success");
+      }
+      return;
+    }
+
+    UpdateWebDavStatusInConfig(statusText.empty() ? error : statusText, true,
+                               &cfgAfter);
+    PostAsyncWebJson(targetHwnd,
+                     BuildWebDavSyncStateJson(cfgAfter, false,
+                                              nextRemainingSec));
+    if (notifyStatus)
+    {
+      SendWebStatusThreadSafe(targetHwnd,
+                              statusText.empty() ? L"WebDAV 同步失败"
+                                                 : statusText,
+                              L"error", L"webdav_sync_failed");
+    }
+  })
+      .detach();
+}
+
 void WebViewHost::HandleAutoRefreshTick()
 {
   if (autoRefreshQuotaDisabled_)
   {
     allRefreshRemainingSec_ = allRefreshIntervalSec_;
     currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
-    SendRefreshTimerState();
-    return;
   }
-  if (allRefreshRemainingSec_ > 0)
+  else if (allRefreshRemainingSec_ > 0)
   {
     --allRefreshRemainingSec_;
   }
-  if (currentAutoRefreshEnabled_ && currentRefreshRemainingSec_ > 0)
+  if (!autoRefreshQuotaDisabled_ && currentAutoRefreshEnabled_ &&
+      currentRefreshRemainingSec_ > 0)
   {
     --currentRefreshRemainingSec_;
   }
+  if (webDavAutoSyncEnabled_ && webDavEnabled_ && webDavSyncRemainingSec_ > 0)
+  {
+    --webDavSyncRemainingSec_;
+  }
 
-  if (allRefreshRemainingSec_ <= 0)
+  if (!autoRefreshQuotaDisabled_ && allRefreshRemainingSec_ <= 0)
   {
     TriggerRefreshAll();
   }
-  if (currentAutoRefreshEnabled_ && currentRefreshRemainingSec_ <= 0)
+  if (!autoRefreshQuotaDisabled_ && currentAutoRefreshEnabled_ &&
+      currentRefreshRemainingSec_ <= 0)
   {
     TriggerRefreshCurrent();
   }
+  if (webDavAutoSyncEnabled_ && webDavEnabled_ && webDavSyncRemainingSec_ <= 0)
+  {
+    TriggerWebDavSync(L"bidirectional", false);
+  }
   SendRefreshTimerState();
+  SendWebDavSyncState();
 }
 
 void WebViewHost::SendWebJson(const std::wstring &json) const
@@ -10280,6 +12110,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         UsageSnapshot usage;
         bool refreshedOk = false;
         std::wstring err;
+        std::wstring abnormalReason;
         EnsureIndexExists();
         IndexData idx;
         if (LoadIndex(idx)) {
@@ -10308,6 +12139,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
             refreshedOk = QueryUsageFromAuthFile(authPath, usage);
             if (!refreshedOk) {
               err = usage.error;
+              abnormalReason = DetectUsageRefreshAbnormalReason(usage);
             }
           } else {
             err = L"account_not_found_in_index";
@@ -10323,17 +12155,22 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
               L"quota_refreshed\",\"message\":\"账号额度已刷新\"}");
         } else {
           const bool notFound = (err == L"account_not_found_in_index");
+          const bool markedAbnormal = !abnormalReason.empty();
           const std::wstring msg =
               notFound ? L"账号索引已变化，已跳过本次刷新（账号仍可直接使用）"
+                       : (markedAbnormal
+                              ? L"账号认证已失效，已标记为异常，请重新登录"
                        : (L"账号额度刷新失败" +
-                          (err.empty() ? L"" : (L": " + err)));
+                         (err.empty() ? L"" : (L": " + err))));
           PostAsyncWebJson(
               targetHwnd,
               L"{\"type\":\"status\",\"level\":\"" +
-                  std::wstring(notFound ? L"warning" : L"error") +
+                  std::wstring(notFound || markedAbnormal ? L"warning" : L"error") +
                   L"\",\"code\":\"" +
-                  std::wstring(notFound ? L"account_quota_refresh_skipped"
-                                        : L"account_quota_refresh_failed") +
+                  std::wstring(notFound
+                                   ? L"account_quota_refresh_skipped"
+                                   : (markedAbnormal ? L"account_abnormal_marked"
+                                                     : L"account_quota_refresh_failed")) +
                   L"\",\"message\":\"" + EscapeJsonString(msg) + L"\"}");
         } })
           .detach();
@@ -10645,12 +12482,23 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
 
   if (action == L"stop_proxy_service")
   {
+    bool configUpdated = false;
+    AppConfig cfg;
+    if (LoadConfig(cfg) && cfg.proxyAutoStart)
+    {
+      cfg.proxyAutoStart = false;
+      configUpdated = SaveConfig(cfg);
+    }
     std::wstring status;
     std::wstring code;
     StopLocalProxyService(status, code);
     SendWebStatus(status, code == L"proxy_not_running" ? L"warning" : L"success",
                   code);
     SendWebJson(BuildProxyStatusJson());
+    if (configUpdated)
+    {
+      SendConfig(false);
+    }
     return;
   }
 
@@ -10672,9 +12520,17 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
       lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
       proxyStealthModeEnabled_ = cfg.proxyStealthMode;
+      webDavEnabled_ = cfg.webdavEnabled;
+      webDavAutoSyncEnabled_ = cfg.webdavEnabled && cfg.webdavAutoSync;
+      webDavSyncIntervalSec_ =
+          ClampWebDavSyncMinutes(cfg.webdavSyncIntervalMinutes,
+                                 kDefaultWebDavSyncMinutes) *
+          60;
+      webDavLastSyncAt_ = cfg.webdavLastSyncAt;
+      webDavLastSyncStatus_ = cfg.webdavLastSyncStatus;
       allRefreshIntervalSec_ = ClampRefreshMinutes(cfg.autoRefreshAllMinutes,
                                                    kDefaultAllRefreshMinutes) *
-                               60;
+                              60;
       currentRefreshIntervalSec_ =
           ClampRefreshMinutes(cfg.autoRefreshCurrentMinutes,
                               kDefaultCurrentRefreshMinutes) *
@@ -10694,9 +12550,15 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         allRefreshRemainingSec_ = allRefreshIntervalSec_;
         currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
       }
+      if (webDavSyncRemainingSec_ <= 0 ||
+          webDavSyncRemainingSec_ > webDavSyncIntervalSec_)
+      {
+        webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
+      }
     }
     SendConfig(created);
     SendRefreshTimerState();
+    SendWebDavSyncState();
     return;
   }
 
@@ -10765,9 +12627,42 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         rawMessage.find(L"\"proxyFixedGroup\"") != std::wstring::npos;
     const bool hasAutoMarkAbnormalAccounts =
         rawMessage.find(L"\"autoMarkAbnormalAccounts\"") != std::wstring::npos;
+    const bool hasWebdavEnabled =
+        rawMessage.find(L"\"webdavEnabled\"") != std::wstring::npos;
+    const bool hasWebdavAutoSync =
+        rawMessage.find(L"\"webdavAutoSync\"") != std::wstring::npos;
+    const bool hasWebdavSyncIntervalMinutes =
+        rawMessage.find(L"\"webdavSyncIntervalMinutes\"") != std::wstring::npos;
+    const bool hasWebdavUrl =
+        rawMessage.find(L"\"webdavUrl\"") != std::wstring::npos;
+    const bool hasWebdavRemotePath =
+        rawMessage.find(L"\"webdavRemotePath\"") != std::wstring::npos;
+    const bool hasWebdavUsername =
+        rawMessage.find(L"\"webdavUsername\"") != std::wstring::npos;
+    const bool hasWebdavPassword =
+        rawMessage.find(L"\"webdavPassword\"") != std::wstring::npos;
+    const bool hasWebdavPasswordClear =
+        rawMessage.find(L"\"webdavPasswordClear\"") != std::wstring::npos;
     const int proxyPort = ExtractJsonIntField(rawMessage, L"proxyPort", -1);
     const int proxyTimeoutSec =
         ExtractJsonIntField(rawMessage, L"proxyTimeoutSec", -1);
+    const bool webdavEnabled =
+        ExtractJsonBoolField(rawMessage, L"webdavEnabled", false);
+    const bool webdavAutoSync =
+        ExtractJsonBoolField(rawMessage, L"webdavAutoSync", true);
+    const int webdavSyncIntervalMinutes =
+        ExtractJsonIntField(rawMessage, L"webdavSyncIntervalMinutes",
+                            kDefaultWebDavSyncMinutes);
+    const std::wstring webdavUrl =
+        UnescapeJsonString(ExtractJsonStringField(rawMessage, L"webdavUrl"));
+    const std::wstring webdavRemotePath =
+        UnescapeJsonString(ExtractJsonStringField(rawMessage, L"webdavRemotePath"));
+    const std::wstring webdavUsername =
+        UnescapeJsonString(ExtractJsonStringField(rawMessage, L"webdavUsername"));
+    const std::wstring webdavPassword =
+        UnescapeJsonString(ExtractJsonStringField(rawMessage, L"webdavPassword"));
+    const bool webdavPasswordClear =
+        ExtractJsonBoolField(rawMessage, L"webdavPasswordClear", false);
     const bool proxyAllowLan =
         ExtractJsonBoolField(rawMessage, L"proxyAllowLan", false);
     const bool proxyAutoStart =
@@ -10854,6 +12749,51 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     {
       cfg.proxyFixedGroup = proxyFixedGroup;
     }
+    if (hasWebdavEnabled)
+    {
+      cfg.webdavEnabled = webdavEnabled;
+    }
+    if (hasWebdavAutoSync)
+    {
+      cfg.webdavAutoSync = webdavAutoSync;
+    }
+    if (hasWebdavSyncIntervalMinutes)
+    {
+      cfg.webdavSyncIntervalMinutes = ClampWebDavSyncMinutes(
+          webdavSyncIntervalMinutes, kDefaultWebDavSyncMinutes);
+    }
+    if (hasWebdavUrl)
+    {
+      cfg.webdavUrl = webdavUrl;
+    }
+    if (hasWebdavRemotePath)
+    {
+      cfg.webdavRemotePath =
+          webdavRemotePath.empty() ? L"/CodexAccountSwitch" : webdavRemotePath;
+    }
+    if (hasWebdavUsername)
+    {
+      cfg.webdavUsername = webdavUsername;
+    }
+
+    std::wstring webdavSecretError;
+    if (hasWebdavPasswordClear && webdavPasswordClear)
+    {
+      DeleteProtectedFile(GetWebDavSecretPath(), webdavSecretError);
+      cfg.webdavPasswordConfigured = false;
+    }
+    if (hasWebdavPassword && !webdavPassword.empty())
+    {
+      if (SaveProtectedWideText(GetWebDavSecretPath(), webdavPassword,
+                                webdavSecretError))
+      {
+        cfg.webdavPasswordConfigured = true;
+      }
+    }
+    else if (fs::exists(GetWebDavSecretPath()))
+    {
+      cfg.webdavPasswordConfigured = true;
+    }
     const bool saved = SaveConfig(cfg);
     if (saved)
     {
@@ -10863,6 +12803,11 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
       lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
       proxyStealthModeEnabled_ = cfg.proxyStealthMode;
+      webDavEnabled_ = cfg.webdavEnabled;
+      webDavAutoSyncEnabled_ = cfg.webdavEnabled && cfg.webdavAutoSync;
+      webDavSyncIntervalSec_ = cfg.webdavSyncIntervalMinutes * 60;
+      webDavLastSyncAt_ = cfg.webdavLastSyncAt;
+      webDavLastSyncStatus_ = cfg.webdavLastSyncStatus;
       g_ProxyApiKey = cfg.proxyApiKey;
       g_ProxyDispatchMode = cfg.proxyDispatchMode;
       g_ProxyFixedAccount = cfg.proxyFixedAccount;
@@ -10880,6 +12825,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         allRefreshRemainingSec_ = allRefreshIntervalSec_;
         currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
       }
+      webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
 
       if (cfg.proxyStealthMode || wasProxyStealthMode)
       {
@@ -10931,6 +12877,171 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
                   saved ? L"config_saved" : L"save_config_failed");
     SendConfig(false);
     SendRefreshTimerState();
+    SendWebDavSyncState();
+    if (!webdavSecretError.empty())
+    {
+      SendWebStatus(L"WebDAV 密码处理失败：" + webdavSecretError, L"warning",
+                    L"config_saved");
+    }
+    return;
+  }
+
+  if (action == L"test_webdav_connection")
+  {
+    AppConfig cfg;
+    LoadConfig(cfg);
+    cfg.webdavPasswordConfigured = fs::exists(GetWebDavSecretPath());
+    WebDavRequestConfig requestCfg;
+    std::wstring error;
+    if (!BuildWebDavRequestConfig(cfg, requestCfg, error))
+    {
+      SendWebStatus(L"WebDAV 配置不完整，请检查地址、用户名和密码", L"warning",
+                    L"webdav_invalid_config");
+      SendWebDavSyncState();
+      return;
+    }
+    if (!EnsureWebDavDirectoryTree(requestCfg, requestCfg.basePath, error))
+    {
+      SendWebStatus(L"WebDAV 连接测试失败：无法访问远端目录", L"error",
+                    L"webdav_test_failed");
+      SendWebDavSyncState();
+      return;
+    }
+    WebDavManifest manifest;
+    bool exists = false;
+    if (!WebDavGetManifest(requestCfg, manifest, exists, error))
+    {
+      SendWebStatus(L"WebDAV 连接测试失败：读取清单失败", L"error",
+                    L"webdav_test_failed");
+      SendWebDavSyncState();
+      return;
+    }
+    SendWebStatus(exists ? L"WebDAV 连接测试通过，已读取到云端清单"
+                         : L"WebDAV 连接测试通过，已就绪但云端暂无清单",
+                  L"success", L"webdav_test_success");
+    SendWebDavSyncState();
+    return;
+  }
+
+  if (action == L"run_webdav_sync")
+  {
+    std::wstring mode = ToLowerCopy(UnescapeJsonString(
+        ExtractJsonStringField(rawMessage, L"mode")));
+    if (mode != L"upload" && mode != L"download" && mode != L"bidirectional")
+    {
+      mode = L"bidirectional";
+    }
+    TriggerWebDavSync(mode, true);
+    return;
+  }
+
+  if (action == L"resolve_webdav_conflicts")
+  {
+    const bool cancel =
+        ExtractJsonBoolField(rawMessage, L"cancel", false);
+    if (cancel)
+    {
+      ClearWebDavPendingConflictContext();
+      AppConfig cfg;
+      UpdateWebDavStatusInConfig(L"已取消 WebDAV 冲突处理", false, &cfg);
+      SendWebStatus(L"已取消 WebDAV 冲突处理", L"warning",
+                    L"webdav_conflicts_cancelled");
+      SendWebDavSyncState();
+      return;
+    }
+
+    std::wstring decisionsArray;
+    if (!ExtractJsonArrayField(rawMessage, L"decisions", decisionsArray))
+    {
+      SendWebStatus(L"请先为每个冲突选择保留本地或云端版本", L"warning",
+                    L"webdav_conflicts_missing");
+      return;
+    }
+    std::map<std::wstring, std::wstring> decisions;
+    for (const auto &obj : ExtractTopLevelObjectsFromArray(decisionsArray))
+    {
+      const std::wstring account =
+          UnescapeJsonString(ExtractJsonField(obj, L"account"));
+      std::wstring winner = ToLowerCopy(
+          UnescapeJsonString(ExtractJsonField(obj, L"winner")));
+      if (winner != L"local" && winner != L"remote")
+      {
+        winner = L"remote";
+      }
+      if (!account.empty())
+      {
+        decisions[BuildWebDavAccountKey(account)] = winner;
+      }
+    }
+    if (decisions.empty())
+    {
+      SendWebStatus(L"请先为每个冲突选择保留本地或云端版本", L"warning",
+                    L"webdav_conflicts_missing");
+      return;
+    }
+    if (webDavSyncRunning_.exchange(true))
+    {
+      SendWebStatus(L"WebDAV 同步正在进行中，请稍候", L"warning",
+                    L"webdav_sync_running");
+      return;
+    }
+    webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
+    SendWebDavSyncState();
+    const HWND targetHwnd = hwnd_;
+    auto *runningFlag = &webDavSyncRunning_;
+    const int nextRemainingSec = webDavSyncIntervalSec_;
+    std::thread([targetHwnd, decisions = std::move(decisions), runningFlag,
+                 nextRemainingSec]() mutable
+                {
+      bool needsConflictResolution = false;
+      std::vector<WebDavConflictEntry> conflicts;
+      std::wstring statusText;
+      std::wstring error;
+      AppConfig cfgAfter;
+      const bool ok = ExecuteWebDavSyncMode(L"bidirectional", decisions,
+                                            needsConflictResolution, conflicts,
+                                            statusText, cfgAfter, error);
+      runningFlag->store(false);
+      if (needsConflictResolution)
+      {
+        WebDavPendingConflictContext ctx;
+        ctx.active = true;
+        ctx.mode = L"bidirectional";
+        ctx.conflicts = conflicts;
+        StoreWebDavPendingConflictContext(ctx);
+        UpdateWebDavStatusInConfig(L"仍存在待处理的 WebDAV 冲突", false,
+                                   &cfgAfter);
+        PostAsyncWebJson(targetHwnd, BuildWebDavConflictsJson(conflicts));
+        PostAsyncWebJson(targetHwnd,
+                         BuildWebDavSyncStateJson(cfgAfter, false,
+                                                  nextRemainingSec));
+        SendWebStatusThreadSafe(targetHwnd,
+                                L"部分冲突仍未解决，请继续选择保留本地或云端版本",
+                                L"warning", L"webdav_conflicts_detected");
+        return;
+      }
+      ClearWebDavPendingConflictContext();
+      if (ok)
+      {
+        PostAsyncWebJson(targetHwnd,
+                         BuildWebDavSyncStateJson(cfgAfter, false,
+                                                  nextRemainingSec));
+        PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L""));
+        SendWebStatusThreadSafe(targetHwnd, statusText, L"success",
+                                L"webdav_sync_success");
+        return;
+      }
+      UpdateWebDavStatusInConfig(statusText.empty() ? error : statusText, true,
+                                 &cfgAfter);
+      PostAsyncWebJson(targetHwnd,
+                       BuildWebDavSyncStateJson(cfgAfter, false,
+                                                nextRemainingSec));
+      SendWebStatusThreadSafe(targetHwnd,
+                              statusText.empty() ? L"WebDAV 同步失败"
+                                                 : statusText,
+                              L"error", L"webdav_sync_failed");
+    })
+        .detach();
     return;
   }
 
@@ -11278,8 +13389,10 @@ void WebViewHost::Initialize(HWND hwnd)
   InitializeTrafficPersistenceOnBoot();
   allRefreshIntervalSec_ = kDefaultAllRefreshMinutes * 60;
   currentRefreshIntervalSec_ = kDefaultCurrentRefreshMinutes * 60;
+  webDavSyncIntervalSec_ = kDefaultWebDavSyncMinutes * 60;
   allRefreshRemainingSec_ = allRefreshIntervalSec_;
   currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
+  webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
   if (!timerInitialized_)
   {
     SetTimer(hwnd_, kTimerAutoRefresh, 1000, nullptr);
@@ -11317,15 +13430,22 @@ void WebViewHost::Initialize(HWND hwnd)
   g_ProxyDispatchMode = startCfg.proxyDispatchMode;
   g_ProxyFixedAccount = startCfg.proxyFixedAccount;
   g_ProxyFixedGroup = startCfg.proxyFixedGroup;
+  webDavEnabled_ = startCfg.webdavEnabled;
+  webDavAutoSyncEnabled_ = startCfg.webdavEnabled && startCfg.webdavAutoSync;
   allRefreshIntervalSec_ = ClampRefreshMinutes(startCfg.autoRefreshAllMinutes,
                                                kDefaultAllRefreshMinutes) *
-                           60;
+                          60;
   currentRefreshIntervalSec_ =
       ClampRefreshMinutes(startCfg.autoRefreshCurrentMinutes,
                           kDefaultCurrentRefreshMinutes) *
       60;
+  webDavSyncIntervalSec_ = ClampWebDavSyncMinutes(
+                              startCfg.webdavSyncIntervalMinutes,
+                              kDefaultWebDavSyncMinutes) *
+                          60;
   allRefreshRemainingSec_ = allRefreshIntervalSec_;
   currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
+  webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
   if (autoRefreshQuotaDisabled_)
   {
     allRefreshRemainingSec_ = allRefreshIntervalSec_;

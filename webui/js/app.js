@@ -60,6 +60,7 @@
     "settings.subtitle": "These settings are used on first launch and all future switches.",
     "settings.tab.general": "General",
     "settings.tab.account": "Account",
+    "settings.tab.cloud": "Cloud Sync",
     "settings.language_label": "Language",
     "settings.ide_label": "IDE Executable",
     "settings.theme_label": "Theme",
@@ -80,10 +81,45 @@
     "settings.auto_refresh_current_hint": "Refresh current active account quota every {minutes} minutes.",
     "settings.low_quota_prompt_label": "Low Quota Auto Switch Prompt",
     "settings.low_quota_prompt_hint": "When enabled, low quota will trigger switch prompt and notification window automatically.",
+    "settings.webdav_section": "WebDAV Sync",
+    "settings.webdav_enabled_label": "Enable WebDAV Sync",
+    "settings.webdav_enabled_hint": "Sync account auth backups with other devices through your WebDAV storage.",
+    "settings.webdav_url_label": "WebDAV URL",
+    "settings.webdav_url_hint": "Example: https://dav.example.com/remote.php/dav/files/username",
+    "settings.webdav_remote_path_label": "Remote Folder",
+    "settings.webdav_remote_path_hint": "App-only subfolder to store manifest and account files.",
+    "settings.webdav_username_label": "Username",
+    "settings.webdav_username_hint": "WebDAV login username.",
+    "settings.webdav_password_label": "Password / App Password",
+    "settings.webdav_password_hint": "Saved locally with Windows protection; leave blank to keep existing password.",
+    "settings.webdav_password_saved": "Password saved",
+    "settings.webdav_password_missing": "Password not saved",
+    "settings.webdav_clear_password": "Clear saved password",
+    "settings.webdav_auto_sync_label": "Auto Sync",
+    "settings.webdav_auto_sync_hint": "When enabled, bidirectional sync runs every {minutes} minutes.",
+    "settings.webdav_status_label": "Sync Status",
+    "settings.webdav_last_sync": "Last sync: {time}",
+    "settings.webdav_last_sync_empty": "Last sync: not yet",
+    "settings.webdav_next_sync": "Next auto sync: {time}",
+    "settings.webdav_next_sync_disabled": "Next auto sync: disabled",
+    "settings.webdav_test": "Test Connection",
+    "settings.webdav_upload": "Upload Now",
+    "settings.webdav_download": "Download Now",
+    "settings.webdav_sync": "Bidirectional Sync",
+    "settings.webdav_running": "Sync in progress...",
+    "settings.webdav_idle": "Ready",
+    "settings.webdav_interval_hint": "Enter 1-1440",
     "settings.refresh_minutes_label": "Interval (minutes)",
     "settings.minutes_hint": "Enter 1-240",
     "settings.countdown_prefix": "Remaining: ",
     "settings.first_run_toast": "Please confirm default settings for first launch",
+    "dialog.webdav_conflict.title": "Resolve WebDAV Conflicts",
+    "dialog.webdav_conflict.desc": "Choose which version to keep for each conflicting account.",
+    "dialog.webdav_conflict.keep_local": "Keep Local",
+    "dialog.webdav_conflict.keep_remote": "Keep Cloud",
+    "dialog.webdav_conflict.local_note": "Use this device's auth.json and upload it to WebDAV.",
+    "dialog.webdav_conflict.remote_note": "Use the WebDAV version and overwrite local auth.json.",
+    "dialog.webdav_conflict.apply": "Apply Choices",
     "dashboard.title": "Quota Dashboard",
     "dashboard.subtitle": "Quick overview of account capacity and current account health.",
     "dashboard.total_accounts": "Total Accounts",
@@ -338,6 +374,7 @@
     "status_code.quota_refresh_running": "Quota refresh is already running, please wait...",
     "status_code.quota_refresh_failed": "Quota refresh failed",
     "status_code.account_quota_refreshed": "Account quota refreshed",
+    "status_code.account_abnormal_marked": "Account auth is invalidated and has been marked abnormal. Please sign in again.",
     "status_code.batch_refresh_done": "Batch quota refresh completed",
     "status_code.batch_delete_done": "Batch delete completed",
     "status_code.batch_delete_partial": "Batch delete partially completed",
@@ -447,8 +484,43 @@
     "settings.enable_auto_refresh_quota_hint": "开启后，导入账号时会自动刷新账号类型和额度。",
     "settings.auto_mark_abnormal_accounts_label": "自动标记异常账号",
     "settings.auto_mark_abnormal_accounts_hint": "开启后，遇到 token 失效或鉴权失败的账号会被标记为异常，并在自动重试时跳过。",
+    "settings.webdav_section": "WebDAV 云同步",
+    "settings.webdav_enabled_label": "启用 WebDAV 同步",
+    "settings.webdav_enabled_hint": "通过 WebDAV 云存储在多台设备之间同步账号 auth 备份。",
+    "settings.webdav_url_label": "WebDAV 地址",
+    "settings.webdav_url_hint": "例如：https://dav.example.com/remote.php/dav/files/username",
+    "settings.webdav_remote_path_label": "远端目录",
+    "settings.webdav_remote_path_hint": "应用专用子目录，用于保存清单和账号文件。",
+    "settings.webdav_username_label": "用户名",
+    "settings.webdav_username_hint": "WebDAV 登录用户名。",
+    "settings.webdav_password_label": "密码 / 应用专用密码",
+    "settings.webdav_password_hint": "使用 Windows 保护保存在本机；留空则保留当前已保存密码。",
+    "settings.webdav_password_saved": "密码已保存",
+    "settings.webdav_password_missing": "密码未保存",
+    "settings.webdav_clear_password": "清除已保存密码",
+    "settings.webdav_auto_sync_label": "自动同步",
+    "settings.webdav_auto_sync_hint": "开启后，每 {minutes} 分钟执行一次双向同步。",
+    "settings.webdav_status_label": "同步状态",
+    "settings.webdav_last_sync": "最近同步：{time}",
+    "settings.webdav_last_sync_empty": "最近同步：尚未执行",
+    "settings.webdav_next_sync": "下次自动同步：{time}",
+    "settings.webdav_next_sync_disabled": "下次自动同步：已关闭",
+    "settings.webdav_test": "测试连接",
+    "settings.webdav_upload": "立即上传",
+    "settings.webdav_download": "立即下载",
+    "settings.webdav_sync": "立即双向同步",
+    "settings.webdav_running": "同步进行中...",
+    "settings.webdav_idle": "已就绪",
+    "settings.webdav_interval_hint": "输入 1-1440",
     "settings.minutes_hint": "输入 1-240",
     "settings.first_run_toast": "首次启动请先确认默认设置",
+    "dialog.webdav_conflict.title": "处理 WebDAV 冲突",
+    "dialog.webdav_conflict.desc": "请为每个冲突账号选择保留本地版本还是云端版本。",
+    "dialog.webdav_conflict.keep_local": "保留本地",
+    "dialog.webdav_conflict.keep_remote": "保留云端",
+    "dialog.webdav_conflict.local_note": "使用当前设备上的 auth.json，并上传覆盖到 WebDAV。",
+    "dialog.webdav_conflict.remote_note": "使用 WebDAV 中的版本，并覆盖本地 auth.json。",
+    "dialog.webdav_conflict.apply": "应用选择",
     "dialog.backup.title": "备份当前账号",
     "dialog.backup.name_label": "账号名称",
     "dialog.backup.name_placeholder": "请输入账号名称",
@@ -503,6 +575,7 @@
     "status_code.quota_refresh_running": "额度刷新正在进行中，请稍候…",
     "status_code.quota_refresh_failed": "额度刷新失败",
     "status_code.account_quota_refreshed": "账号额度已刷新",
+    "status_code.account_abnormal_marked": "账号认证已失效，已标记为异常，请重新登录",
     "status_code.unknown_action": "未知操作",
     "update.failed": "检查更新失败，请稍后重试",
     "update.latest": "当前已是最新版本",
@@ -525,6 +598,7 @@
     "tab.token": "Token统计",
     "settings.tab.general": "通用",
     "settings.tab.account": "账号",
+    "settings.tab.cloud": "云同步",
     "toolbar.refresh": "刷新额度",
     "toolbar.add_current": "添加账号",
     "toolbar.import_auth": "添加账号",
@@ -846,8 +920,10 @@
     settingsSub: document.getElementById("settingsSub"),
     settingsTabGeneralBtn: document.getElementById("settingsTabGeneralBtn"),
     settingsTabAccountBtn: document.getElementById("settingsTabAccountBtn"),
+    settingsTabCloudBtn: document.getElementById("settingsTabCloudBtn"),
     settingsPaneGeneral: document.getElementById("settingsPaneGeneral"),
     settingsPaneAccount: document.getElementById("settingsPaneAccount"),
+    settingsPaneCloud: document.getElementById("settingsPaneCloud"),
     settingsLanguageLabel: document.getElementById("settingsLanguageLabel"),
     settingsIdeLabel: document.getElementById("settingsIdeLabel"),
     settingsThemeLabel: document.getElementById("settingsThemeLabel"),
@@ -875,6 +951,38 @@
     settingsLowQuotaPromptLabel: document.getElementById("settingsLowQuotaPromptLabel"),
     settingsLowQuotaPromptHint: document.getElementById("settingsLowQuotaPromptHint"),
     lowQuotaAutoPromptToggle: document.getElementById("lowQuotaAutoPromptToggle"),
+    settingsWebDavSectionTitle: document.getElementById("settingsWebDavSectionTitle"),
+    settingsWebDavEnabledLabel: document.getElementById("settingsWebDavEnabledLabel"),
+    settingsWebDavEnabledHint: document.getElementById("settingsWebDavEnabledHint"),
+    webdavEnabledToggle: document.getElementById("webdavEnabledToggle"),
+    settingsWebDavUrlLabel: document.getElementById("settingsWebDavUrlLabel"),
+    settingsWebDavUrlHint: document.getElementById("settingsWebDavUrlHint"),
+    webdavUrlInput: document.getElementById("webdavUrlInput"),
+    settingsWebDavRemotePathLabel: document.getElementById("settingsWebDavRemotePathLabel"),
+    settingsWebDavRemotePathHint: document.getElementById("settingsWebDavRemotePathHint"),
+    webdavRemotePathInput: document.getElementById("webdavRemotePathInput"),
+    settingsWebDavUsernameLabel: document.getElementById("settingsWebDavUsernameLabel"),
+    settingsWebDavUsernameHint: document.getElementById("settingsWebDavUsernameHint"),
+    webdavUsernameInput: document.getElementById("webdavUsernameInput"),
+    settingsWebDavPasswordLabel: document.getElementById("settingsWebDavPasswordLabel"),
+    settingsWebDavPasswordHint: document.getElementById("settingsWebDavPasswordHint"),
+    webdavPasswordInput: document.getElementById("webdavPasswordInput"),
+    webdavClearPasswordBtn: document.getElementById("webdavClearPasswordBtn"),
+    webdavPasswordState: document.getElementById("webdavPasswordState"),
+    settingsWebDavAutoSyncLabel: document.getElementById("settingsWebDavAutoSyncLabel"),
+    settingsWebDavAutoSyncHint: document.getElementById("settingsWebDavAutoSyncHint"),
+    webdavAutoSyncToggle: document.getElementById("webdavAutoSyncToggle"),
+    settingsWebDavIntervalLabel: document.getElementById("settingsWebDavIntervalLabel"),
+    webdavSyncIntervalInput: document.getElementById("webdavSyncIntervalInput"),
+    settingsWebDavStatusLabel: document.getElementById("settingsWebDavStatusLabel"),
+    webdavStatusDot: document.getElementById("webdavStatusDot"),
+    webdavStatusText: document.getElementById("webdavStatusText"),
+    webdavLastSyncText: document.getElementById("webdavLastSyncText"),
+    webdavNextSyncText: document.getElementById("webdavNextSyncText"),
+    webdavTestBtn: document.getElementById("webdavTestBtn"),
+    webdavUploadBtn: document.getElementById("webdavUploadBtn"),
+    webdavDownloadBtn: document.getElementById("webdavDownloadBtn"),
+    webdavSyncBtn: document.getElementById("webdavSyncBtn"),
     languageOptions: document.getElementById("languageOptions"),
     ideOptions: document.getElementById("ideOptions"),
     autoUpdateToggle: document.getElementById("autoUpdateToggle"),
@@ -1059,6 +1167,12 @@
     confirmMessage: document.getElementById("confirmMessage"),
     confirmCancelBtn: document.getElementById("confirmCancelBtn"),
     confirmOkBtn: document.getElementById("confirmOkBtn"),
+    webdavConflictModal: document.getElementById("webdavConflictModal"),
+    webdavConflictTitle: document.getElementById("webdavConflictTitle"),
+    webdavConflictDesc: document.getElementById("webdavConflictDesc"),
+    webdavConflictList: document.getElementById("webdavConflictList"),
+    webdavConflictCancelBtn: document.getElementById("webdavConflictCancelBtn"),
+    webdavConflictConfirmBtn: document.getElementById("webdavConflictConfirmBtn"),
     accountsWrap: document.querySelector(".accounts-wrap")
   };
 
@@ -1122,6 +1236,19 @@
     proxyFixedAccount: "",
     proxyFixedGroup: "personal",
     proxyApiKeyEditing: false,
+    webdavEnabled: false,
+    webdavAutoSync: true,
+    webdavSyncIntervalMinutes: 15,
+    webdavUrl: "",
+    webdavRemotePath: "/CodexAccountSwitch",
+    webdavUsername: "",
+    webdavPasswordConfigured: false,
+    webdavPasswordClear: false,
+    webdavLastSyncAt: "",
+    webdavLastSyncStatus: "",
+    webdavSyncRunning: false,
+    webdavSyncRemainingSec: 0,
+    webdavConflicts: [],
     trafficLogs: [],
     trafficAccountFilter: "all",
     tokenStats: null,
@@ -1228,14 +1355,22 @@
   }
 
   function applyLanguageStrings(code, strings) {
-    state.i18n = { ...DEFAULT_I18N, ...(strings || {}) };
     state.currentLanguage = code || state.currentLanguage || "zh-CN";
     const langCode = String(state.currentLanguage || "").toLowerCase();
+    const fallbackBase = (langCode === "zh-cn" || langCode === "zh-tw")
+      ? ZH_FALLBACK_I18N
+      : DEFAULT_I18N;
+    state.i18n = { ...fallbackBase, ...(strings || {}) };
     if (langCode === "zh-cn" || langCode === "zh-tw") {
+      state.i18n["tag.current"] = "当前";
+      state.i18n["tag.abnormal"] = "异常";
+      state.i18n["tag.group_business"] = "企业";
+      state.i18n["tag.group_personal"] = "个人";
       state.i18n["settings.enable_auto_refresh_quota_label"] = "开启自动刷新额度";
       state.i18n["settings.enable_auto_refresh_quota_hint"] = "开启后，导入账号时会自动刷新账号类型和额度。";
       state.i18n["settings.auto_mark_abnormal_accounts_label"] = "自动标记异常账号";
       state.i18n["settings.auto_mark_abnormal_accounts_hint"] = "开启后，遇到 token 失效或鉴权失败的账号会被标记为异常，并在自动重试时跳过。";
+      state.i18n["status_code.account_abnormal_marked"] = "账号认证已失效，已标记为异常，请重新登录";
     }
     applyI18n();
     refreshSettingsOptions();
@@ -1319,12 +1454,13 @@
   }
 
   function switchSettingsSubTab(tab) {
-    state.settingsSubTab = tab === "account" ? "account" : "general";
+    state.settingsSubTab = (tab === "account" || tab === "cloud") ? tab : "general";
     document.querySelectorAll("[data-settings-tab]").forEach((x) => {
       x.classList.toggle("active", x.getAttribute("data-settings-tab") === state.settingsSubTab);
     });
     dom.settingsPaneGeneral.classList.toggle("active", state.settingsSubTab === "general");
     dom.settingsPaneAccount.classList.toggle("active", state.settingsSubTab === "account");
+    dom.settingsPaneCloud.classList.toggle("active", state.settingsSubTab === "cloud");
   }
 
   function switchAddAccountTab(tab) {
@@ -1660,6 +1796,7 @@
     dom.proxyAllowLanToggle.checked = state.proxyAllowLan;
     dom.proxyStealthModeToggle.checked = state.proxyStealthMode;
     dom.proxyDispatchModeSelect.value = state.proxyDispatchMode || "round_robin";
+    renderWebDavState();
     renderProxyStatus();
     renderProxyFixedAccountOptions();
     refreshCustomSelects();
@@ -1706,6 +1843,7 @@
     dom.settingsSub.textContent = t("settings.subtitle");
     dom.settingsTabGeneralBtn.textContent = t("settings.tab.general");
     dom.settingsTabAccountBtn.textContent = t("settings.tab.account");
+    dom.settingsTabCloudBtn.textContent = t("settings.tab.cloud");
     dom.settingsLanguageLabel.textContent = t("settings.language_label");
     dom.settingsIdeLabel.textContent = t("settings.ide_label");
     dom.settingsThemeLabel.textContent = t("settings.theme_label");
@@ -1730,6 +1868,30 @@
     dom.settingsCurrentMinutesLabel.textContent = t("settings.refresh_minutes_label");
     dom.autoRefreshAllMinutesInput.placeholder = t("settings.minutes_hint");
     dom.autoRefreshCurrentMinutesInput.placeholder = t("settings.minutes_hint");
+    dom.settingsWebDavSectionTitle.textContent = t("settings.webdav_section");
+    dom.settingsWebDavEnabledLabel.textContent = t("settings.webdav_enabled_label");
+    dom.settingsWebDavEnabledHint.textContent = t("settings.webdav_enabled_hint");
+    dom.settingsWebDavUrlLabel.textContent = t("settings.webdav_url_label");
+    dom.settingsWebDavUrlHint.textContent = t("settings.webdav_url_hint");
+    dom.settingsWebDavRemotePathLabel.textContent = t("settings.webdav_remote_path_label");
+    dom.settingsWebDavRemotePathHint.textContent = t("settings.webdav_remote_path_hint");
+    dom.settingsWebDavUsernameLabel.textContent = t("settings.webdav_username_label");
+    dom.settingsWebDavUsernameHint.textContent = t("settings.webdav_username_hint");
+    dom.settingsWebDavPasswordLabel.textContent = t("settings.webdav_password_label");
+    dom.settingsWebDavPasswordHint.textContent = t("settings.webdav_password_hint");
+    dom.webdavClearPasswordBtn.textContent = t("settings.webdav_clear_password");
+    dom.settingsWebDavAutoSyncLabel.textContent = t("settings.webdav_auto_sync_label");
+    dom.settingsWebDavAutoSyncHint.textContent = t("settings.webdav_auto_sync_hint", { minutes: state.webdavSyncIntervalMinutes });
+    dom.settingsWebDavIntervalLabel.textContent = t("settings.refresh_minutes_label");
+    dom.settingsWebDavStatusLabel.textContent = t("settings.webdav_status_label");
+    dom.webdavTestBtn.textContent = t("settings.webdav_test");
+    dom.webdavUploadBtn.textContent = t("settings.webdav_upload");
+    dom.webdavDownloadBtn.textContent = t("settings.webdav_download");
+    dom.webdavSyncBtn.textContent = t("settings.webdav_sync");
+    dom.webdavConflictTitle.textContent = t("dialog.webdav_conflict.title");
+    dom.webdavConflictDesc.textContent = t("dialog.webdav_conflict.desc");
+    dom.webdavConflictCancelBtn.textContent = t("dialog.common.cancel");
+    dom.webdavConflictConfirmBtn.textContent = t("dialog.webdav_conflict.apply");
     dom.backupTitle.textContent = t("dialog.backup.title");
     dom.backupNameLabel.textContent = t("dialog.backup.name_label");
     dom.backupNameInput.placeholder = t("dialog.backup.name_placeholder");
@@ -2418,7 +2580,17 @@
       if (normalized === "pro") return "Pro";
     }
     const raw = String(planType || "");
-    return raw ? `${t("tag.plan_unknown")}: ${raw}` : t("tag.plan_unknown");
+    return raw ? `${t("tag.plan_unknown")}: ${raw}` : "";
+  }
+
+  function formatGroupLabel(group) {
+    const normalized = normalizeGroupValue(group);
+    if (normalized === "personal") return t("tag.group_personal");
+    if (normalized === "business") return t("tag.group_business");
+    if (normalized === "free" || normalized === "plus" || normalized === "team" || normalized === "pro") {
+      return formatPlanTypeLabel(normalized);
+    }
+    return t("tag.group_personal");
   }
 
   function formatUsageErrorMessage(usageError) {
@@ -2538,6 +2710,108 @@
     return Math.round(n);
   }
 
+  function clampWebDavSyncMinutes(v, fallback = 15) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return fallback;
+    if (n < 1) return 1;
+    if (n > 1440) return 1440;
+    return Math.round(n);
+  }
+
+  function formatSyncDateTime(value) {
+    const text = String(value || "").trim();
+    return text || "-";
+  }
+
+  function closeWebDavConflictModal() {
+    if (!dom.webdavConflictModal) return;
+    dom.webdavConflictModal.classList.remove("show");
+  }
+
+  function openWebDavConflictModal() {
+    if (!dom.webdavConflictModal) return;
+    dom.webdavConflictModal.classList.add("show");
+  }
+
+  function renderWebDavConflictModal() {
+    if (!dom.webdavConflictList) return;
+    const conflicts = Array.isArray(state.webdavConflicts) ? state.webdavConflicts : [];
+    dom.webdavConflictList.innerHTML = conflicts.map((item, index) => {
+      const winner = item.winner === "local" ? "local" : "remote";
+      return `
+        <div class="webdav-conflict-item" data-webdav-conflict-index="${index}">
+          <div class="webdav-conflict-head">
+            <span>${escapeHtml(item.account || "-")}</span>
+            <span class="webdav-conflict-meta">${escapeHtml((item.localGroup || "personal") + " ↔ " + (item.remoteGroup || "personal"))}</span>
+          </div>
+          <div class="webdav-conflict-options">
+            <button class="webdav-choice ${winner === "local" ? "active" : ""}" data-webdav-choice="local" data-webdav-conflict-index="${index}">
+              <div class="webdav-choice-title">${escapeHtml(t("dialog.webdav_conflict.keep_local"))}</div>
+              <div class="webdav-choice-note">${escapeHtml(t("dialog.webdav_conflict.local_note"))}</div>
+              <div class="webdav-choice-note">${escapeHtml(item.localUpdatedAt || "-")}</div>
+            </button>
+            <button class="webdav-choice ${winner === "remote" ? "active" : ""}" data-webdav-choice="remote" data-webdav-conflict-index="${index}">
+              <div class="webdav-choice-title">${escapeHtml(t("dialog.webdav_conflict.keep_remote"))}</div>
+              <div class="webdav-choice-note">${escapeHtml(t("dialog.webdav_conflict.remote_note"))}</div>
+              <div class="webdav-choice-note">${escapeHtml(item.remoteUpdatedAt || "-")}</div>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function syncInputValue(input, value) {
+    if (!input) return;
+    const next = String(value ?? "");
+    if (document.activeElement === input) return;
+    if (String(input.value || "") !== next) {
+      input.value = next;
+    }
+  }
+
+  function renderWebDavState() {
+    if (!dom.webdavEnabledToggle) return;
+    dom.webdavEnabledToggle.checked = !!state.webdavEnabled;
+    dom.webdavAutoSyncToggle.checked = !!state.webdavAutoSync;
+    syncInputValue(dom.webdavUrlInput, state.webdavUrl || "");
+    syncInputValue(dom.webdavRemotePathInput, state.webdavRemotePath || "/CodexAccountSwitch");
+    syncInputValue(dom.webdavUsernameInput, state.webdavUsername || "");
+    syncInputValue(dom.webdavSyncIntervalInput, clampWebDavSyncMinutes(state.webdavSyncIntervalMinutes, 15));
+    dom.webdavPasswordState.textContent = state.webdavPasswordConfigured
+      ? t("settings.webdav_password_saved")
+      : t("settings.webdav_password_missing");
+    dom.webdavStatusDot.classList.toggle("running", !!state.webdavSyncRunning);
+    const statusText = state.webdavSyncRunning
+      ? t("settings.webdav_running")
+      : (String(state.webdavLastSyncStatus || "").trim() || t("settings.webdav_idle"));
+    dom.webdavStatusText.textContent = statusText;
+    dom.webdavLastSyncText.textContent = state.webdavLastSyncAt
+      ? t("settings.webdav_last_sync", { time: formatSyncDateTime(state.webdavLastSyncAt) })
+      : t("settings.webdav_last_sync_empty");
+    const nextSyncText = state.webdavEnabled && state.webdavAutoSync
+      ? t("settings.webdav_next_sync", { time: formatCountdown(state.webdavSyncRemainingSec) })
+      : t("settings.webdav_next_sync_disabled");
+    dom.webdavNextSyncText.textContent = nextSyncText;
+    dom.webdavPasswordInput.placeholder = state.webdavPasswordConfigured
+      ? t("settings.webdav_password_saved")
+      : t("settings.webdav_password_missing");
+    dom.webdavSyncIntervalInput.placeholder = t("settings.webdav_interval_hint");
+    const disableSyncFields = !state.webdavEnabled;
+    [dom.webdavUrlInput, dom.webdavRemotePathInput, dom.webdavUsernameInput, dom.webdavPasswordInput,
+      dom.webdavAutoSyncToggle, dom.webdavSyncIntervalInput, dom.webdavClearPasswordBtn,
+      dom.webdavTestBtn, dom.webdavUploadBtn, dom.webdavDownloadBtn, dom.webdavSyncBtn].forEach((el) => {
+      if (!el) return;
+      if (el === dom.webdavClearPasswordBtn) {
+        el.disabled = disableSyncFields || !state.webdavPasswordConfigured || state.webdavSyncRunning;
+      } else if (el === dom.webdavAutoSyncToggle || el === dom.webdavSyncIntervalInput || el === dom.webdavUrlInput || el === dom.webdavRemotePathInput || el === dom.webdavUsernameInput || el === dom.webdavPasswordInput) {
+        el.disabled = disableSyncFields || state.webdavSyncRunning;
+      } else {
+        el.disabled = disableSyncFields || state.webdavSyncRunning;
+      }
+    });
+  }
+
   function parseEnableAutoRefreshQuota(msg, fallback = true) {
     const hasEnable = !!(msg && Object.prototype.hasOwnProperty.call(msg, "enableAutoRefreshQuota"));
     if (hasEnable) {
@@ -2551,6 +2825,7 @@
   }
 
   function buildConfigPayload() {
+    const webdavPassword = String(dom.webdavPasswordInput?.value || "").trim();
     return {
       language: state.currentLanguage,
       ideExe: state.currentIdeExe,
@@ -2570,7 +2845,15 @@
       proxyStealthMode: !!state.proxyStealthMode,
       proxyDispatchMode: String(state.proxyDispatchMode || "round_robin"),
       proxyFixedAccount: "",
-      proxyFixedGroup: "personal"
+      proxyFixedGroup: "personal",
+      webdavEnabled: !!state.webdavEnabled,
+      webdavAutoSync: !!state.webdavAutoSync,
+      webdavSyncIntervalMinutes: clampWebDavSyncMinutes(state.webdavSyncIntervalMinutes, 15),
+      webdavUrl: String(dom.webdavUrlInput?.value || "").trim(),
+      webdavRemotePath: String(dom.webdavRemotePathInput?.value || "/CodexAccountSwitch").trim(),
+      webdavUsername: String(dom.webdavUsernameInput?.value || "").trim(),
+      webdavPassword,
+      webdavPasswordClear: !webdavPassword && !!state.webdavPasswordClear
     };
   }
 
@@ -2603,6 +2886,13 @@
     const msgProxyDispatchMode = String(msg.proxyDispatchMode || "round_robin");
     const msgProxyFixedAccount = String(msg.proxyFixedAccount || "");
     const msgProxyFixedGroup = String(msg.proxyFixedGroup || "personal");
+    const msgWebdavEnabled = msg.webdavEnabled === true || msg.webdavEnabled === "true";
+    const msgWebdavAutoSync = msg.webdavAutoSync !== false && msg.webdavAutoSync !== "false";
+    const msgWebdavSyncIntervalMinutes = clampWebDavSyncMinutes(msg.webdavSyncIntervalMinutes, 15);
+    const msgWebdavUrl = String(msg.webdavUrl || "").trim();
+    const msgWebdavRemotePath = String(msg.webdavRemotePath || "/CodexAccountSwitch").trim();
+    const msgWebdavUsername = String(msg.webdavUsername || "").trim();
+    const msgWebdavPasswordConfigured = msg.webdavPasswordConfigured === true || msg.webdavPasswordConfigured === "true";
     return msgLanguage === pending.language
       && msgIdeExe === pending.ideExe
       && msgAutoUpdate === pending.autoUpdate
@@ -2619,7 +2909,14 @@
       && msgProxyStealthMode === !!pending.proxyStealthMode
       && msgProxyDispatchMode === String(pending.proxyDispatchMode || "round_robin")
       && msgProxyFixedAccount === String(pending.proxyFixedAccount || "")
-      && msgProxyFixedGroup === String(pending.proxyFixedGroup || "personal");
+      && msgProxyFixedGroup === String(pending.proxyFixedGroup || "personal")
+      && msgWebdavEnabled === !!pending.webdavEnabled
+      && msgWebdavAutoSync === !!pending.webdavAutoSync
+      && msgWebdavSyncIntervalMinutes === clampWebDavSyncMinutes(pending.webdavSyncIntervalMinutes, 15)
+      && msgWebdavUrl === String(pending.webdavUrl || "").trim()
+      && msgWebdavRemotePath === String(pending.webdavRemotePath || "/CodexAccountSwitch").trim()
+      && msgWebdavUsername === String(pending.webdavUsername || "").trim()
+      && msgWebdavPasswordConfigured === (String(pending.webdavPassword || "").trim() ? true : (!!state.webdavPasswordConfigured && !pending.webdavPasswordClear));
   }
 
   function saveConfigNow() {
@@ -2691,7 +2988,16 @@
       const disableRefreshAction = state.refreshMode === "all" || isThisRefreshing || !!state.importMode || bulkBusy;
       const disableRowAction = bulkBusy;
       const normalizedPlanType = normalizePlanType(item.planType);
+      const normalizedGroup = normalizeGroupValue(item.group);
+      const planLabel = formatPlanTypeLabel(item.planType);
       const planClass = normalizedPlanType || "unknown";
+      const showGroupTag = item.abnormal
+        || normalizedGroup === "personal"
+        || normalizedGroup === "business"
+        || !normalizedPlanType
+        || normalizedGroup !== normalizedPlanType;
+      const groupTagLabel = item.abnormal ? t("tag.abnormal") : formatGroupLabel(normalizedGroup);
+      const groupTagClass = item.abnormal ? "abnormal" : `group ${normalizedGroup}`;
       const isFreePlan = normalizedPlanType === "free";
       const freeQ7Value = Number(item.quota7dRemainingPercent) >= 0
         ? item.quota7dRemainingPercent
@@ -2713,8 +3019,8 @@
           <div class="account-cell" title="${escapeHtml(item.name)}">
             <span class="account-name">${escapeHtml(shortName(item.name))}</span>
             ${item.isCurrent ? `<span class="tag current">${escapeHtml(t("tag.current"))}</span>` : ""}
-            ${item.abnormal ? `<span class="tag abnormal" title="${escapeHtml(item.abnormalReason || "")}">${escapeHtml(t("tag.abnormal"))}</span>` : ""}
-            <span class="tag plan ${escapeHtml(planClass)}">${escapeHtml(formatPlanTypeLabel(item.planType))}</span>
+            ${showGroupTag ? `<span class="tag ${escapeHtml(groupTagClass)}" title="${escapeHtml(item.abnormalReason || formatGroupLabel(normalizedGroup))}">${escapeHtml(groupTagLabel)}</span>` : ""}
+            ${planLabel ? `<span class="tag plan ${escapeHtml(planClass)}">${escapeHtml(planLabel)}</span>` : ""}
           </div>
         </td>
         <td>
@@ -2873,6 +3179,8 @@
       });
     });
     dom.proxyStopBtn.addEventListener("click", () => {
+      state.proxyAutoStart = false;
+      dom.proxyAutoStartToggle.checked = false;
       post("stop_proxy_service");
     });
     if (dom.trafficRefreshBtn) {
@@ -2980,6 +3288,68 @@
       state.proxyAllowLan = dom.proxyAllowLanToggle.checked;
       renderProxyStatus();
       queueSaveConfig();
+    });
+    dom.webdavEnabledToggle.addEventListener("change", () => {
+      state.webdavEnabled = dom.webdavEnabledToggle.checked;
+      refreshSettingsOptions();
+      queueSaveConfig();
+    });
+    dom.webdavAutoSyncToggle.addEventListener("change", () => {
+      state.webdavAutoSync = dom.webdavAutoSyncToggle.checked;
+      refreshSettingsOptions();
+      queueSaveConfig();
+    });
+    const handleWebDavMinutesChanged = () => {
+      state.webdavSyncIntervalMinutes = clampWebDavSyncMinutes(dom.webdavSyncIntervalInput.value, state.webdavSyncIntervalMinutes || 15);
+      refreshSettingsOptions();
+      queueSaveConfig();
+    };
+    dom.webdavSyncIntervalInput.addEventListener("input", handleWebDavMinutesChanged);
+    dom.webdavSyncIntervalInput.addEventListener("change", handleWebDavMinutesChanged);
+    [dom.webdavUrlInput, dom.webdavRemotePathInput, dom.webdavUsernameInput].forEach((el) => {
+      el.addEventListener("change", queueSaveConfig);
+      el.addEventListener("blur", queueSaveConfig);
+    });
+    dom.webdavPasswordInput.addEventListener("change", () => {
+      state.webdavPasswordClear = false;
+      queueSaveConfig();
+    });
+    dom.webdavClearPasswordBtn.addEventListener("click", () => {
+      state.webdavPasswordClear = true;
+      dom.webdavPasswordInput.value = "";
+      state.webdavPasswordConfigured = false;
+      renderWebDavState();
+      queueSaveConfig();
+    });
+    dom.webdavTestBtn.addEventListener("click", () => post("test_webdav_connection"));
+    dom.webdavUploadBtn.addEventListener("click", () => post("run_webdav_sync", { mode: "upload" }));
+    dom.webdavDownloadBtn.addEventListener("click", () => post("run_webdav_sync", { mode: "download" }));
+    dom.webdavSyncBtn.addEventListener("click", () => post("run_webdav_sync", { mode: "bidirectional" }));
+    dom.webdavConflictList.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-webdav-choice]");
+      if (!btn) return;
+      const index = Number(btn.getAttribute("data-webdav-conflict-index"));
+      const winner = String(btn.getAttribute("data-webdav-choice") || "remote");
+      if (!Number.isInteger(index) || !state.webdavConflicts[index]) return;
+      state.webdavConflicts[index].winner = winner === "local" ? "local" : "remote";
+      renderWebDavConflictModal();
+    });
+    dom.webdavConflictCancelBtn.addEventListener("click", () => {
+      closeWebDavConflictModal();
+      post("resolve_webdav_conflicts", { cancel: true });
+    });
+    dom.webdavConflictConfirmBtn.addEventListener("click", () => {
+      const decisions = (state.webdavConflicts || []).map((item) => ({
+        account: item.account,
+        winner: item.winner === "local" ? "local" : "remote"
+      }));
+      post("resolve_webdav_conflicts", { decisions });
+      closeWebDavConflictModal();
+    });
+    dom.webdavConflictModal.addEventListener("click", (e) => {
+      if (e.target === dom.webdavConflictModal) {
+        closeWebDavConflictModal();
+      }
     });
     dom.addCurrentBtn.addEventListener("click", () => {
       openAddAccountModal();
@@ -3428,6 +3798,28 @@
         return;
       }
 
+      if (msg && typeof msg === "object" && msg.type === "webdav_sync_status") {
+        state.webdavEnabled = msg.enabled === true || msg.enabled === "true";
+        state.webdavAutoSync = msg.autoSync !== false && msg.autoSync !== "false";
+        state.webdavSyncIntervalMinutes = clampWebDavSyncMinutes(msg.intervalMinutes, state.webdavSyncIntervalMinutes || 15);
+        state.webdavSyncRemainingSec = Number.isFinite(Number(msg.remainingSec)) ? Number(msg.remainingSec) : state.webdavSyncRemainingSec;
+        state.webdavSyncRunning = msg.running === true || msg.running === "true";
+        state.webdavLastSyncAt = String(msg.lastSyncAt || state.webdavLastSyncAt || "");
+        state.webdavLastSyncStatus = String(msg.lastSyncStatus || state.webdavLastSyncStatus || "");
+        state.webdavPasswordConfigured = msg.passwordConfigured === true || msg.passwordConfigured === "true";
+        renderWebDavState();
+        return;
+      }
+
+      if (msg && typeof msg === "object" && msg.type === "webdav_sync_conflicts") {
+        state.webdavConflicts = Array.isArray(msg.conflicts)
+          ? msg.conflicts.map((item) => ({ ...item, winner: "remote" }))
+          : [];
+        renderWebDavConflictModal();
+        openWebDavConflictModal();
+        return;
+      }
+
       if (msg && typeof msg === "object" && msg.type === "traffic_logs") {
         state.trafficLogs = Array.isArray(msg.items) ? msg.items : [];
         state.trafficPage = 1;
@@ -3536,7 +3928,7 @@
         if (isManualSwitchSuccess) {
           switchTab("accounts");
         }
-        if (msg.code === "quota_refreshed" || msg.code === "account_quota_refreshed") {
+        if (["quota_refreshed", "account_quota_refreshed", "account_abnormal_marked"].includes(String(msg.code || ""))) {
           setRefreshBusy("", "");
           if (state.importMode === "current") {
             setImportBusy("");
@@ -3556,6 +3948,7 @@
         } else if (
           state.refreshMode &&
           [
+            "account_abnormal_marked",
             "account_quota_refresh_failed",
             "account_quota_refresh_skipped",
             "quota_refresh_failed",
@@ -3622,6 +4015,17 @@
           state.proxyDispatchMode = String(msg.proxyDispatchMode || "round_robin");
           state.proxyFixedAccount = String(msg.proxyFixedAccount || "");
           state.proxyFixedGroup = String(msg.proxyFixedGroup || "personal");
+          state.webdavEnabled = msg.webdavEnabled === true || msg.webdavEnabled === "true";
+          state.webdavAutoSync = msg.webdavAutoSync !== false && msg.webdavAutoSync !== "false";
+          state.webdavSyncIntervalMinutes = clampWebDavSyncMinutes(msg.webdavSyncIntervalMinutes, 15);
+          state.webdavUrl = String(msg.webdavUrl || "");
+          state.webdavRemotePath = String(msg.webdavRemotePath || "/CodexAccountSwitch");
+          state.webdavUsername = String(msg.webdavUsername || "");
+          state.webdavPasswordConfigured = msg.webdavPasswordConfigured === true || msg.webdavPasswordConfigured === "true";
+          state.webdavPasswordClear = false;
+          state.webdavLastSyncAt = String(msg.webdavLastSyncAt || "");
+          state.webdavLastSyncStatus = String(msg.webdavLastSyncStatus || "");
+          if (dom.webdavPasswordInput) dom.webdavPasswordInput.value = "";
           if (Number.isFinite(Number(msg.proxyPort))) dom.proxyPortInput.value = String(Number(msg.proxyPort));
           if (Number.isFinite(Number(msg.proxyTimeoutSec))) dom.proxyTimeoutInput.value = String(Number(msg.proxyTimeoutSec));
           if (document.documentElement.getAttribute("data-theme") !== resolveEffectiveTheme()) applyTheme();
@@ -3663,6 +4067,17 @@
           state.proxyDispatchMode = String(msg.proxyDispatchMode || state.proxyDispatchMode || "round_robin");
           state.proxyFixedAccount = String(msg.proxyFixedAccount || state.proxyFixedAccount || "");
           state.proxyFixedGroup = String(msg.proxyFixedGroup || state.proxyFixedGroup || "personal");
+          state.webdavEnabled = msg.webdavEnabled === true || msg.webdavEnabled === "true";
+          state.webdavAutoSync = msg.webdavAutoSync !== false && msg.webdavAutoSync !== "false";
+          state.webdavSyncIntervalMinutes = clampWebDavSyncMinutes(msg.webdavSyncIntervalMinutes, state.webdavSyncIntervalMinutes || 15);
+          state.webdavUrl = String(msg.webdavUrl || state.webdavUrl || "");
+          state.webdavRemotePath = String(msg.webdavRemotePath || state.webdavRemotePath || "/CodexAccountSwitch");
+          state.webdavUsername = String(msg.webdavUsername || state.webdavUsername || "");
+          state.webdavPasswordConfigured = msg.webdavPasswordConfigured === true || msg.webdavPasswordConfigured === "true";
+          state.webdavPasswordClear = false;
+          state.webdavLastSyncAt = String(msg.webdavLastSyncAt || state.webdavLastSyncAt || "");
+          state.webdavLastSyncStatus = String(msg.webdavLastSyncStatus || state.webdavLastSyncStatus || "");
+          if (dom.webdavPasswordInput) dom.webdavPasswordInput.value = "";
           if (Number.isFinite(Number(msg.proxyPort))) dom.proxyPortInput.value = String(Number(msg.proxyPort));
           if (Number.isFinite(Number(msg.proxyTimeoutSec))) dom.proxyTimeoutInput.value = String(Number(msg.proxyTimeoutSec));
           if (document.documentElement.getAttribute("data-theme") !== resolveEffectiveTheme()) applyTheme();
@@ -3727,7 +4142,7 @@
         if (msg.ok && msg.strings && typeof msg.strings === "object") {
           applyLanguageStrings(msg.code || state.currentLanguage, msg.strings);
         } else {
-          applyLanguageStrings("zh-CN", DEFAULT_I18N);
+          applyLanguageStrings("zh-CN", ZH_FALLBACK_I18N);
         }
         return;
       }
@@ -3760,7 +4175,7 @@
   }
 
   function bootstrap() {
-    state.i18n = { ...DEFAULT_I18N };
+    state.i18n = { ...ZH_FALLBACK_I18N };
     applyI18n();
     initLanguageIndexFallback();
     renderLanguageOptions();
@@ -3786,7 +4201,7 @@
     }
     syncLayoutDensity();
     applyTheme();
-    applyLanguageStrings("zh-CN", DEFAULT_I18N);
+    applyLanguageStrings("zh-CN", ZH_FALLBACK_I18N);
     dom.logEl.style.display = state.debug ? "block" : "none";
     dom.debugPanel.style.display = state.debug ? "block" : "none";
     renderRefreshCountdowns();

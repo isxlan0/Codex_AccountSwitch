@@ -1458,6 +1458,96 @@ body.add-account-modal-open .shell {
   display: block;
 }
 
+.webdav-password-row {
+  margin-top: 10px;
+  align-items: center;
+}
+
+.webdav-password-state {
+  margin: 0;
+}
+
+.webdav-status-card {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.webdav-status-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.webdav-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.webdav-conflict-list {
+  display: grid;
+  gap: 12px;
+  max-height: min(52vh, 520px);
+  overflow: auto;
+}
+
+.webdav-conflict-item {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px;
+  background: var(--surface-soft);
+  display: grid;
+  gap: 10px;
+}
+
+.webdav-conflict-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  font-weight: 700;
+}
+
+.webdav-conflict-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.webdav-conflict-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.webdav-choice {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all var(--motion-fast) var(--ease-standard);
+}
+
+.webdav-choice.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
+}
+
+.webdav-choice-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.webdav-choice-note {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .proxy-config {
   border: none;
   border-radius: 0;
