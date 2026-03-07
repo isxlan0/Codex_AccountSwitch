@@ -1,8 +1,8 @@
-name: Windows Build
+name: Windows CI
 
 on:
   push:
-    branches:
+    branches-ignore:
       - main
   pull_request:
   workflow_dispatch:

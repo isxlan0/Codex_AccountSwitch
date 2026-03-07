@@ -1,0 +1,215 @@
+name: Windows Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  detect-version:
+    runs-on: windows-latest
+    outputs:
+      app_version: ${{ steps.version.outputs.app_version }}
+      tag_name: ${{ steps.version.outputs.tag_name }}
+      should_release: ${{ steps.check.outputs.should_release }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse app version
+        id: version
+        shell: powershell
+        run: |
+          $content = Get-Content -Raw 'Codex_AccountSwitch\app_version.h'
+          $major = [regex]::Match($content, '#define\s+APP_VERSION_MAJOR\s+(?<v>\d+)')
+          $minor = [regex]::Match($content, '#define\s+APP_VERSION_MINOR\s+(?<v>\d+)')
+          $patch = [regex]::Match($content, '#define\s+APP_VERSION_PATCH\s+(?<v>\d+)')
+          if (-not ($major.Success -and $minor.Success -and $patch.Success)) {
+            throw 'Failed to parse APP_VERSION_MAJOR/MINOR/PATCH from app_version.h'
+          }
+
+          $version = "$($major.Groups['v'].Value).$($minor.Groups['v'].Value).$($patch.Groups['v'].Value)"
+          "app_version=$version" >> $env:GITHUB_OUTPUT
+          "tag_name=v$version" >> $env:GITHUB_OUTPUT
+
+      - name: Check release existence
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tagName = '${{ steps.version.outputs.tag_name }}';
+            let shouldRelease = true;
+
+            try {
+              const latest = await github.rest.repos.getLatestRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+              });
+              if (latest.data.tag_name === tagName) {
+                shouldRelease = false;
+              }
+            } catch (error) {
+              if (error.status !== 404) {
+                core.warning(`Failed to read latest release: ${error.message}`);
+              }
+            }
+
+            if (shouldRelease) {
+              try {
+                await github.rest.repos.getReleaseByTag({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag: tagName,
+                });
+                shouldRelease = false;
+              } catch (error) {
+                if (error.status !== 404) {
+                  core.warning(`Failed to check release by tag: ${error.message}`);
+                }
+              }
+            }
+
+            core.setOutput('should_release', shouldRelease ? 'true' : 'false');
+
+      - name: Report decision
+        shell: powershell
+        run: |
+          if ('${{ steps.check.outputs.should_release }}' -eq 'true') {
+            Write-Host "Release required for ${{ steps.version.outputs.tag_name }}"
+          } else {
+            Write-Host "Release already exists for ${{ steps.version.outputs.tag_name }}; skipping publish jobs."
+          }
+
+  build-release:
+    needs: detect-version
+    if: needs.detect-version.outputs.should_release == 'true'
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch_label: x64
+            msbuild_platform: x64
+            package_arch: x64
+          - arch_label: x86
+            msbuild_platform: Win32
+            package_arch: x86
+          - arch_label: ARM
+            msbuild_platform: ARM64
+            package_arch: arm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore Codex_AccountSwitch\Codex_AccountSwitch.vcxproj -PackagesDirectory packages
+
+      - name: Build Release (${{ matrix.arch_label }})
+        run: msbuild Codex_AccountSwitch\Codex_AccountSwitch.vcxproj /p:Configuration=Release /p:Platform=${{ matrix.msbuild_platform }} /p:PlatformToolset=v143 /m
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup -y --no-progress
+          }
+
+      - name: Build installer
+        shell: powershell
+        run: .\installer\build_installer.ps1 -IsccPath "iscc" -TargetPlatform "windows" -TargetArchitecture "${{ matrix.package_arch }}"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Codex_AccountSwitch_Setup_windows_${{ matrix.package_arch }}
+          path: dist\Codex_AccountSwitch_Setup_windows_${{ matrix.package_arch }}_*.exe
+          if-no-files-found: error
+
+      - name: Upload portable artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Codex_AccountSwitch_Portable_windows_${{ matrix.package_arch }}
+          path: dist\Codex_AccountSwitch_Portable_windows_${{ matrix.package_arch }}_*.zip
+          if-no-files-found: error
+
+  create-release:
+    needs:
+      - detect-version
+      - build-release
+    if: needs.detect-version.outputs.should_release == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: Codex_AccountSwitch_*
+          merge-multiple: true
+
+      - name: Generate release notes
+        shell: powershell
+        run: |
+          .\tools\get_release_notes.ps1 -Version '${{ needs.detect-version.outputs.app_version }}' -OutputPath "$env:RUNNER_TEMP\release_notes.md" | Write-Host
+
+      - name: Create or update GitHub release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
+            throw 'GitHub CLI (gh) is not available on this runner.'
+          }
+
+          $tag = '${{ needs.detect-version.outputs.tag_name }}'
+          $title = "Codex_AccountSwitch $tag"
+          $notesPath = Join-Path $env:RUNNER_TEMP 'release_notes.md'
+          $assetFiles = Get-ChildItem -Path 'dist' -Recurse -File | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object { $_.FullName }
+          if ($assetFiles.Count -eq 0) {
+            throw 'No release assets found under dist.'
+          }
+
+          $releaseJson = gh release view $tag --json body,name,tagName 2>$null
+          $releaseJsonText = ($releaseJson | Out-String).Trim()
+          if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($releaseJsonText)) {
+            $release = $releaseJsonText | ConvertFrom-Json
+            $hasPlaceholderBody = -not [string]::IsNullOrWhiteSpace($release.body) -and $release.body.Trim().StartsWith("Release $tag")
+            $shouldRefreshBody = [string]::IsNullOrWhiteSpace($release.body) -or $hasPlaceholderBody
+
+            if ($shouldRefreshBody) {
+              & gh release edit $tag --title $title --notes-file $notesPath
+              if ($LASTEXITCODE -ne 0) {
+                throw "Failed to update release notes for $tag"
+              }
+            }
+
+            & gh release upload $tag $assetFiles --clobber
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to upload release assets for $tag"
+            }
+          } else {
+            & gh release create $tag $assetFiles --title $title --notes-file $notesPath --target $env:GITHUB_SHA
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to create release $tag"
+            }
+          }
