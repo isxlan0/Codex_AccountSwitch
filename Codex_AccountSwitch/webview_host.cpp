@@ -942,6 +942,313 @@ namespace
     return false;
   }
 
+  struct AuthJsonCompatFields
+  {
+    std::wstring authMode;
+    std::wstring idToken;
+    std::wstring accessToken;
+    std::wstring refreshToken;
+    std::wstring accountId;
+  };
+
+  std::wstring BuildJsonStringLiteral(const std::wstring &value)
+  {
+    return L"\"" + EscapeJsonString(value) + L"\"";
+  }
+
+  size_t FindTopLevelJsonObjectStart(const std::wstring &json)
+  {
+    for (size_t i = 0; i < json.size(); ++i)
+    {
+      if (!iswspace(json[i]))
+      {
+        return json[i] == L'{' ? i : std::wstring::npos;
+      }
+    }
+    return std::wstring::npos;
+  }
+
+  size_t FindTopLevelJsonObjectClose(const std::wstring &json)
+  {
+    const size_t start = FindTopLevelJsonObjectStart(json);
+    if (start == std::wstring::npos)
+    {
+      return std::wstring::npos;
+    }
+
+    int depth = 0;
+    bool inString = false;
+    bool escape = false;
+    for (size_t i = start; i < json.size(); ++i)
+    {
+      const wchar_t ch = json[i];
+      if (inString)
+      {
+        if (escape)
+        {
+          escape = false;
+        }
+        else if (ch == L'\\')
+        {
+          escape = true;
+        }
+        else if (ch == L'"')
+        {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch == L'"')
+      {
+        inString = true;
+        continue;
+      }
+      if (ch == L'{')
+      {
+        ++depth;
+        continue;
+      }
+      if (ch == L'}')
+      {
+        --depth;
+        if (depth == 0)
+        {
+          return i;
+        }
+      }
+    }
+    return std::wstring::npos;
+  }
+
+  bool JsonContainsTopLevelField(const std::wstring &json, const std::wstring &key)
+  {
+    const size_t start = FindTopLevelJsonObjectStart(json);
+    if (start == std::wstring::npos)
+    {
+      return false;
+    }
+
+    int depth = 0;
+    bool inString = false;
+    bool escape = false;
+    for (size_t i = start; i < json.size(); ++i)
+    {
+      const wchar_t ch = json[i];
+      if (inString)
+      {
+        if (escape)
+        {
+          escape = false;
+        }
+        else if (ch == L'\\')
+        {
+          escape = true;
+        }
+        else if (ch == L'"')
+        {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (ch == L'"')
+      {
+        size_t end = i + 1;
+        bool stringEscape = false;
+        for (; end < json.size(); ++end)
+        {
+          const wchar_t current = json[end];
+          if (stringEscape)
+          {
+            stringEscape = false;
+            continue;
+          }
+          if (current == L'\\')
+          {
+            stringEscape = true;
+            continue;
+          }
+          if (current == L'"')
+          {
+            break;
+          }
+        }
+        if (end >= json.size())
+        {
+          return false;
+        }
+
+        const std::wstring candidate = json.substr(i + 1, end - i - 1);
+        size_t cursor = end + 1;
+        while (cursor < json.size() && iswspace(json[cursor]))
+        {
+          ++cursor;
+        }
+        if (depth == 1 && candidate == key && cursor < json.size() &&
+            json[cursor] == L':')
+        {
+          return true;
+        }
+        i = end;
+        continue;
+      }
+      if (ch == L'{')
+      {
+        ++depth;
+        continue;
+      }
+      if (ch == L'}')
+      {
+        --depth;
+        if (depth <= 0)
+        {
+          break;
+        }
+      }
+    }
+    return false;
+  }
+
+  std::wstring ExtractCompatibleAuthField(const std::wstring &json,
+                                          const std::wstring &key)
+  {
+    std::wstring tokensObject;
+    if (ExtractJsonObjectField(json, L"tokens", tokensObject))
+    {
+      const std::wstring valueFromTokens = ExtractJsonField(tokensObject, key);
+      if (!valueFromTokens.empty())
+      {
+        return valueFromTokens;
+      }
+    }
+    return ExtractJsonField(json, key);
+  }
+
+  AuthJsonCompatFields ExtractAuthJsonCompatFields(const std::wstring &json)
+  {
+    AuthJsonCompatFields out;
+    out.authMode = ExtractJsonField(json, L"auth_mode");
+    out.idToken = ExtractCompatibleAuthField(json, L"id_token");
+    out.accessToken = ExtractCompatibleAuthField(json, L"access_token");
+    out.refreshToken = ExtractCompatibleAuthField(json, L"refresh_token");
+    out.accountId = ExtractCompatibleAuthField(json, L"account_id");
+    return out;
+  }
+
+  std::wstring BuildTokensObjectLiteral(const AuthJsonCompatFields &fields)
+  {
+    std::wstring out = L"{";
+    bool first = true;
+    auto appendStringField = [&](const std::wstring &key,
+                                 const std::wstring &value)
+    {
+      if (value.empty())
+      {
+        return;
+      }
+      if (!first)
+      {
+        out += L", ";
+      }
+      out += L"\"" + key + L"\": " + BuildJsonStringLiteral(value);
+      first = false;
+    };
+    appendStringField(L"id_token", fields.idToken);
+    appendStringField(L"access_token", fields.accessToken);
+    appendStringField(L"refresh_token", fields.refreshToken);
+    appendStringField(L"account_id", fields.accountId);
+    out += L"}";
+    return first ? L"" : out;
+  }
+
+  bool AppendTopLevelJsonFieldIfMissing(std::wstring &json, const std::wstring &key,
+                                        const std::wstring &rawValue)
+  {
+    if (rawValue.empty() || JsonContainsTopLevelField(json, key))
+    {
+      return false;
+    }
+
+    const size_t start = FindTopLevelJsonObjectStart(json);
+    const size_t close = FindTopLevelJsonObjectClose(json);
+    if (start == std::wstring::npos || close == std::wstring::npos || close <= start)
+    {
+      return false;
+    }
+
+    size_t insertPos = close;
+    while (insertPos > start + 1 && iswspace(json[insertPos - 1]))
+    {
+      --insertPos;
+    }
+
+    bool hasMembers = false;
+    for (size_t i = start + 1; i < close; ++i)
+    {
+      if (!iswspace(json[i]))
+      {
+        hasMembers = true;
+        break;
+      }
+    }
+
+    std::wstring fragment = hasMembers ? L",\n  " : L"\n  ";
+    fragment += L"\"" + key + L"\": " + rawValue;
+    json.insert(insertPos, fragment);
+    return true;
+  }
+
+  bool NormalizeAuthJsonForCompatibility(const std::wstring &input,
+                                         std::wstring &output)
+  {
+    output = input;
+    const size_t start = FindTopLevelJsonObjectStart(output);
+    const size_t close = FindTopLevelJsonObjectClose(output);
+    if (start == std::wstring::npos || close == std::wstring::npos)
+    {
+      return false;
+    }
+
+    const AuthJsonCompatFields fields = ExtractAuthJsonCompatFields(output);
+    bool changed = false;
+    if (!JsonContainsTopLevelField(output, L"auth_mode"))
+    {
+      changed |= AppendTopLevelJsonFieldIfMissing(
+          output, L"auth_mode",
+          BuildJsonStringLiteral(fields.authMode.empty() ? L"chatgpt" : fields.authMode));
+    }
+    changed |= AppendTopLevelJsonFieldIfMissing(output, L"OPENAI_API_KEY", L"null");
+
+    const std::wstring tokensObject = BuildTokensObjectLiteral(fields);
+    if (!tokensObject.empty())
+    {
+      changed |= AppendTopLevelJsonFieldIfMissing(output, L"tokens", tokensObject);
+    }
+
+    if (!fields.idToken.empty())
+    {
+      changed |= AppendTopLevelJsonFieldIfMissing(
+          output, L"id_token", BuildJsonStringLiteral(fields.idToken));
+    }
+    if (!fields.accessToken.empty())
+    {
+      changed |= AppendTopLevelJsonFieldIfMissing(
+          output, L"access_token", BuildJsonStringLiteral(fields.accessToken));
+    }
+    if (!fields.refreshToken.empty())
+    {
+      changed |= AppendTopLevelJsonFieldIfMissing(
+          output, L"refresh_token", BuildJsonStringLiteral(fields.refreshToken));
+    }
+    if (!fields.accountId.empty())
+    {
+      changed |= AppendTopLevelJsonFieldIfMissing(
+          output, L"account_id", BuildJsonStringLiteral(fields.accountId));
+    }
+    return changed;
+  }
+
   std::vector<std::wstring>
   ExtractTopLevelObjectsFromArray(const std::wstring &arrayText)
   {
@@ -1424,15 +1731,16 @@ namespace
     {
       return false;
     }
-    accessToken = ExtractJsonField(authJson, L"access_token");
-    accountId = ExtractJsonField(authJson, L"account_id");
+    const AuthJsonCompatFields fields = ExtractAuthJsonCompatFields(authJson);
+    accessToken = fields.accessToken;
+    accountId = fields.accountId;
     if (accessToken.empty())
     {
       DebugLogLine(L"usage.query", L"access_token missing in auth.json");
     }
     if (accountId.empty())
     {
-      const std::wstring idToken = ExtractJsonField(authJson, L"id_token");
+      const std::wstring idToken = fields.idToken;
       const std::wstring payload = ParseJwtPayload(idToken);
       if (!payload.empty())
       {
@@ -4456,6 +4764,11 @@ namespace
       error = L"read_auth_failed";
       return false;
     }
+    std::wstring normalized;
+    if (NormalizeAuthJsonForCompatibility(content, normalized))
+    {
+      content = normalized;
+    }
     entry.updatedAt = FormatFileTime(path);
     entry.size = static_cast<long long>(WideToUtf8(content).size());
     entry.sha256 = Sha256Base64Url(WideToUtf8(content));
@@ -4656,7 +4969,9 @@ namespace
       error = L"create_dir_failed";
       return false;
     }
-    if (!WriteUtf8File(targetAuth, content))
+    std::wstring normalizedContent = content;
+    NormalizeAuthJsonForCompatibility(content, normalizedContent);
+    if (!WriteUtf8File(targetAuth, normalizedContent))
     {
       error = L"write_failed";
       return false;
@@ -5120,9 +5435,16 @@ namespace
       return false;
     }
 
-    fs::copy_file(userAuth, backupDir / L"auth.json",
-                  fs::copy_options::overwrite_existing, ec);
-    if (ec)
+    std::wstring authJson;
+    if (!ReadUtf8File(userAuth, authJson))
+    {
+      status = L"保存失败：无法读取当前账号文件";
+      code = L"write_failed";
+      return false;
+    }
+    std::wstring normalizedAuthJson = authJson;
+    NormalizeAuthJsonForCompatibility(authJson, normalizedAuthJson);
+    if (!WriteUtf8File(backupDir / L"auth.json", normalizedAuthJson))
     {
       status = L"保存失败：无法写入备份文件";
       code = L"write_failed";
@@ -5214,8 +5536,16 @@ namespace
     std::error_code ec;
     fs::create_directories(fs::path(userAuth).parent_path(), ec);
     ec.clear();
-    fs::copy_file(source, userAuth, fs::copy_options::overwrite_existing, ec);
-    if (ec)
+    std::wstring sourceAuthJson;
+    if (!ReadUtf8File(source, sourceAuthJson))
+    {
+      status = L"切换失败：无法读取备份账号文件";
+      code = L"write_failed";
+      return false;
+    }
+    std::wstring normalizedSourceAuthJson = sourceAuthJson;
+    NormalizeAuthJsonForCompatibility(sourceAuthJson, normalizedSourceAuthJson);
+    if (!WriteUtf8File(userAuth, normalizedSourceAuthJson))
     {
       status = L"切换失败：无法写入当前账号文件";
       code = L"write_failed";
@@ -5402,13 +5732,13 @@ namespace
 
   bool IsLikelyValidAuthJson(const std::wstring &json)
   {
-    if (!JsonContainsField(json, L"id_token") ||
-        !JsonContainsField(json, L"access_token"))
+    const AuthJsonCompatFields fields = ExtractAuthJsonCompatFields(json);
+    if (fields.idToken.empty() || fields.accessToken.empty())
     {
       return false;
     }
 
-    const std::wstring authMode = ExtractJsonField(json, L"auth_mode");
+    const std::wstring authMode = fields.authMode;
     return authMode.empty() || _wcsicmp(authMode.c_str(), L"chatgpt") == 0;
   }
 
@@ -5586,6 +5916,8 @@ namespace
       code = L"auth_json_invalid";
       return false;
     }
+    std::wstring normalizedJson = json;
+    NormalizeAuthJsonForCompatibility(json, normalizedJson);
 
     EnsureIndexExists();
     IndexData idx;
@@ -5635,9 +5967,7 @@ namespace
       return false;
     }
 
-    fs::copy_file(fs::path(jsonPath), backupDir / L"auth.json",
-                  fs::copy_options::overwrite_existing, ec);
-    if (ec)
+    if (!WriteUtf8File(backupDir / L"auth.json", normalizedJson))
     {
       status = L"导入失败：无法写入备份文件";
       code = L"write_failed";
@@ -5792,7 +6122,9 @@ namespace
                              std::wstring &code, const bool queryUsage)
   {
     savedName.clear();
-    if (!IsLikelyValidAuthJson(jsonContent))
+    std::wstring normalizedJsonContent = jsonContent;
+    NormalizeAuthJsonForCompatibility(jsonContent, normalizedJsonContent);
+    if (!IsLikelyValidAuthJson(normalizedJsonContent))
     {
       status = L"令牌数据无效：缺少必要字段 (id_token, access_token)";
       code = L"invalid_token_data";
@@ -5801,7 +6133,7 @@ namespace
 
     const std::wstring tempPath =
         fs::temp_directory_path() / L"codex_temp_import.json";
-    if (!WriteUtf8File(tempPath, jsonContent))
+    if (!WriteUtf8File(tempPath, normalizedJsonContent))
     {
       status = L"无法写入临时文件";
       code = L"write_failed";
@@ -5821,7 +6153,8 @@ namespace
     }
     if (baseName.empty())
     {
-      const std::wstring idToken = ExtractJsonField(jsonContent, L"id_token");
+      const std::wstring idToken =
+          ExtractCompatibleAuthField(normalizedJsonContent, L"id_token");
       if (!idToken.empty())
       {
         baseName = L"imported_oauth";
@@ -6778,6 +7111,17 @@ namespace
              L"%Y-%m-%dT%H:%M:%SZ", &tmExpired);
 
     std::wstring authJson = L"{\n";
+    authJson += L"  \"auth_mode\": \"chatgpt\",\n";
+    authJson += L"  \"OPENAI_API_KEY\": null,\n";
+    authJson += L"  \"tokens\": {\n";
+    authJson += L"    \"id_token\": \"" + EscapeJsonString(idToken) + L"\",\n";
+    authJson +=
+        L"    \"access_token\": \"" + EscapeJsonString(accessToken) + L"\",\n";
+    authJson +=
+        L"    \"refresh_token\": \"" + EscapeJsonString(refreshToken) + L"\",\n";
+    authJson +=
+        L"    \"account_id\": \"" + EscapeJsonString(accountId) + L"\"\n";
+    authJson += L"  },\n";
     authJson += L"  \"id_token\": \"" + EscapeJsonString(idToken) + L"\",\n";
     authJson +=
         L"  \"access_token\": \"" + EscapeJsonString(accessToken) + L"\",\n";
@@ -6787,8 +7131,7 @@ namespace
     authJson += L"  \"last_refresh\": \"" + std::wstring(timeBuf) + L"\",\n";
     authJson += L"  \"email\": \"" + EscapeJsonString(email) + L"\",\n";
     authJson += L"  \"type\": \"codex\",\n";
-    authJson += L"  \"expired\": \"" + std::wstring(expiredBuf) + L"\",\n";
-    authJson += L"  \"auth_mode\": \"chatgpt\"\n";
+    authJson += L"  \"expired\": \"" + std::wstring(expiredBuf) + L"\"\n";
     authJson += L"}";
 
     std::wstring detectedGroup = L"personal";

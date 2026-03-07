@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.3.5
+### 修复
+- 修复正常使用OA授权拿到OAuth数据后，切换账号因为数据没有补齐导致Codex客户端认为没有登录的问题 #1
+
+- Fixed an issue where, after obtaining OAuth data through normal OA authorization, switching accounts would cause the Codex client to believe the user was not logged in due to incomplete data. #1
+---
+
 ## v1.3.4
 
 ### 新增
