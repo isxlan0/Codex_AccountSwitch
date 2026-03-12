@@ -1,134 +1,134 @@
 <h1 align="center"><b>Codex Account Switch</b></h1>
 
 <p align="center">
-  <b>本地优先、多账号、可视化的 Codex 账号管理工具</b><br/>
-  基于 <code>C++ / Win32 / WebView2</code> 构建，强调稳定与效率。
+  <b>Local-first, multi-account, visual manager for Codex accounts</b><br/>
+  Built with <code>C++ / Win32 / WebView2</code> for stability and speed.
 </p>
 
 <p align="center">
-  <a href="./README_EN.md"><b>English README</b></a>
+  <a href="./README_CN.md"><b>简体中文 README</b></a>
 </p>
 
-## 核心功能
+## Core Features
 
-- 账号备份 / 切换 / 删除 / 重命名一体化管理
-- 支持批量操作（批量刷新、批量删除）
-- 支持导入/导出账号备份（ZIP）
-- 支持导入当前登录账号、手动粘贴 Token、OAuth 文件快速导入
-- 内置 OAuth 登录流程（含回调监听与手动粘贴回调链接）
-- 配额看板与自动刷新（5H / 7D）、低额度提醒与切换提示
-- API 反代服务（端口、超时、LAN、API Key、调度模式）
-- 流量日志与 Token 统计页面
-- 多语言与主题（自动 / 浅色 / 深色）
+- Unified workflow for backup / switch / delete / rename accounts
+- Batch actions (batch refresh, batch delete)
+- Import/export backup bundles (ZIP)
+- Import current login, manual token paste, and quick OAuth file import
+- Built-in OAuth login flow (callback listener + manual callback URL submit)
+- Quota dashboard, auto-refresh (5H / 7D), low-quota alerts and switch prompts
+- API proxy service (port, timeout, LAN access, API key, dispatch strategy)
+- Traffic logs and token statistics pages
+- Multi-language UI and themes (Auto / Light / Dark)
 
-## Codex客户端本地API代理 实现无感换号效果
-- APi反代-启动服务
-- APi反代-Codex客户端使用本地反代模式
-- 即可实现无需重启切换账号使用
-- 设置-账号-低额度自动提示切换账号 开启后额度不够时自动换号进行继续开发工作
+## Codex Client Local API Proxy for Seamless Number Switching
+- API Reverse Proxy - Start Service
+- API Reverse Proxy - Codex Client Uses Local Reverse Proxy Mode
+- Enables seamless account switching without restarting
+- Settings - Account - Automatic Account Switching Prompt for Low Credit Limit. Enabling this feature allows for automatic number switching to continue development work when credit limits are insufficient.
 
-## 界面预览
+## UI Preview
 
-### 1. 仪表盘（浅色）
+### 1. Dashboard (Light)
 <p align="center">
-  <img src="./image/cn/1.png" alt="仪表盘" width="75%" />
+  <img src="./image/en/1.png" alt="Dashboard" width="75%" />
 </p>
 
-### 1B. 仪表盘（深色）
+### 1B. Dashboard (Dark)
 <p align="center">
-  <img src="./image/cn/1_b.png" alt="仪表盘_b" width="75%" />
+  <img src="./image/en/1_b.png" alt="Dashboard_b" width="75%" />
 </p>
 
-### 2. 账号管理
+### 2. Accounts
 <p align="center">
-  <img src="./image/cn/2.png" alt="账号管理" width="75%" />
+  <img src="./image/en/2.png" alt="Accounts" width="75%" />
 </p>
 
-### 3. API 反代
+### 3. API Proxy
 <p align="center">
-  <img src="./image/cn/3.png" alt="API 反代" width="75%" />
+  <img src="./image/en/3.png" alt="API Proxy" width="75%" />
 </p>
 
-### 4. 流量日志
+### 4. Traffic Logs
 <p align="center">
-  <img src="./image/cn/4.png" alt="流量日志" width="75%" />
+  <img src="./image/en/4.png" alt="Traffic Logs" width="75%" />
 </p>
 
-### 5. Token 统计
+### 5. Token Stats
 <p align="center">
-  <img src="./image/cn/5.png" alt="Token 统计" width="75%" />
+  <img src="./image/en/5.png" alt="Token Stats" width="75%" />
 </p>
 
-### 6. 关于
+### 6. About
 <p align="center">
-  <img src="./image/cn/6.png" alt="关于" width="75%" />
+  <img src="./image/en/6.png" alt="About" width="75%" />
 </p>
 
-### 7. 设置
+### 7. Settings
 <p align="center">
-  <img src="./image/cn/7.png" alt="设置" width="75%" />
+  <img src="./image/en/7.png" alt="Settings" width="75%" />
 </p>
 
-## 技术架构
+## Technical Architecture
 
-- 原生层：`C++ / Win32 / WebView2`
-- 前端层：`HTML + CSS + JavaScript`
-- 通信方式：WebView `postMessage` + Host Action 路由
-- 数据存储：本地 JSON 文件（用户目录）
+- Native layer: `C++ / Win32 / WebView2`
+- Frontend layer: `HTML + CSS + JavaScript`
+- Bridge: WebView `postMessage` + host action routing
+- Storage: local JSON files under user profile path
 
-主要目录：
+Main folders:
 
-- `Codex_AccountSwitch/`：核心 C++ 源码
-- `webui/`：前端界面资源
-- `installer/`：安装包脚本
-- `image/`：README 演示图片
+- `Codex_AccountSwitch/`: core C++ source
+- `webui/`: frontend assets
+- `installer/`: installer scripts
+- `image/`: README screenshots
 
-## 数据目录
+## Data Directory
 
-运行时数据默认写入：
+Runtime data is stored in:
 
 - `%LOCALAPPDATA%\Codex Account Switch\config.json`
 - `%LOCALAPPDATA%\Codex Account Switch\backups\index.json`
 - `%LOCALAPPDATA%\Codex Account Switch\backups\...`
 
-## 安装指南
+## Installation Guide
 
-### 运行环境
+### Requirements
 
-- Windows 10/11 (x64/x86/ARM64 目标构建已支持)
+- Windows 10/11 (x64/x86/ARM64 target build supported)
 - WebView2 Runtime
 
-### 编译
+### Build
 
-1. 打开解决方案：`Codex_AccountSwitch.slnx`
-2. 选择其一：`Release | x64`、`Release | x86`、`Release | ARM64`
-3. 编译产物：
+1. Open solution: `Codex_AccountSwitch.slnx`
+2. Select one of: `Release | x64`, `Release | x86`, `Release | ARM64`
+3. Build outputs:
    - `Release/x64/Codex_AccountSwitch.exe`
    - `Release/x86/Codex_AccountSwitch.exe`
    - `Release/ARM/Codex_AccountSwitch.exe`
 
-### 打包安装程序
+### Build Installer
 
-- `installer/build_installer.bat`（推荐）
+- `installer/build_installer.bat` (recommended)
 - `installer/build_installer.ps1`
 
-输出目录：`dist/`
+Output folder: `dist/`
 
-## 致谢
+## Acknowledgements
 
-- 感谢 `Microsoft Edge WebView2` 团队提供稳定高性能的嵌入式 Web 运行时。
-- 感谢所有参与测试、反馈问题和提出建议的用户与开发者。
-- 感谢 [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 分享 Codex 请求与 OAuth 获取相关实现思路。
-- 感谢 [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) 分享 UI 与功能设计思路。
+- Thanks to the `Microsoft Edge WebView2` team for a stable, high-performance embedded web runtime.
+- Thanks to all users and contributors for testing, bug reports, and feedback.
+- Thanks to [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) for shared implementation ideas around Codex requests and OAuth retrieval.
+- Thanks to [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) for shared UI and interaction design ideas.
 
-## 贡献者
+## Contributors
 
 - [isxlan0](https://github.com/isxlan0)
 
-## 许可证
+## License
 
-本项目采用 `MIT License`，详见 `LICENSE`。
+Licensed under the `MIT License`. See `LICENSE`.
 
-## 安全说明
+## Security Notice
 
-所有账号数据默认仅保存在本地。除非你主动导出或分享，数据不会离开你的设备。
+All account data is stored locally by default. Data never leaves your device unless you explicitly export or share it.
