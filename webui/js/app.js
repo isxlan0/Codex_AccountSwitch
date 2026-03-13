@@ -30,6 +30,7 @@
     "toolbar.import_auth": "Add Account",
     "toolbar.import": "Import Backup",
     "toolbar.export": "Export Backup",
+    "toolbar.clean_abnormal": "Clean Abnormal",
     "refresh.disabled": "Disabled",
     "refresh.countdown_prefix": "Next refresh in ",
     "refresh.countdown_suffix": "",
@@ -269,6 +270,8 @@
     "dialog.confirm.default_message": "Confirm this action?",
     "dialog.delete.title": "Delete Account",
     "dialog.delete.message": "Delete backup for {name}?",
+    "clean_abnormal.confirm": "Delete {count} abnormal accounts?",
+    "clean_abnormal.empty": "No abnormal accounts",
     "dialog.login_new.title": "Login New Account",
     "dialog.login_new.message": "Clear current login files and restart {ide}?",
     "accounts.empty": "No account backups",
@@ -534,6 +537,8 @@
     "dialog.confirm.default_message": "确认执行此操作吗？",
     "dialog.delete.title": "删除账号",
     "dialog.delete.message": "确认删除账号备份 {name} 吗？",
+    "clean_abnormal.confirm": "是否删除 {count} 个异常账号？",
+    "clean_abnormal.empty": "当前没有异常账号",
     "dialog.login_new.title": "登录新账号",
     "dialog.login_new.message": "将清理当前登录文件并重启 {ide}，是否继续？",
     "accounts.empty": "暂无账号备份",
@@ -604,6 +609,7 @@
     "toolbar.import_auth": "添加账号",
     "toolbar.import": "导入备份",
     "toolbar.export": "导出备份",
+    "toolbar.clean_abnormal": "一键清理失效账号",
     "settings.refresh_minutes_label": "间隔（分钟）",
     "settings.enable_auto_refresh_quota_label": "开启自动刷新额度",
     "settings.enable_auto_refresh_quota_hint": "开启后，导入账号时会自动刷新账号类型和额度。",
@@ -888,6 +894,7 @@
     refreshBtn: document.getElementById("refreshBtn"),
     importBtn: document.getElementById("importBtn"),
     exportBtn: document.getElementById("exportBtn"),
+    cleanAbnormalBtn: document.getElementById("cleanAbnormalBtn"),
     searchInput: document.getElementById("searchInput"),
     groupAllBtn: document.getElementById("groupAllBtn"),
     groupFreeBtn: document.getElementById("groupFreeBtn"),
@@ -1207,6 +1214,7 @@
     multiSelectMode: false,
     selectedAccountKeys: [],
     bulkMode: "",
+    cleanAbnormalBusy: false,
     renameTargetName: "",
     renameTargetGroup: "personal",
     refreshBusyTimer: null,
@@ -1441,16 +1449,19 @@
     if (dom.refreshBtn) dom.refreshBtn.classList.toggle("is-hidden", !(showOnDashboard || showOnAccounts));
     if (dom.importBtn) dom.importBtn.classList.toggle("is-hidden", !showOnAccounts);
     if (dom.exportBtn) dom.exportBtn.classList.toggle("is-hidden", !showOnAccounts);
+    if (dom.cleanAbnormalBtn) dom.cleanAbnormalBtn.classList.toggle("is-hidden", !(showOnDashboard || showOnAccounts));
     if (dom.toolbarActions) {
       const anyVisible = !dom.addCurrentBtn?.classList.contains("is-hidden")
         || !dom.refreshBtn?.classList.contains("is-hidden")
         || !dom.importBtn?.classList.contains("is-hidden")
-        || !dom.exportBtn?.classList.contains("is-hidden");
+        || !dom.exportBtn?.classList.contains("is-hidden")
+        || !dom.cleanAbnormalBtn?.classList.contains("is-hidden");
       dom.toolbarActions.classList.toggle("is-hidden", !anyVisible);
       document.body.classList.toggle("has-floating-toolbar-actions", anyVisible);
     } else {
       document.body.classList.remove("has-floating-toolbar-actions");
     }
+    renderCleanAbnormalButton();
   }
 
   function switchSettingsSubTab(tab) {
@@ -1818,6 +1829,7 @@
     dom.refreshBtn.textContent = "\ud83d\udd04 " + t("toolbar.refresh");
     dom.importBtn.textContent = "\ud83d\udce5 " + t("toolbar.import");
     dom.exportBtn.textContent = "\ud83d\udce4 " + t("toolbar.export");
+    dom.cleanAbnormalBtn.textContent = "\ud83e\uddf9 " + t("toolbar.clean_abnormal");
     dom.searchInput.placeholder = t("search.placeholder");
     dom.groupAllBtn.textContent = t("group.all");
     dom.groupFreeBtn.textContent = t("group.free");
@@ -2455,7 +2467,8 @@
 
     const isBusy = mode === "all" || mode === "account";
     const isImportBusy = !!state.importMode;
-    dom.refreshBtn.disabled = isBusy || isImportBusy;
+    const isBlocked = isImportBusy || state.cleanAbnormalBusy;
+    dom.refreshBtn.disabled = isBusy || isBlocked;
     dom.refreshBtn.classList.toggle("loading", mode === "all" || isImportBusy);
 
     if (isBusy) {
@@ -2488,9 +2501,27 @@
     return state.accounts.filter((item) => selectedSet.has(makeAccountKey(item.name, item.group)));
   }
 
+  function getAbnormalAccounts() {
+    const list = Array.isArray(state.accounts) ? state.accounts : [];
+    return list.filter((item) => item && item.abnormal);
+  }
+
+  function renderCleanAbnormalButton() {
+    if (!dom.cleanAbnormalBtn) return;
+    const busy = state.cleanAbnormalBusy;
+    const blocked = !!state.importMode
+      || !!state.refreshMode
+      || state.bulkMode === "refresh"
+      || state.bulkMode === "delete";
+    dom.cleanAbnormalBtn.textContent = "\ud83e\uddf9 " + t("toolbar.clean_abnormal");
+    dom.cleanAbnormalBtn.disabled = busy || blocked;
+    dom.cleanAbnormalBtn.classList.toggle("loading", busy);
+    dom.cleanAbnormalBtn.dataset.abnormalCount = String(getAbnormalAccounts().length);
+  }
+
   function renderBulkControls() {
     const selectedCount = state.selectedAccountKeys.length;
-    const busy = state.bulkMode === "refresh" || state.bulkMode === "delete";
+    const busy = state.bulkMode === "refresh" || state.bulkMode === "delete" || state.cleanAbnormalBusy;
     dom.bulkSelectedText.textContent = t("bulk.selected", { count: selectedCount });
     dom.multiSelectToggleBtn.textContent = state.multiSelectMode ? t("bulk.mode_on") : t("bulk.mode_off");
     dom.bulkRefreshBtn.textContent = t("bulk.refresh");
@@ -2510,6 +2541,7 @@
     dom.selectAllCheckbox.title = t("bulk.select_all");
     dom.selectAllCheckbox.style.visibility = state.multiSelectMode ? "visible" : "hidden";
     dom.bulkRow.classList.toggle("disabled", !state.multiSelectMode);
+    renderCleanAbnormalButton();
   }
 
   function setBulkBusy(mode = "") {
@@ -3676,6 +3708,23 @@
     });
     dom.importBtn.addEventListener("click", () => post("import_accounts"));
     dom.exportBtn.addEventListener("click", () => post("export_accounts"));
+    dom.cleanAbnormalBtn.addEventListener("click", () => {
+      if (state.cleanAbnormalBusy) return;
+      const targets = getAbnormalAccounts().map((x) => ({ account: x.name, group: x.group || "personal" }));
+      if (!targets.length) {
+        showToast(t("clean_abnormal.empty"), "warning");
+        return;
+      }
+      openConfirm({
+        title: t("dialog.confirm.title"),
+        message: t("clean_abnormal.confirm", { count: targets.length }),
+        onConfirm: () => {
+          state.cleanAbnormalBusy = true;
+          renderCleanAbnormalButton();
+          post("delete_accounts_batch", { items: targets });
+        }
+      });
+    });
     dom.checkUpdateBtn.addEventListener("click", () => requestUpdateCheck("manual"));
     dom.aboutRepoLink.addEventListener("click", (e) => {
       e.preventDefault();
@@ -3944,6 +3993,10 @@
         } else if (["batch_delete_done", "batch_delete_partial", "batch_delete_failed"].includes(String(msg.code || ""))) {
           if (state.bulkMode === "delete") {
             setBulkBusy("");
+          }
+          if (state.cleanAbnormalBusy) {
+            state.cleanAbnormalBusy = false;
+            renderCleanAbnormalButton();
           }
         } else if (
           state.refreshMode &&

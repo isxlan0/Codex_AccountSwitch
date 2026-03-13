@@ -635,6 +635,18 @@ body.has-floating-toolbar-actions .content {
   color: var(--danger);
 }
 
+#cleanAbnormalBtn {
+  background: var(--danger-soft-bg);
+  border-color: var(--danger-soft-border);
+  color: var(--danger);
+}
+
+#cleanAbnormalBtn:hover:not(:disabled) {
+  background: var(--danger-soft-hover-bg);
+  border-color: var(--danger-soft-hover-border);
+  color: var(--danger);
+}
+
 .search {
   min-width: 260px;
   flex: 1 1 320px;
