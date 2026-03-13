@@ -131,7 +131,6 @@ jobs:
 
   build-release:
     needs: detect-version
-    if: needs.detect-version.outputs.should_release == 'true' || needs.detect-version.outputs.has_build_changes == 'true'
     runs-on: windows-latest
     strategy:
       fail-fast: false
