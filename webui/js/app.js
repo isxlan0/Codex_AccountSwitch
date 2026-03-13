@@ -76,6 +76,8 @@
     "settings.enable_auto_refresh_quota_hint": "When enabled, importing accounts will auto-refresh plan type and quota.",
     "settings.auto_mark_abnormal_accounts_label": "Auto Mark Abnormal Accounts",
     "settings.auto_mark_abnormal_accounts_hint": "When enabled, token-invalid or unauthorized accounts are marked abnormal and skipped for auto retry.",
+    "settings.auto_delete_abnormal_accounts_label": "Auto Delete Abnormal Accounts",
+    "settings.auto_delete_abnormal_accounts_hint": "When enabled, abnormal accounts are automatically deleted.",
     "settings.auto_refresh_all_label": "Auto Refresh All Accounts",
     "settings.auto_refresh_all_hint": "Refresh all accounts every {minutes} minutes in background.",
     "settings.auto_refresh_current_label": "Auto Refresh Current Account",
@@ -85,6 +87,7 @@
     "settings.webdav_section": "WebDAV Sync",
     "settings.webdav_enabled_label": "Enable WebDAV Sync",
     "settings.webdav_enabled_hint": "Sync account auth backups with other devices through your WebDAV storage.",
+    "settings.webdav_warning": "Unless you fully trust the WebDAV provider, syncing may cause data leakage.",
     "settings.webdav_url_label": "WebDAV URL",
     "settings.webdav_url_hint": "Example: https://dav.example.com/remote.php/dav/files/username",
     "settings.webdav_remote_path_label": "Remote Folder",
@@ -106,6 +109,7 @@
     "settings.webdav_test": "Test Connection",
     "settings.webdav_upload": "Upload Now",
     "settings.webdav_download": "Download Now",
+    "settings.webdav_reset_upload": "Reset Cloud & Upload",
     "settings.webdav_sync": "Bidirectional Sync",
     "settings.webdav_running": "Sync in progress...",
     "settings.webdav_idle": "Ready",
@@ -321,9 +325,9 @@
     "status_code.account_renamed_and_refreshed": "Account renamed and quota refreshed",
     "status_code.auth_json_invalid": "This file may not be a valid auth.json (missing required fields)",
     "status_code.auth_json_imported": "OAuth imported",
-    "status_code.import_auth_batch_done": "Import succeeded {success}/{total}",
-    "status_code.import_auth_batch_partial": "Import partially succeeded {success}/{total}",
-    "status_code.import_auth_batch_failed": "Import failed {success}/{total}",
+    "status_code.import_auth_batch_done": "Import completed: success {success}, failed {failed}",
+    "status_code.import_auth_batch_partial": "Import partially succeeded: success {success}, failed {failed}",
+    "status_code.import_auth_batch_failed": "Import failed: success {success}, failed {failed}",
     "status_code.last_error_prefix": "Last error",
     "status_code.low_quota_notification": "Low quota detected. Click tray notification to confirm switch.",
     "status_code.switch_success": "Switched successfully, restarting {ide}",
@@ -378,6 +382,7 @@
     "status_code.quota_refresh_failed": "Quota refresh failed",
     "status_code.account_quota_refreshed": "Account quota refreshed",
     "status_code.account_abnormal_marked": "Account auth is invalidated and has been marked abnormal. Please sign in again.",
+    "status_code.account_abnormal_auto_deleted": "Abnormal account auto-deleted",
     "status_code.batch_refresh_done": "Batch quota refresh completed",
     "status_code.batch_delete_done": "Batch delete completed",
     "status_code.batch_delete_partial": "Batch delete partially completed",
@@ -487,9 +492,12 @@
     "settings.enable_auto_refresh_quota_hint": "开启后，导入账号时会自动刷新账号类型和额度。",
     "settings.auto_mark_abnormal_accounts_label": "自动标记异常账号",
     "settings.auto_mark_abnormal_accounts_hint": "开启后，遇到 token 失效或鉴权失败的账号会被标记为异常，并在自动重试时跳过。",
+    "settings.auto_delete_abnormal_accounts_label": "自动删除异常账号",
+    "settings.auto_delete_abnormal_accounts_hint": "开启后，异常账号会被自动删除。",
     "settings.webdav_section": "WebDAV 云同步",
     "settings.webdav_enabled_label": "启用 WebDAV 同步",
     "settings.webdav_enabled_hint": "通过 WebDAV 云存储在多台设备之间同步账号 auth 备份。",
+    "settings.webdav_warning": "除非您十分信任 WebDAV 地址提供商，否则同步可能导致数据泄露。",
     "settings.webdav_url_label": "WebDAV 地址",
     "settings.webdav_url_hint": "例如：https://dav.example.com/remote.php/dav/files/username",
     "settings.webdav_remote_path_label": "远端目录",
@@ -511,6 +519,7 @@
     "settings.webdav_test": "测试连接",
     "settings.webdav_upload": "立即上传",
     "settings.webdav_download": "立即下载",
+    "settings.webdav_reset_upload": "删除云端并同步最新",
     "settings.webdav_sync": "立即双向同步",
     "settings.webdav_running": "同步进行中...",
     "settings.webdav_idle": "已就绪",
@@ -581,6 +590,7 @@
     "status_code.quota_refresh_failed": "额度刷新失败",
     "status_code.account_quota_refreshed": "账号额度已刷新",
     "status_code.account_abnormal_marked": "账号认证已失效，已标记为异常，请重新登录",
+    "status_code.account_abnormal_auto_deleted": "异常账号已自动删除",
     "status_code.unknown_action": "未知操作",
     "update.failed": "检查更新失败，请稍后重试",
     "update.latest": "当前已是最新版本",
@@ -794,9 +804,9 @@
     "status_code.oauth_session_busy": "已有进行中的 OAuth 授权",
     "status_code.account_renamed": "账号已重命名",
     "status_code.account_renamed_and_refreshed": "账号已重命名并刷新额度",
-    "status_code.import_auth_batch_done": "导入成功 {success}/{total}",
-    "status_code.import_auth_batch_partial": "导入部分成功 {success}/{total}",
-    "status_code.import_auth_batch_failed": "导入失败 {success}/{total}",
+    "status_code.import_auth_batch_done": "导入完成：成功 {success}，失败 {failed}",
+    "status_code.import_auth_batch_partial": "导入部分成功：成功 {success}，失败 {failed}",
+    "status_code.import_auth_batch_failed": "导入失败：成功 {success}，失败 {failed}",
     "status_code.last_error_prefix": "最后错误",
     "status_code.switch_success": "切换成功，正在重启 {ide}",
     "status_code.delete_success": "删除成功",
@@ -945,6 +955,8 @@
     settingsDisableAutoRefreshQuotaHint: document.getElementById("settingsDisableAutoRefreshQuotaHint"),
     settingsAutoMarkAbnormalAccountsLabel: document.getElementById("settingsAutoMarkAbnormalAccountsLabel"),
     settingsAutoMarkAbnormalAccountsHint: document.getElementById("settingsAutoMarkAbnormalAccountsHint"),
+    settingsAutoDeleteAbnormalAccountsLabel: document.getElementById("settingsAutoDeleteAbnormalAccountsLabel"),
+    settingsAutoDeleteAbnormalAccountsHint: document.getElementById("settingsAutoDeleteAbnormalAccountsHint"),
     settingsAutoRefreshAllLabel: document.getElementById("settingsAutoRefreshAllLabel"),
     settingsAutoRefreshAllHint: document.getElementById("settingsAutoRefreshAllHint"),
     settingsAllRefreshCountdown: document.getElementById("settingsAllRefreshCountdown"),
@@ -959,6 +971,7 @@
     settingsLowQuotaPromptHint: document.getElementById("settingsLowQuotaPromptHint"),
     lowQuotaAutoPromptToggle: document.getElementById("lowQuotaAutoPromptToggle"),
     settingsWebDavSectionTitle: document.getElementById("settingsWebDavSectionTitle"),
+    settingsWebDavWarning: document.getElementById("settingsWebDavWarning"),
     settingsWebDavEnabledLabel: document.getElementById("settingsWebDavEnabledLabel"),
     settingsWebDavEnabledHint: document.getElementById("settingsWebDavEnabledHint"),
     webdavEnabledToggle: document.getElementById("webdavEnabledToggle"),
@@ -989,12 +1002,14 @@
     webdavTestBtn: document.getElementById("webdavTestBtn"),
     webdavUploadBtn: document.getElementById("webdavUploadBtn"),
     webdavDownloadBtn: document.getElementById("webdavDownloadBtn"),
+    webdavResetUploadBtn: document.getElementById("webdavResetUploadBtn"),
     webdavSyncBtn: document.getElementById("webdavSyncBtn"),
     languageOptions: document.getElementById("languageOptions"),
     ideOptions: document.getElementById("ideOptions"),
     autoUpdateToggle: document.getElementById("autoUpdateToggle"),
     disableAutoRefreshQuotaToggle: document.getElementById("disableAutoRefreshQuotaToggle"),
     autoMarkAbnormalAccountsToggle: document.getElementById("autoMarkAbnormalAccountsToggle"),
+    autoDeleteAbnormalAccountsToggle: document.getElementById("autoDeleteAbnormalAccountsToggle"),
     autoRefreshCurrentToggle: document.getElementById("autoRefreshCurrentToggle"),
     dashboardTitle: document.getElementById("dashboardTitle"),
     dashboardSubtitle: document.getElementById("dashboardSubtitle"),
@@ -1197,6 +1212,7 @@
     autoUpdate: true,
     enableAutoRefreshQuota: true,
     autoMarkAbnormalAccounts: true,
+    autoDeleteAbnormalAccounts: false,
     autoRefreshCurrent: true,
     lowQuotaAutoPrompt: true,
     autoRefreshAllMinutes: 15,
@@ -1379,6 +1395,9 @@
       state.i18n["settings.auto_mark_abnormal_accounts_label"] = "自动标记异常账号";
       state.i18n["settings.auto_mark_abnormal_accounts_hint"] = "开启后，遇到 token 失效或鉴权失败的账号会被标记为异常，并在自动重试时跳过。";
       state.i18n["status_code.account_abnormal_marked"] = "账号认证已失效，已标记为异常，请重新登录";
+      state.i18n["settings.auto_delete_abnormal_accounts_label"] = "自动删除异常账号";
+      state.i18n["settings.auto_delete_abnormal_accounts_hint"] = "开启后，异常账号会被自动删除。";
+      state.i18n["status_code.account_abnormal_auto_deleted"] = "异常账号已自动删除";
     }
     applyI18n();
     refreshSettingsOptions();
@@ -1798,6 +1817,7 @@
     dom.autoRefreshCurrentToggle.checked = state.autoRefreshCurrent;
     dom.disableAutoRefreshQuotaToggle.checked = state.enableAutoRefreshQuota;
     dom.autoMarkAbnormalAccountsToggle.checked = state.autoMarkAbnormalAccounts;
+    dom.autoDeleteAbnormalAccountsToggle.checked = state.autoDeleteAbnormalAccounts;
     dom.lowQuotaAutoPromptToggle.checked = state.lowQuotaAutoPrompt;
     dom.settingsAutoRefreshAllHint.textContent = t("settings.auto_refresh_all_hint", { minutes: state.autoRefreshAllMinutes });
     dom.settingsAutoRefreshCurrentHint.textContent = t("settings.auto_refresh_current_hint", { minutes: state.autoRefreshCurrentMinutes });
@@ -1870,6 +1890,8 @@
     dom.settingsDisableAutoRefreshQuotaHint.textContent = t("settings.enable_auto_refresh_quota_hint");
     dom.settingsAutoMarkAbnormalAccountsLabel.textContent = t("settings.auto_mark_abnormal_accounts_label");
     dom.settingsAutoMarkAbnormalAccountsHint.textContent = t("settings.auto_mark_abnormal_accounts_hint");
+    dom.settingsAutoDeleteAbnormalAccountsLabel.textContent = t("settings.auto_delete_abnormal_accounts_label");
+    dom.settingsAutoDeleteAbnormalAccountsHint.textContent = t("settings.auto_delete_abnormal_accounts_hint");
     dom.settingsAutoRefreshAllLabel.textContent = t("settings.auto_refresh_all_label");
     dom.settingsAutoRefreshAllHint.textContent = t("settings.auto_refresh_all_hint", { minutes: state.autoRefreshAllMinutes });
     dom.settingsAllMinutesLabel.textContent = t("settings.refresh_minutes_label");
@@ -1881,6 +1903,7 @@
     dom.autoRefreshAllMinutesInput.placeholder = t("settings.minutes_hint");
     dom.autoRefreshCurrentMinutesInput.placeholder = t("settings.minutes_hint");
     dom.settingsWebDavSectionTitle.textContent = t("settings.webdav_section");
+    dom.settingsWebDavWarning.textContent = t("settings.webdav_warning");
     dom.settingsWebDavEnabledLabel.textContent = t("settings.webdav_enabled_label");
     dom.settingsWebDavEnabledHint.textContent = t("settings.webdav_enabled_hint");
     dom.settingsWebDavUrlLabel.textContent = t("settings.webdav_url_label");
@@ -1899,6 +1922,7 @@
     dom.webdavTestBtn.textContent = t("settings.webdav_test");
     dom.webdavUploadBtn.textContent = t("settings.webdav_upload");
     dom.webdavDownloadBtn.textContent = t("settings.webdav_download");
+    dom.webdavResetUploadBtn.textContent = t("settings.webdav_reset_upload");
     dom.webdavSyncBtn.textContent = t("settings.webdav_sync");
     dom.webdavConflictTitle.textContent = t("dialog.webdav_conflict.title");
     dom.webdavConflictDesc.textContent = t("dialog.webdav_conflict.desc");
@@ -2403,18 +2427,32 @@
       if (["import_auth_batch_done", "import_auth_batch_partial", "import_auth_batch_failed"].includes(code)) {
         const successRaw = msg?.success;
         const totalRaw = msg?.total;
-        let success = Number.isFinite(Number(successRaw)) ? String(Number(successRaw)) : "";
-        let total = Number.isFinite(Number(totalRaw)) ? String(Number(totalRaw)) : "";
+        const failedRaw = msg?.failed;
+        const toNumber = (val) => {
+          const n = Number(val);
+          return Number.isFinite(n) ? n : null;
+        };
+        let successNum = toNumber(successRaw);
+        let totalNum = toNumber(totalRaw);
+        let failedNum = toNumber(failedRaw);
 
-        if (!success || !total) {
+        if (successNum === null || totalNum === null) {
           const raw = String(msg?.message || "");
           const countMatch = raw.match(/(\d+)\s*\/\s*(\d+)/);
-          success = success || (countMatch ? countMatch[1] : "0");
-          total = total || (countMatch ? countMatch[2] : "0");
+          if (countMatch) {
+            if (successNum === null) successNum = Number(countMatch[1]);
+            if (totalNum === null) totalNum = Number(countMatch[2]);
+          }
+        }
+        if (failedNum === null && successNum !== null && totalNum !== null) {
+          failedNum = Math.max(0, totalNum - successNum);
         }
 
+        const success = successNum === null ? "0" : String(successNum);
+        const total = totalNum === null ? "0" : String(totalNum);
+        const failed = failedNum === null ? "0" : String(failedNum);
         const lastError = String(msg?.lastError || "").trim();
-        const text = t(key, { success: success || "0", total: total || "0" });
+        const text = t(key, { success, failed, total });
         if (lastError && code !== "import_auth_batch_done") {
           return `${text} · ${t("status_code.last_error_prefix")}: ${lastError}`;
         }
@@ -2832,7 +2870,8 @@
     const disableSyncFields = !state.webdavEnabled;
     [dom.webdavUrlInput, dom.webdavRemotePathInput, dom.webdavUsernameInput, dom.webdavPasswordInput,
       dom.webdavAutoSyncToggle, dom.webdavSyncIntervalInput, dom.webdavClearPasswordBtn,
-      dom.webdavTestBtn, dom.webdavUploadBtn, dom.webdavDownloadBtn, dom.webdavSyncBtn].forEach((el) => {
+      dom.webdavTestBtn, dom.webdavUploadBtn, dom.webdavDownloadBtn, dom.webdavResetUploadBtn,
+      dom.webdavSyncBtn].forEach((el) => {
       if (!el) return;
       if (el === dom.webdavClearPasswordBtn) {
         el.disabled = disableSyncFields || !state.webdavPasswordConfigured || state.webdavSyncRunning;
@@ -2864,6 +2903,7 @@
       autoUpdate: state.autoUpdate,
       enableAutoRefreshQuota: state.enableAutoRefreshQuota,
       autoMarkAbnormalAccounts: state.autoMarkAbnormalAccounts,
+      autoDeleteAbnormalAccounts: state.autoDeleteAbnormalAccounts,
       autoRefreshCurrent: state.autoRefreshCurrent,
       lowQuotaAutoPrompt: state.lowQuotaAutoPrompt,
       autoRefreshAllMinutes: state.autoRefreshAllMinutes,
@@ -2906,6 +2946,7 @@
     const msgAutoUpdate = msg.autoUpdate !== false && msg.autoUpdate !== "false";
     const msgEnableAutoRefreshQuota = parseEnableAutoRefreshQuota(msg, true);
     const msgAutoMarkAbnormalAccounts = msg.autoMarkAbnormalAccounts !== false && msg.autoMarkAbnormalAccounts !== "false";
+    const msgAutoDeleteAbnormalAccounts = msg.autoDeleteAbnormalAccounts === true || msg.autoDeleteAbnormalAccounts === "true";
     const msgAutoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
     const msgLowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
     const msgAutoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
@@ -2930,6 +2971,7 @@
       && msgAutoUpdate === pending.autoUpdate
       && msgEnableAutoRefreshQuota === !!pending.enableAutoRefreshQuota
       && msgAutoMarkAbnormalAccounts === !!pending.autoMarkAbnormalAccounts
+      && msgAutoDeleteAbnormalAccounts === !!pending.autoDeleteAbnormalAccounts
       && msgAutoRefreshCurrent === pending.autoRefreshCurrent
       && msgLowQuotaAutoPrompt === pending.lowQuotaAutoPrompt
       && msgAutoRefreshAllMinutes === pending.autoRefreshAllMinutes
@@ -3356,6 +3398,7 @@
     dom.webdavTestBtn.addEventListener("click", () => post("test_webdav_connection"));
     dom.webdavUploadBtn.addEventListener("click", () => post("run_webdav_sync", { mode: "upload" }));
     dom.webdavDownloadBtn.addEventListener("click", () => post("run_webdav_sync", { mode: "download" }));
+    dom.webdavResetUploadBtn.addEventListener("click", () => post("run_webdav_sync", { mode: "reset_upload" }));
     dom.webdavSyncBtn.addEventListener("click", () => post("run_webdav_sync", { mode: "bidirectional" }));
     dom.webdavConflictList.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-webdav-choice]");
@@ -3527,6 +3570,11 @@
     });
     dom.autoMarkAbnormalAccountsToggle.addEventListener("change", () => {
       state.autoMarkAbnormalAccounts = dom.autoMarkAbnormalAccountsToggle.checked;
+      refreshSettingsOptions();
+      queueSaveConfig();
+    });
+    dom.autoDeleteAbnormalAccountsToggle.addEventListener("change", () => {
+      state.autoDeleteAbnormalAccounts = dom.autoDeleteAbnormalAccountsToggle.checked;
       refreshSettingsOptions();
       queueSaveConfig();
     });
@@ -4055,6 +4103,7 @@
           state.autoUpdate = msg.autoUpdate !== false && msg.autoUpdate !== "false";
           state.enableAutoRefreshQuota = parseEnableAutoRefreshQuota(msg, true);
           state.autoMarkAbnormalAccounts = msg.autoMarkAbnormalAccounts !== false && msg.autoMarkAbnormalAccounts !== "false";
+          state.autoDeleteAbnormalAccounts = msg.autoDeleteAbnormalAccounts === true || msg.autoDeleteAbnormalAccounts === "true";
           state.autoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
           state.lowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
           state.autoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
@@ -4107,6 +4156,7 @@
           state.autoUpdate = msg.autoUpdate !== false && msg.autoUpdate !== "false";
           state.enableAutoRefreshQuota = parseEnableAutoRefreshQuota(msg, state.enableAutoRefreshQuota);
           state.autoMarkAbnormalAccounts = msg.autoMarkAbnormalAccounts !== false && msg.autoMarkAbnormalAccounts !== "false";
+          state.autoDeleteAbnormalAccounts = msg.autoDeleteAbnormalAccounts === true || msg.autoDeleteAbnormalAccounts === "true";
           state.autoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, state.autoRefreshAllMinutes || 15);
           state.autoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, state.autoRefreshCurrentMinutes || 5);
           state.autoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";

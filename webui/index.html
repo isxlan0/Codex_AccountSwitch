@@ -518,6 +518,17 @@
               </div>
 
               <div class="settings-group">
+                <div class="settings-label" id="settingsAutoDeleteAbnormalAccountsLabel"></div>
+                <div class="toggle-row">
+                  <label class="switch-toggle" for="autoDeleteAbnormalAccountsToggle">
+                    <input type="checkbox" id="autoDeleteAbnormalAccountsToggle" />
+                    <span class="switch-slider"></span>
+                  </label>
+                </div>
+                <div class="settings-sub-note" id="settingsAutoDeleteAbnormalAccountsHint"></div>
+              </div>
+
+              <div class="settings-group">
                 <div class="settings-label" id="settingsAutoRefreshAllLabel"></div>
                 <div class="settings-inline">
                   <label class="settings-inline-label" for="autoRefreshAllMinutesInput"
@@ -561,6 +572,7 @@
 
             <div class="settings-pane" id="settingsPaneCloud">
               <div class="settings-section-title" id="settingsWebDavSectionTitle"></div>
+              <div class="settings-sub-note warning" id="settingsWebDavWarning"></div>
 
               <div class="settings-group">
                 <div class="settings-label" id="settingsWebDavEnabledLabel"></div>
@@ -632,6 +644,7 @@
                 <button class="tool-btn" id="webdavTestBtn"></button>
                 <button class="tool-btn" id="webdavUploadBtn"></button>
                 <button class="tool-btn" id="webdavDownloadBtn"></button>
+                <button class="tool-btn" id="webdavResetUploadBtn"></button>
                 <button class="tool-btn primary" id="webdavSyncBtn"></button>
               </div>
             </div>

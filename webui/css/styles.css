@@ -2019,6 +2019,10 @@ select.settings-number-input option {
   margin-top: 8px;
 }
 
+.settings-sub-note.warning {
+  color: var(--danger);
+}
+
 .settings-countdown {
   color: var(--text);
   font-size: 13px;

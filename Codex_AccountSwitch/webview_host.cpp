@@ -120,6 +120,7 @@ namespace
   constexpr wchar_t kWebDavSyncStateFileName[] = L"webdav_sync_state.json";
   constexpr wchar_t kCodexApiPathCompact[] = L"/backend-api/codex/responses";
   HWND g_DebugWebHwnd = nullptr;
+  bool g_AutoDeleteAbnormalAccounts = false;
   constexpr size_t kTrafficLogMaxEntries = 5000;
   std::recursive_mutex g_IndexDataMutex;
 
@@ -565,6 +566,7 @@ namespace
     bool autoUpdate = true;
     bool enableAutoRefreshQuota = true;
     bool autoMarkAbnormalAccounts = true;
+    bool autoDeleteAbnormalAccounts = false;
     bool autoRefreshCurrent = true;
     bool lowQuotaAutoPrompt = true;
     int autoRefreshAllMinutes = kDefaultAllRefreshMinutes;
@@ -2480,6 +2482,8 @@ namespace
                                                   false);
     const bool autoMarkAbnormalAccounts =
         ExtractJsonBoolField(json, L"autoMarkAbnormalAccounts", true);
+    const bool autoDeleteAbnormalAccounts =
+        ExtractJsonBoolField(json, L"autoDeleteAbnormalAccounts", false);
     const bool autoRefreshCurrent =
         ExtractJsonBoolField(json, L"autoRefreshCurrent", true);
     const bool lowQuotaAutoPrompt =
@@ -2551,6 +2555,7 @@ namespace
     out.autoUpdate = autoUpdate;
     out.enableAutoRefreshQuota = enableAutoRefreshQuota;
     out.autoMarkAbnormalAccounts = autoMarkAbnormalAccounts;
+    out.autoDeleteAbnormalAccounts = autoDeleteAbnormalAccounts;
     out.autoRefreshCurrent = autoRefreshCurrent;
     out.lowQuotaAutoPrompt = lowQuotaAutoPrompt;
     out.autoRefreshAllMinutes =
@@ -2661,6 +2666,8 @@ namespace
        << (cfg.enableAutoRefreshQuota ? L"false" : L"true") << L",\n";
     ss << L"  \"autoMarkAbnormalAccounts\": "
        << (cfg.autoMarkAbnormalAccounts ? L"true" : L"false") << L",\n";
+    ss << L"  \"autoDeleteAbnormalAccounts\": "
+       << (cfg.autoDeleteAbnormalAccounts ? L"true" : L"false") << L",\n";
     ss << L"  \"autoRefreshCurrent\": "
        << (cfg.autoRefreshCurrent ? L"true" : L"false") << L",\n";
     ss << L"  \"lowQuotaAutoPrompt\": "
@@ -4930,6 +4937,25 @@ namespace
     return true;
   }
 
+  bool WebDavDeletePath(const WebDavRequestConfig &cfg,
+                        const std::wstring &path,
+                        std::wstring &error)
+  {
+    DWORD statusCode = 0;
+    std::string body;
+    if (!SendWebDavRequest(cfg, L"DELETE", path, std::string{}, L"", statusCode,
+                           body, error))
+    {
+      return false;
+    }
+    if (!(statusCode == 200 || statusCode == 204 || statusCode == 404))
+    {
+      error = L"delete_http_" + std::to_wstring(statusCode);
+      return false;
+    }
+    return true;
+  }
+
   bool WebDavDownloadTextFile(const WebDavRequestConfig &cfg,
                               const std::wstring &path,
                               std::wstring &content,
@@ -5225,6 +5251,50 @@ namespace
       UpdateWebDavStatusInConfig(L"手动上传完成", true, &cfgOut);
       statusText = L"WebDAV 上传完成，共同步 " + std::to_wstring(uploaded) +
                    L" 个账号";
+      return true;
+    }
+
+    if (mode == L"reset_upload")
+    {
+      if (remoteManifestExists && !remoteManifest.files.empty())
+      {
+        for (const auto &entry : remoteManifest.files)
+        {
+          if (!WebDavDeletePath(requestCfg, WebDavRemoteFilePath(requestCfg, entry),
+                                error))
+          {
+            statusText = L"删除 WebDAV 云端账号失败";
+            return false;
+          }
+        }
+      }
+      if (!WebDavDeletePath(requestCfg, WebDavManifestRemotePath(requestCfg),
+                            error))
+      {
+        statusText = L"删除 WebDAV 云端清单失败";
+        return false;
+      }
+      int uploaded = 0;
+      for (const auto &entry : localManifest.files)
+      {
+        if (!UploadLocalWebDavEntry(requestCfg, entry, error))
+        {
+          statusText = L"上传账号到 WebDAV 失败";
+          return false;
+        }
+        ++uploaded;
+      }
+      if (!WebDavPutTextFile(requestCfg, WebDavManifestRemotePath(requestCfg),
+                             SerializeWebDavManifest(localManifest), error))
+      {
+        statusText = L"写入 WebDAV 清单失败";
+        return false;
+      }
+      SaveWebDavBaseline(localManifest);
+      UpdateWebDavStatusInConfig(L"已清理云端并上传本地", true, &cfgOut);
+      statusText =
+          L"WebDAV 已清理云端并上传本地，共同步 " + std::to_wstring(uploaded) +
+          L" 个账号";
       return true;
     }
 
@@ -5801,6 +5871,32 @@ namespace
     return true;
   }
 
+  bool DeleteAccountBackupFiles(const IndexEntry &row, std::wstring &error)
+  {
+    error.clear();
+    const std::wstring safeGroup = NormalizeGroup(row.group);
+    const std::wstring safeName = SanitizeAccountName(row.name);
+    fs::path dir = ResolveAuthPathFromIndex(row).parent_path();
+    if (dir.empty())
+    {
+      dir = GetGroupDir(safeGroup) / safeName;
+    }
+
+    std::error_code ec;
+    auto count = fs::remove_all(dir, ec);
+    if ((ec || count == 0) && fs::exists(GetBackupsDir() / safeName))
+    {
+      ec.clear();
+      count = fs::remove_all(GetBackupsDir() / safeName, ec);
+    }
+    if (ec || count == 0)
+    {
+      error = L"delete_failed";
+      return false;
+    }
+    return true;
+  }
+
   bool LoginNewAccount(std::wstring &status, std::wstring &code)
   {
     const std::wstring authPath = GetUserAuthPath();
@@ -5901,8 +5997,13 @@ namespace
 
   bool ImportAuthJsonFile(const std::wstring &jsonPath,
                           const std::wstring &preferredName, std::wstring &status,
-                          std::wstring &code, const bool queryUsage)
+                          std::wstring &code, const bool queryUsage,
+                          bool *outAbnormal)
   {
+    if (outAbnormal != nullptr)
+    {
+      *outAbnormal = false;
+    }
     std::wstring json;
     if (!ReadUtf8File(jsonPath, json))
     {
@@ -5924,9 +6025,20 @@ namespace
     LoadIndex(idx);
 
     UsageSnapshot usage;
+    bool usageOk = false;
     if (queryUsage)
     {
-      QueryUsageFromAuthFile(jsonPath, usage);
+      usageOk = QueryUsageFromAuthFile(jsonPath, usage);
+    }
+    std::wstring abnormalReason;
+    if (queryUsage && !usageOk)
+    {
+      abnormalReason = DetectUsageRefreshAbnormalReason(usage);
+    }
+    const bool isAbnormal = !abnormalReason.empty();
+    if (outAbnormal != nullptr)
+    {
+      *outAbnormal = isAbnormal;
     }
     std::wstring detectedGroup = L"personal";
     if (usage.ok && !usage.planType.empty())
@@ -5992,6 +6104,13 @@ namespace
       row.quota7dResetAfterSeconds = usage.secondaryResetAfterSeconds;
       row.quota5hResetAt = usage.primaryResetAt;
       row.quota7dResetAt = usage.secondaryResetAt;
+    }
+    if (!abnormalReason.empty())
+    {
+      row.abnormal = true;
+      row.abnormalReason = abnormalReason;
+      row.abnormalAt = NowText();
+      row.updatedAt = row.abnormalAt;
     }
     idx.accounts.push_back(row);
     SaveIndex(idx);
@@ -6169,7 +6288,7 @@ namespace
         MakeUniqueImportedName(baseName, reservedNames);
 
     const bool ok =
-        ImportAuthJsonFile(tempPath, uniqueName, status, code, queryUsage);
+        ImportAuthJsonFile(tempPath, uniqueName, status, code, queryUsage, nullptr);
     std::error_code ec;
     fs::remove(tempPath, ec);
     if (ok)
@@ -7647,12 +7766,15 @@ namespace
     const std::wstring safeTargetGroup =
         targetGroup.empty() ? L"" : NormalizeGroup(targetGroup);
     const bool hasTarget = !safeTargetName.empty();
+    const bool autoDeleteAbnormal = g_AutoDeleteAbnormalAccounts;
 
-    for (auto &row : idx.accounts)
+    for (size_t i = 0; i < idx.accounts.size();)
     {
+      auto &row = idx.accounts[i];
       const fs::path backupAuth = ResolveAuthPathFromIndex(row);
       if (!fs::exists(backupAuth))
       {
+        ++i;
         continue;
       }
 
@@ -7749,8 +7871,36 @@ namespace
         }
       }
 
+      if (autoDeleteAbnormal && row.abnormal)
+      {
+        std::wstring deleteError;
+        if (DeleteAccountBackupFiles(row, deleteError))
+        {
+          const bool wasCurrent = item.isCurrent;
+          idx.accounts.erase(
+              idx.accounts.begin() +
+              static_cast<std::vector<IndexEntry>::difference_type>(i));
+          if (wasCurrent)
+          {
+            idx.currentName.clear();
+            idx.currentGroup.clear();
+          }
+          indexChanged = true;
+          if (g_DebugWebHwnd != nullptr && IsWindow(g_DebugWebHwnd))
+          {
+            SendWebStatusThreadSafe(
+                g_DebugWebHwnd,
+                L"",
+                L"warning",
+                L"account_abnormal_auto_deleted");
+          }
+          continue;
+        }
+      }
+
       item.group = NormalizeGroup(row.group);
       result.push_back(item);
+      ++i;
     }
 
     if (indexChanged)
@@ -9617,6 +9767,19 @@ namespace
       error = L"save_index_failed";
       return false;
     }
+
+    if (g_AutoDeleteAbnormalAccounts)
+    {
+      std::wstring status;
+      std::wstring code;
+      const bool deleted =
+          DeleteAccountBackup(it->name, NormalizeGroup(it->group), status, code);
+      if (deleted && g_DebugWebHwnd != nullptr && IsWindow(g_DebugWebHwnd))
+      {
+        SendWebStatusThreadSafe(g_DebugWebHwnd, L"", L"warning",
+                                L"account_abnormal_auto_deleted");
+      }
+    }
     return true;
   }
 
@@ -11447,6 +11610,8 @@ void WebViewHost::SendConfig(bool firstRun) const
       std::wstring(cfg.enableAutoRefreshQuota ? L"false" : L"true") +
       L",\"autoMarkAbnormalAccounts\":" +
       std::wstring(cfg.autoMarkAbnormalAccounts ? L"true" : L"false") +
+      L",\"autoDeleteAbnormalAccounts\":" +
+      std::wstring(cfg.autoDeleteAbnormalAccounts ? L"true" : L"false") +
       L",\"autoRefreshAll\":true" + L",\"autoRefreshCurrent\":" +
       std::wstring(cfg.autoRefreshCurrent ? L"true" : L"false") +
       L",\"lowQuotaAutoPrompt\":" +
@@ -12801,6 +12966,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         g_ProxyFixedAccount = cfg.proxyFixedAccount;
         g_ProxyFixedGroup = cfg.proxyFixedGroup;
         g_ProxyAutoMarkAbnormalAccounts = cfg.autoMarkAbnormalAccounts;
+        g_AutoDeleteAbnormalAccounts = cfg.autoDeleteAbnormalAccounts;
         if (cfg.proxyStealthMode)
         {
           std::wstring stealthError;
@@ -12860,6 +13026,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     {
       autoRefreshQuotaDisabled_ = !cfg.enableAutoRefreshQuota;
       g_ProxyAutoMarkAbnormalAccounts = cfg.autoMarkAbnormalAccounts;
+      g_AutoDeleteAbnormalAccounts = cfg.autoDeleteAbnormalAccounts;
       currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
       lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
       proxyStealthModeEnabled_ = cfg.proxyStealthMode;
@@ -12942,6 +13109,8 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
                                                   false);
     const bool autoMarkAbnormalAccounts =
         ExtractJsonBoolField(rawMessage, L"autoMarkAbnormalAccounts", true);
+    const bool autoDeleteAbnormalAccounts =
+        ExtractJsonBoolField(rawMessage, L"autoDeleteAbnormalAccounts", false);
     const bool autoRefreshCurrent =
         ExtractJsonBoolField(rawMessage, L"autoRefreshCurrent", true);
     const bool lowQuotaAutoPrompt =
@@ -12970,6 +13139,8 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         rawMessage.find(L"\"proxyFixedGroup\"") != std::wstring::npos;
     const bool hasAutoMarkAbnormalAccounts =
         rawMessage.find(L"\"autoMarkAbnormalAccounts\"") != std::wstring::npos;
+    const bool hasAutoDeleteAbnormalAccounts =
+        rawMessage.find(L"\"autoDeleteAbnormalAccounts\"") != std::wstring::npos;
     const bool hasWebdavEnabled =
         rawMessage.find(L"\"webdavEnabled\"") != std::wstring::npos;
     const bool hasWebdavAutoSync =
@@ -13042,6 +13213,10 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     if (hasAutoMarkAbnormalAccounts)
     {
       cfg.autoMarkAbnormalAccounts = autoMarkAbnormalAccounts;
+    }
+    if (hasAutoDeleteAbnormalAccounts)
+    {
+      cfg.autoDeleteAbnormalAccounts = autoDeleteAbnormalAccounts;
     }
     cfg.autoRefreshCurrent = autoRefreshCurrent;
     cfg.lowQuotaAutoPrompt = lowQuotaAutoPrompt;
@@ -13143,6 +13318,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       ApplyWindowTitleTheme(hwnd_, cfg.theme);
       autoRefreshQuotaDisabled_ = !cfg.enableAutoRefreshQuota;
       g_ProxyAutoMarkAbnormalAccounts = cfg.autoMarkAbnormalAccounts;
+      g_AutoDeleteAbnormalAccounts = cfg.autoDeleteAbnormalAccounts;
       currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
       lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
       proxyStealthModeEnabled_ = cfg.proxyStealthMode;
@@ -13270,7 +13446,8 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
   {
     std::wstring mode = ToLowerCopy(UnescapeJsonString(
         ExtractJsonStringField(rawMessage, L"mode")));
-    if (mode != L"upload" && mode != L"download" && mode != L"bidirectional")
+    if (mode != L"upload" && mode != L"download" && mode != L"bidirectional" &&
+        mode != L"reset_upload")
     {
       mode = L"bidirectional";
     }
@@ -13450,9 +13627,10 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     AppConfig cfg;
     LoadConfig(cfg);
     const bool queryUsage = cfg.enableAutoRefreshQuota;
+    const bool autoDeleteAbnormal = cfg.autoDeleteAbnormalAccounts;
     const HWND targetHwnd = hwnd_;
     std::thread([targetHwnd, jsonPaths = std::move(jsonPaths),
-                 queryUsage]() mutable
+                 queryUsage, autoDeleteAbnormal]() mutable
                 {
       EnsureIndexExists();
       IndexData idx;
@@ -13465,6 +13643,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
 
       const int totalCount = static_cast<int>(jsonPaths.size());
       int successCount = 0;
+      int abnormalCount = 0;
       std::wstring lastError;
 
       for (const auto &jsonPath : jsonPaths) {
@@ -13479,16 +13658,25 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
 
         std::wstring status;
         std::wstring code;
+        bool abnormal = false;
         const bool ok = ImportAuthJsonFile(jsonPath, uniqueName, status, code,
-                                           queryUsage);
+                                           queryUsage, &abnormal);
         if (ok) {
-          ++successCount;
+          if (abnormal) {
+            ++abnormalCount;
+            if (!autoDeleteAbnormal) {
+              ++successCount;
+            }
+          } else {
+            ++successCount;
+          }
           reservedNames.push_back(uniqueName);
         } else {
           lastError = status;
         }
       }
 
+      const int failedCount = totalCount - successCount;
       std::wstring level = L"success";
       std::wstring code = L"import_auth_batch_done";
       if (successCount == totalCount) {
@@ -13506,8 +13694,10 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
           L"{\"type\":\"status\",\"level\":\"" + EscapeJsonString(level) +
           L"\",\"code\":\"" + EscapeJsonString(code) +
           L"\",\"message\":\"\",\"success\":" + std::to_wstring(successCount) +
-          L",\"total\":" + std::to_wstring(totalCount) + L",\"lastError\":\"" +
-          EscapeJsonString(lastError) + L"\"}";
+          L",\"failed\":" + std::to_wstring(failedCount) +
+          L",\"total\":" + std::to_wstring(totalCount) +
+          L",\"abnormal\":" + std::to_wstring(abnormalCount) +
+          L",\"lastError\":\"" + EscapeJsonString(lastError) + L"\"}";
 
       PostAsyncWebJson(targetHwnd, statusJson);
       PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L"")); })
@@ -13763,6 +13953,7 @@ void WebViewHost::Initialize(HWND hwnd)
   ApplyWindowTitleTheme(hwnd_, startCfg.theme);
   autoRefreshQuotaDisabled_ = !startCfg.enableAutoRefreshQuota;
   g_ProxyAutoMarkAbnormalAccounts = startCfg.autoMarkAbnormalAccounts;
+  g_AutoDeleteAbnormalAccounts = startCfg.autoDeleteAbnormalAccounts;
   currentAutoRefreshEnabled_ = startCfg.autoRefreshCurrent;
   lowQuotaPromptEnabled_ = startCfg.lowQuotaAutoPrompt;
   proxyStealthModeEnabled_ = startCfg.proxyStealthMode;
