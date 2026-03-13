@@ -15,6 +15,26 @@
 
 ---
 
+## v1.3.6
+
+### 新增
+- 账号管理-添加:一键清理失效账号
+- 设置-账号-添加:自动删除异常账号
+
+### 优化
+
+### 修复
+
+### Added
+- Account Management - Add: One-click cleanup of invalid accounts
+- Settings - Accounts - Add: Automatically delete abnormal accounts
+
+### Improve
+
+### Fix
+
+---
+
 ## v1.3.5
 ### 修复
 - 修复正常使用OA授权拿到OAuth数据后，切换账号因为数据没有补齐导致Codex客户端认为没有登录的问题 #1
