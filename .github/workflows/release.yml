@@ -19,11 +19,51 @@ jobs:
       app_version: ${{ steps.version.outputs.app_version }}
       tag_name: ${{ steps.version.outputs.tag_name }}
       should_release: ${{ steps.check.outputs.should_release }}
+      has_build_changes: ${{ steps.changes.outputs.has_build_changes }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Detect build changes
+        id: changes
+        shell: powershell
+        run: |
+          $before = '${{ github.event.before }}'
+          $after = '${{ github.sha }}'
+          if ([string]::IsNullOrWhiteSpace($before) -or $before -eq '0000000000000000000000000000000000000000') {
+            $before = "$after^"
+          }
+          $files = git diff --name-only $before $after
+          $prefixes = @(
+            'Codex_AccountSwitch/',
+            'webui/',
+            'installer/',
+            'tools/',
+            'packages/'
+          )
+          $exact = @(
+            'config.json',
+            'Codex_AccountSwitch.slnx'
+          )
+          $hit = $false
+          foreach ($file in $files) {
+            if ($exact -contains $file) {
+              $hit = $true
+              break
+            }
+            foreach ($prefix in $prefixes) {
+              if ($file.StartsWith($prefix)) {
+                $hit = $true
+                break
+              }
+            }
+            if ($hit) {
+              break
+            }
+          }
+          "has_build_changes=$($hit.ToString().ToLower())" >> $env:GITHUB_OUTPUT
 
       - name: Parse app version
         id: version
@@ -91,7 +131,7 @@ jobs:
 
   build-release:
     needs: detect-version
-    if: needs.detect-version.outputs.should_release == 'true'
+    if: needs.detect-version.outputs.should_release == 'true' || needs.detect-version.outputs.has_build_changes == 'true'
     runs-on: windows-latest
     strategy:
       fail-fast: false
