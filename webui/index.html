@@ -45,6 +45,7 @@
         <button class="tab-btn" data-tab="api" id="tabBtnApi"></button>
         <button class="tab-btn" data-tab="traffic" id="tabBtnTraffic"></button>
         <button class="tab-btn" data-tab="token" id="tabBtnToken"></button>
+        <button class="tab-btn" data-tab="cloud" id="tabBtnCloud"></button>
         <button class="tab-btn" data-tab="about" id="tabBtnAbout"></button>
         <button class="tab-btn" data-tab="settings" id="tabBtnSettings"></button>
       </nav>
@@ -442,6 +443,63 @@
                 </thead>
                 <tbody id="tokenModelBody"></tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="tab-cloud">
+        <div class="settings-wrap">
+          <div class="settings-card">
+            <div class="settings-title" id="cloudAccountTitle"></div>
+            <div class="settings-sub" id="cloudAccountSubtitle"></div>
+            <div class="settings-sub-note warning" id="cloudAccountDependencyHint"></div>
+
+            <div class="settings-group">
+              <div class="settings-label" id="cloudAccountUrlLabel"></div>
+              <input class="settings-number-input" id="cloudAccountUrlInput" type="text" autocomplete="off" />
+              <div class="settings-sub-note" id="cloudAccountUrlHint"></div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-label" id="cloudAccountPasswordLabel"></div>
+              <input class="settings-number-input" id="cloudAccountPasswordInput" type="password" autocomplete="new-password" />
+              <div class="settings-inline webdav-password-row">
+                <button class="mini" id="cloudAccountClearPasswordBtn"></button>
+                <span class="settings-sub-note webdav-password-state" id="cloudAccountPasswordState"></span>
+              </div>
+              <div class="settings-sub-note" id="cloudAccountPasswordHint"></div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-label" id="cloudAccountAutoDownloadLabel"></div>
+              <div class="toggle-row">
+                <label class="switch-toggle" for="cloudAccountAutoDownloadToggle">
+                  <input type="checkbox" id="cloudAccountAutoDownloadToggle" />
+                  <span class="switch-slider"></span>
+                </label>
+              </div>
+              <div class="settings-inline">
+                <label class="settings-inline-label" for="cloudAccountIntervalInput" id="cloudAccountIntervalLabel"></label>
+                <input class="settings-number-input" id="cloudAccountIntervalInput" type="number" min="1" max="1440" />
+              </div>
+              <div class="settings-sub-note" id="cloudAccountAutoDownloadHint"></div>
+              <div class="settings-countdown" id="cloudAccountNextDownloadText"></div>
+            </div>
+
+            <div class="settings-group">
+              <div class="settings-label" id="cloudAccountStatusLabel"></div>
+              <div class="webdav-status-card">
+                <div class="webdav-status-line">
+                  <span class="proxy-status-dot" id="cloudAccountStatusDot"></span>
+                  <span class="proxy-status-text" id="cloudAccountStatusText"></span>
+                </div>
+                <div class="settings-sub-note" id="cloudAccountLastDownloadText"></div>
+              </div>
+            </div>
+
+            <div class="webdav-actions">
+              <button class="tool-btn primary" id="cloudAccountDownloadBtn"></button>
             </div>
           </div>
         </div>

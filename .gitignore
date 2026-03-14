@@ -43,8 +43,11 @@
 /Codex_AccountSwitch/Debug/
 /Codex_AccountSwitch/obj/
 /Codex_AccountSwitch/Codex_Ac.*/
+/Codex_AccountSwitch/.codex-build/
 bin/
 obj/
+*.exe
+*.dll
 
 # Local environment or secret-like files
 *.env

@@ -21,6 +21,7 @@
     "tab.api": "API Proxy",
     "tab.traffic": "Traffic Logs",
     "tab.token": "Token Stats",
+    "tab.cloud": "Cloud Accounts",
     "tab.about": "About",
     "tab.settings": "Settings",
     "toolbar.refresh": "Refresh Quota",
@@ -122,6 +123,31 @@
     "settings.minutes_hint": "Enter 1-240",
     "settings.countdown_prefix": "Remaining: ",
     "settings.first_run_toast": "Please confirm default settings for first launch",
+    "cloud_account.title": "Cloud Accounts",
+    "cloud_account.subtitle": "Download cloud auth.json files from third-party links provided by Token-JSON-Provider and keep local duplicates untouched.",
+    "cloud_account.dependency_hint": "This feature depends on Token-JSON-Provider support: https://github.com/isxlan0/Token-JSON-Provider",
+    "cloud_account.url_label": "Download URL",
+    "cloud_account.url_hint": "Example: http://127.0.0.1:8000",
+    "cloud_account.password_label": "Access Password",
+    "cloud_account.password_hint": "Saved locally with Windows protection; leave blank to keep the current password.",
+    "cloud_account.password_saved": "Password saved",
+    "cloud_account.password_missing": "Password not saved",
+    "cloud_account.clear_password": "Clear saved password",
+    "cloud_account.auto_download_label": "Auto Download Cloud Accounts",
+    "cloud_account.auto_download_hint": "When enabled, provider items are checked every {minutes} minutes. Local duplicates are kept.",
+    "cloud_account.interval_label": "Interval (minutes)",
+    "cloud_account.interval_hint": "Enter 1-1440",
+    "cloud_account.status_label": "Download Status",
+    "cloud_account.status_idle": "Ready",
+    "cloud_account.status_running": "Downloading cloud accounts...",
+    "cloud_account.status_running_progress": "Downloading cloud accounts... {progress}",
+    "cloud_account.last_download": "Last download: {time}",
+    "cloud_account.last_download_empty": "Last download: not yet",
+    "cloud_account.next_download": "Next auto download: {time}",
+    "cloud_account.next_download_disabled": "Next auto download: disabled",
+    "cloud_account.download_now": "Download Cloud Accounts",
+    "cloud_account.download_now_running": "Downloading...",
+    "cloud_account.download_now_progress": "Downloading... {progress}",
     "dialog.webdav_conflict.title": "Resolve WebDAV Conflicts",
     "dialog.webdav_conflict.desc": "Choose which version to keep for each conflicting account.",
     "dialog.webdav_conflict.keep_local": "Keep Local",
@@ -332,6 +358,9 @@
     "status_code.import_auth_batch_done": "Import completed: success {success}, failed {failed}",
     "status_code.import_auth_batch_partial": "Import partially succeeded: success {success}, failed {failed}",
     "status_code.import_auth_batch_failed": "Import failed: success {success}, failed {failed}",
+    "status_code.cloud_account_batch_done": "Cloud import completed: success {success}, failed {failed}, skipped {skipped}",
+    "status_code.cloud_account_batch_partial": "Cloud import partially succeeded: success {success}, failed {failed}, skipped {skipped}",
+    "status_code.cloud_account_batch_failed": "Cloud import failed: success {success}, failed {failed}, skipped {skipped}",
     "status_code.last_error_prefix": "Last error",
     "status_code.low_quota_notification": "Low quota detected. Click tray notification to confirm switch.",
     "status_code.switch_success": "Switched successfully, restarting {ide}",
@@ -381,10 +410,22 @@
     "status_code.open_url_failed": "Failed to open link",
     "status_code.open_url_success": "Link opened",
     "status_code.save_config_failed": "Failed to save settings",
+    "status_code.cloud_account_invalid_config": "Cloud account config is incomplete",
+    "status_code.cloud_account_download_success": "Latest cloud account downloaded",
+    "status_code.cloud_account_duplicate_skipped": "Duplicate account detected, kept local copy",
+    "status_code.cloud_account_provider_empty": "Provider has no downloadable account",
+    "status_code.cloud_account_provider_request_failed": "Failed to request cloud account provider",
+    "status_code.cloud_account_provider_invalid_index": "Provider index response is invalid",
+    "status_code.cloud_account_provider_item_failed": "Failed to fetch latest cloud account",
+    "status_code.cloud_account_invalid_payload": "Latest provider item is not a valid auth.json object",
+    "status_code.cloud_account_download_running": "Cloud account download is already running",
+    "status_code.cloud_account_progress": "Downloading cloud accounts... {progress}",
     "status_code.quota_refreshed": "Quota refreshed",
     "status_code.quota_refresh_running": "Quota refresh is already running, please wait...",
     "status_code.quota_refresh_failed": "Quota refresh failed",
+    "status_code.quota_refresh_progress": "Refreshing quota... {progress}",
     "status_code.account_quota_refreshed": "Account quota refreshed",
+    "status_code.import_auth_batch_progress": "Importing accounts... {progress}",
     "status_code.account_abnormal_marked": "Account auth is invalidated and has been marked abnormal. Please sign in again.",
     "status_code.account_abnormal_auto_deleted": "Abnormal account auto-deleted",
     "status_code.batch_refresh_done": "Batch quota refresh completed",
@@ -392,6 +433,11 @@
     "status_code.batch_delete_partial": "Batch delete partially completed",
     "status_code.batch_delete_failed": "Batch delete failed",
     "status_code.batch_empty": "Please select at least one account",
+    "progress.count": "{current}/{total} items",
+    "toolbar.refresh_running": "Refreshing quota...",
+    "toolbar.refresh_progress": "Refreshing quota... {progress}",
+    "toolbar.import_running": "Importing accounts...",
+    "toolbar.import_progress": "Importing accounts... {progress}",
     "status_code.api_invalid_input": "API input is incomplete",
     "status_code.api_no_selected_account": "No active account selected in Account Management",
     "status_code.api_account_auth_missing": "Selected account auth file not found",
@@ -581,6 +627,16 @@
     "status_code.userprofile_missing": "操作失败：未找到用户目录",
     "status_code.restart_failed": "重启 {ide} 失败，请手动重启",
     "status_code.config_saved": "设置已保存",
+    "status_code.cloud_account_invalid_config": "云账号配置不完整",
+    "status_code.cloud_account_download_success": "最新云账号下载成功",
+    "status_code.cloud_account_duplicate_skipped": "检测到重复账号，已保留本地版本",
+    "status_code.cloud_account_provider_empty": "Provider 当前没有可下载账号",
+    "status_code.cloud_account_provider_request_failed": "请求云账号 Provider 失败",
+    "status_code.cloud_account_provider_invalid_index": "Provider 索引返回格式无效",
+    "status_code.cloud_account_provider_item_failed": "获取最新云账号失败",
+    "status_code.cloud_account_invalid_payload": "最新云端数据不是有效 auth.json 对象",
+    "status_code.cloud_account_download_running": "云账号下载任务已在进行中",
+    "status_code.cloud_account_progress": "正在下载云账号... {progress}",
     "status_code.backup_saved": "账号备份已保存",
     "status_code.auth_json_invalid": "该文件可能不是有效 auth.json（缺少必要字段）",
     "status_code.auth_json_imported": "OAuth 导入成功",
@@ -619,6 +675,7 @@
     "tab.api": "API 反代",
     "tab.traffic": "流量日志",
     "tab.token": "Token统计",
+    "tab.cloud": "云账号",
     "settings.tab.general": "通用",
     "settings.tab.account": "账号",
     "settings.tab.cloud": "云同步",
@@ -646,6 +703,31 @@
     "settings.auto_refresh_current_on": "开启",
     "settings.auto_refresh_current_off": "关闭",
     "settings.countdown_prefix": "剩余时间：",
+    "cloud_account.title": "云账号",
+    "cloud_account.subtitle": "从 Token-JSON-Provider 所提供的第三方链接下载云账号 auth.json，并在命中重复时保留本地版本。",
+    "cloud_account.dependency_hint": "此功能依赖 Token-JSON-Provider 提供支持：https://github.com/isxlan0/Token-JSON-Provider",
+    "cloud_account.url_label": "下载链接",
+    "cloud_account.url_hint": "例如：http://127.0.0.1:8000",
+    "cloud_account.password_label": "访问密码",
+    "cloud_account.password_hint": "使用 Windows 保护保存在本机；留空则保留当前已保存密码。",
+    "cloud_account.password_saved": "密码已保存",
+    "cloud_account.password_missing": "密码未保存",
+    "cloud_account.clear_password": "清除已保存密码",
+    "cloud_account.auto_download_label": "自动下载云账号",
+    "cloud_account.auto_download_hint": "开启后，每 {minutes} 分钟检查一次云端账号列表；如与本地重复则保留本地。",
+    "cloud_account.interval_label": "间隔（分钟）",
+    "cloud_account.interval_hint": "输入 1-1440",
+    "cloud_account.status_label": "下载状态",
+    "cloud_account.status_idle": "已就绪",
+    "cloud_account.status_running": "正在下载云账号...",
+    "cloud_account.status_running_progress": "正在下载云账号... {progress}",
+    "cloud_account.last_download": "最近下载：{time}",
+    "cloud_account.last_download_empty": "最近下载：尚未执行",
+    "cloud_account.next_download": "下次自动下载：{time}",
+    "cloud_account.next_download_disabled": "下次自动下载：已关闭",
+    "cloud_account.download_now": "一键下载云账号",
+    "cloud_account.download_now_running": "正在下载...",
+    "cloud_account.download_now_progress": "正在下载... {progress}",
     "dashboard.title": "配额仪表盘",
     "dashboard.subtitle": "快速查看账号整体配额情况与当前账号健康度。",
     "dashboard.total_accounts": "总账号数",
@@ -789,6 +871,8 @@
     "bulk.mode_on": "退出多选",
     "bulk.mode_off": "多选模式",
     "bulk.refresh": "批量刷新额度",
+    "bulk.refresh_running": "正在刷新额度...",
+    "bulk.refresh_progress": "正在刷新额度... {progress}",
     "bulk.delete": "批量删除账号",
     "bulk.selected": "已选 {count} 项",
     "bulk.select_all": "全选",
@@ -797,6 +881,7 @@
     "status_code.batch_refresh_done": "批量刷新额度完成",
     "status_code.quota_refresh_running": "额度刷新正在进行中，请稍候…",
     "status_code.quota_refresh_failed": "额度刷新失败",
+    "status_code.quota_refresh_progress": "正在刷新额度... {progress}",
     "status_code.batch_delete_done": "批量删除完成",
     "status_code.batch_delete_partial": "批量删除部分完成",
     "status_code.batch_delete_failed": "批量删除失败",
@@ -815,7 +900,16 @@
     "status_code.import_auth_batch_done": "导入完成：成功 {success}，失败 {failed}",
     "status_code.import_auth_batch_partial": "导入部分成功：成功 {success}，失败 {failed}",
     "status_code.import_auth_batch_failed": "导入失败：成功 {success}，失败 {failed}",
+    "status_code.import_auth_batch_progress": "正在导入账号... {progress}",
+    "status_code.cloud_account_batch_done": "云账号导入完成：成功 {success}，失败 {failed}，跳过 {skipped}",
+    "status_code.cloud_account_batch_partial": "云账号导入部分成功：成功 {success}，失败 {failed}，跳过 {skipped}",
+    "status_code.cloud_account_batch_failed": "云账号导入失败：成功 {success}，失败 {failed}，跳过 {skipped}",
     "status_code.last_error_prefix": "最后错误",
+    "progress.count": "{current}/{total}个",
+    "toolbar.refresh_running": "正在刷新额度...",
+    "toolbar.refresh_progress": "正在刷新额度... {progress}",
+    "toolbar.import_running": "正在导入账号...",
+    "toolbar.import_progress": "正在导入账号... {progress}",
     "status_code.switch_success": "切换成功，正在重启 {ide}",
     "status_code.delete_success": "删除成功",
     "status_code.login_new_success": "已清理登录文件，正在重启 {ide}",
@@ -901,6 +995,7 @@
     tabBtnApi: document.getElementById("tabBtnApi"),
     tabBtnTraffic: document.getElementById("tabBtnTraffic"),
     tabBtnToken: document.getElementById("tabBtnToken"),
+    tabBtnCloud: document.getElementById("tabBtnCloud"),
     tabBtnAbout: document.getElementById("tabBtnAbout"),
     tabBtnSettings: document.getElementById("tabBtnSettings"),
     toolbarQuick: document.getElementById("toolbarQuick"),
@@ -1140,6 +1235,28 @@
     tokenModelThModel: document.getElementById("tokenModelThModel"),
     tokenModelThOutput: document.getElementById("tokenModelThOutput"),
     tokenModelThTotal: document.getElementById("tokenModelThTotal"),
+    cloudAccountTitle: document.getElementById("cloudAccountTitle"),
+    cloudAccountSubtitle: document.getElementById("cloudAccountSubtitle"),
+    cloudAccountDependencyHint: document.getElementById("cloudAccountDependencyHint"),
+    cloudAccountUrlLabel: document.getElementById("cloudAccountUrlLabel"),
+    cloudAccountUrlInput: document.getElementById("cloudAccountUrlInput"),
+    cloudAccountUrlHint: document.getElementById("cloudAccountUrlHint"),
+    cloudAccountPasswordLabel: document.getElementById("cloudAccountPasswordLabel"),
+    cloudAccountPasswordInput: document.getElementById("cloudAccountPasswordInput"),
+    cloudAccountPasswordHint: document.getElementById("cloudAccountPasswordHint"),
+    cloudAccountClearPasswordBtn: document.getElementById("cloudAccountClearPasswordBtn"),
+    cloudAccountPasswordState: document.getElementById("cloudAccountPasswordState"),
+    cloudAccountAutoDownloadLabel: document.getElementById("cloudAccountAutoDownloadLabel"),
+    cloudAccountAutoDownloadToggle: document.getElementById("cloudAccountAutoDownloadToggle"),
+    cloudAccountIntervalLabel: document.getElementById("cloudAccountIntervalLabel"),
+    cloudAccountIntervalInput: document.getElementById("cloudAccountIntervalInput"),
+    cloudAccountAutoDownloadHint: document.getElementById("cloudAccountAutoDownloadHint"),
+    cloudAccountNextDownloadText: document.getElementById("cloudAccountNextDownloadText"),
+    cloudAccountStatusLabel: document.getElementById("cloudAccountStatusLabel"),
+    cloudAccountStatusDot: document.getElementById("cloudAccountStatusDot"),
+    cloudAccountStatusText: document.getElementById("cloudAccountStatusText"),
+    cloudAccountLastDownloadText: document.getElementById("cloudAccountLastDownloadText"),
+    cloudAccountDownloadBtn: document.getElementById("cloudAccountDownloadBtn"),
     tokenAccountBody: document.getElementById("tokenAccountBody"),
     countText: document.getElementById("countText"),
     accountsBody: document.getElementById("accountsBody"),
@@ -1215,6 +1332,7 @@
     { key: "api", icon: "\ud83d\udd0c", button: dom.tabBtnApi, panelId: "tab-api", hideable: true },
     { key: "traffic", icon: "\ud83d\udcc3", button: dom.tabBtnTraffic, panelId: "tab-traffic", hideable: true },
     { key: "token", icon: "\ud83d\udcb0", button: dom.tabBtnToken, panelId: "tab-token", hideable: true },
+    { key: "cloud", icon: "\u2601\ufe0f", button: dom.tabBtnCloud, panelId: "tab-cloud", hideable: true },
     { key: "about", icon: "\ud83d\udca1", button: dom.tabBtnAbout, panelId: "tab-about", hideable: true },
     { key: "settings", icon: "\u2699\ufe0f", button: dom.tabBtnSettings, panelId: "tab-settings", hideable: false }
   ];
@@ -1249,7 +1367,12 @@
     updateCheckContext: "manual",
     refreshMode: "",
     refreshTargetKey: "",
+    refreshProgressCurrent: 0,
+    refreshProgressTotal: 0,
+    refreshProgressScope: "",
     importMode: "",
+    importProgressCurrent: 0,
+    importProgressTotal: 0,
     multiSelectMode: false,
     selectedAccountKeys: [],
     bulkMode: "",
@@ -1283,6 +1406,17 @@
     proxyFixedAccount: "",
     proxyFixedGroup: "personal",
     proxyApiKeyEditing: false,
+    cloudAccountUrl: "",
+    cloudAccountPasswordConfigured: false,
+    cloudAccountPasswordClear: false,
+    cloudAccountAutoDownload: false,
+    cloudAccountIntervalMinutes: 60,
+    cloudAccountLastDownloadAt: "",
+    cloudAccountLastDownloadStatus: "",
+    cloudAccountDownloadRunning: false,
+    cloudAccountRemainingSec: 0,
+    cloudAccountProgressCurrent: 0,
+    cloudAccountProgressTotal: 0,
     webdavEnabled: false,
     webdavAutoSync: true,
     webdavSyncIntervalMinutes: 15,
@@ -1347,6 +1481,39 @@
       el.style.transform = "translateY(-6px)";
     }, 2600);
     setTimeout(() => el.remove(), 3000);
+  }
+
+  const progressToastMap = new Map();
+
+  function showProgressToast(key, message, level = "info") {
+    const toastKey = String(key || "").trim();
+    if (!toastKey) return;
+    const text = String(message || "").trim();
+    if (!text) {
+      clearProgressToast(toastKey);
+      return;
+    }
+    let el = progressToastMap.get(toastKey);
+    if (!el) {
+      el = document.createElement("div");
+      dom.toastWrap.appendChild(el);
+      progressToastMap.set(toastKey, el);
+    }
+    el.className = `toast ${level}`;
+    el.textContent = text;
+    el.style.opacity = "1";
+    el.style.transform = "";
+  }
+
+  function clearProgressToast(key) {
+    const toastKey = String(key || "").trim();
+    if (!toastKey) return;
+    const el = progressToastMap.get(toastKey);
+    if (!el) return;
+    progressToastMap.delete(toastKey);
+    el.style.opacity = "0";
+    el.style.transform = "translateY(-6px)";
+    setTimeout(() => el.remove(), 220);
   }
 
   function escapeHtml(text) {
@@ -1957,6 +2124,7 @@
     dom.proxyAllowLanToggle.checked = state.proxyAllowLan;
     dom.proxyStealthModeToggle.checked = state.proxyStealthMode;
     dom.proxyDispatchModeSelect.value = state.proxyDispatchMode || "round_robin";
+    renderCloudAccountState();
     renderWebDavState();
     renderProxyStatus();
     renderProxyFixedAccountOptions();
@@ -1969,8 +2137,7 @@
     dom.quickThemeBtn.title = t("quick.theme_title");
     dom.quickLangBtn.title = t("quick.language_title");
     dom.accountsSectionTitle.textContent = "\ud83d\udc65 " + t("tab.accounts");
-    dom.addCurrentBtn.textContent = "\u2795 " + t("toolbar.add_current");
-    dom.refreshBtn.textContent = "\ud83d\udd04 " + t("toolbar.refresh");
+    renderPrimaryActionButtons();
     dom.importBtn.textContent = "\ud83d\udce5 " + t("toolbar.import");
     dom.exportBtn.textContent = "\ud83d\udce4 " + t("toolbar.export");
     dom.cleanAbnormalBtn.textContent = "\ud83e\uddf9 " + t("toolbar.clean_abnormal");
@@ -2050,6 +2217,18 @@
     dom.webdavDownloadBtn.textContent = t("settings.webdav_download");
     dom.webdavResetUploadBtn.textContent = t("settings.webdav_reset_upload");
     dom.webdavSyncBtn.textContent = t("settings.webdav_sync");
+    dom.cloudAccountTitle.textContent = t("cloud_account.title");
+    dom.cloudAccountSubtitle.textContent = t("cloud_account.subtitle");
+    dom.cloudAccountDependencyHint.textContent = t("cloud_account.dependency_hint");
+    dom.cloudAccountUrlLabel.textContent = t("cloud_account.url_label");
+    dom.cloudAccountUrlHint.textContent = t("cloud_account.url_hint");
+    dom.cloudAccountPasswordLabel.textContent = t("cloud_account.password_label");
+    dom.cloudAccountPasswordHint.textContent = t("cloud_account.password_hint");
+    dom.cloudAccountClearPasswordBtn.textContent = t("cloud_account.clear_password");
+    dom.cloudAccountAutoDownloadLabel.textContent = t("cloud_account.auto_download_label");
+    dom.cloudAccountIntervalLabel.textContent = t("cloud_account.interval_label");
+    dom.cloudAccountStatusLabel.textContent = t("cloud_account.status_label");
+    dom.cloudAccountDownloadBtn.textContent = t("cloud_account.download_now");
     dom.webdavConflictTitle.textContent = t("dialog.webdav_conflict.title");
     dom.webdavConflictDesc.textContent = t("dialog.webdav_conflict.desc");
     dom.webdavConflictCancelBtn.textContent = t("dialog.common.cancel");
@@ -2199,6 +2378,8 @@
     renderTrafficAccountOptions();
     renderTrafficLogs();
     renderTokenStats();
+    renderImportBusy();
+    renderCloudAccountState();
     refreshCustomSelects();
     renderBulkControls();
     renderTabVisibilitySettings();
@@ -2551,10 +2732,18 @@
       if (code === "restart_failed") {
         return t(key, { ide: getIdeDisplayName(state.currentIdeExe) });
       }
-      if (["import_auth_batch_done", "import_auth_batch_partial", "import_auth_batch_failed"].includes(code)) {
+      if ([
+        "import_auth_batch_done",
+        "import_auth_batch_partial",
+        "import_auth_batch_failed",
+        "cloud_account_batch_done",
+        "cloud_account_batch_partial",
+        "cloud_account_batch_failed"
+      ].includes(code)) {
         const successRaw = msg?.success;
         const totalRaw = msg?.total;
         const failedRaw = msg?.failed;
+        const skippedRaw = msg?.skipped;
         const toNumber = (val) => {
           const n = Number(val);
           return Number.isFinite(n) ? n : null;
@@ -2562,6 +2751,7 @@
         let successNum = toNumber(successRaw);
         let totalNum = toNumber(totalRaw);
         let failedNum = toNumber(failedRaw);
+        let skippedNum = toNumber(skippedRaw);
 
         if (successNum === null || totalNum === null) {
           const raw = String(msg?.message || "");
@@ -2574,16 +2764,24 @@
         if (failedNum === null && successNum !== null && totalNum !== null) {
           failedNum = Math.max(0, totalNum - successNum);
         }
+        if (skippedNum === null) {
+          skippedNum = 0;
+        }
 
         const success = successNum === null ? "0" : String(successNum);
         const total = totalNum === null ? "0" : String(totalNum);
         const failed = failedNum === null ? "0" : String(failedNum);
+        const skipped = skippedNum === null ? "0" : String(skippedNum);
         const lastError = String(msg?.lastError || "").trim();
-        const text = t(key, { success, failed, total });
-        if (lastError && code !== "import_auth_batch_done") {
+        const text = t(key, { success, failed, total, skipped });
+        if (lastError && !["import_auth_batch_done", "cloud_account_batch_done"].includes(code)) {
           return `${text} · ${t("status_code.last_error_prefix")}: ${lastError}`;
         }
         return text;
+      }
+      if (["cloud_account_progress", "import_auth_batch_progress", "quota_refresh_progress"].includes(code)) {
+        const vars = getProgressVars(msg?.current, msg?.total);
+        return vars ? t(key, vars) : t(key);
       }
       if (["batch_delete_done", "batch_delete_partial", "batch_delete_failed"].includes(code)) {
         const successRaw = msg?.success;
@@ -2603,6 +2801,62 @@
       return t(key);
     }
     return String(msg?.message || code);
+  }
+
+  function getProgressVars(current, total) {
+    const currentNum = Math.max(0, Math.trunc(Number(current)));
+    const totalNum = Math.max(0, Math.trunc(Number(total)));
+    if (!Number.isFinite(currentNum) || !Number.isFinite(totalNum) || currentNum <= 0 || totalNum <= 0) {
+      return null;
+    }
+    return {
+      current: String(currentNum),
+      total: String(totalNum),
+      progress: t("progress.count", { current: String(currentNum), total: String(totalNum) })
+    };
+  }
+
+  function getRefreshProgressText(scope = state.refreshProgressScope || "") {
+    const vars = getProgressVars(state.refreshProgressCurrent, state.refreshProgressTotal);
+    if (scope === "batch") {
+      return vars ? t("bulk.refresh_progress", vars) : t("bulk.refresh_running");
+    }
+    return vars ? t("toolbar.refresh_progress", vars) : t("toolbar.refresh_running");
+  }
+
+  function isCloudQuotaRefreshRunning() {
+    return !!state.enableAutoRefreshQuota
+      && !!state.cloudAccountDownloadRunning
+      && state.refreshProgressScope === "cloud";
+  }
+
+  function getImportProgressText() {
+    const vars = getProgressVars(state.importProgressCurrent, state.importProgressTotal);
+    return vars ? t("toolbar.import_progress", vars) : t("toolbar.import_running");
+  }
+
+  function getCloudProgressStatusText() {
+    const vars = getProgressVars(state.cloudAccountProgressCurrent, state.cloudAccountProgressTotal);
+    return vars ? t("cloud_account.status_running_progress", vars) : t("cloud_account.status_running");
+  }
+
+  function getCloudProgressButtonText() {
+    const vars = getProgressVars(state.cloudAccountProgressCurrent, state.cloudAccountProgressTotal);
+    return vars ? t("cloud_account.download_now_progress", vars) : t("cloud_account.download_now_running");
+  }
+
+  function renderPrimaryActionButtons() {
+    const showRefreshProgress = state.refreshMode === "all" || isCloudQuotaRefreshRunning();
+    if (dom.addCurrentBtn) {
+      dom.addCurrentBtn.textContent = state.importMode
+        ? "⏳ " + getImportProgressText()
+        : "➕ " + t("toolbar.add_current");
+    }
+    if (dom.refreshBtn) {
+      dom.refreshBtn.textContent = "🔄 " + (showRefreshProgress
+        ? getRefreshProgressText(state.refreshProgressScope || "all")
+        : t("toolbar.refresh"));
+    }
   }
 
   function isOAuthTerminalCode(code) {
@@ -2631,6 +2885,11 @@
     }
 
     const isBusy = mode === "all" || mode === "account";
+    if (!isBusy) {
+      state.refreshProgressCurrent = 0;
+      state.refreshProgressTotal = 0;
+      state.refreshProgressScope = "";
+    }
     const isImportBusy = !!state.importMode;
     const isBlocked = isImportBusy || state.cleanAbnormalBusy;
     dom.refreshBtn.disabled = isBusy || isBlocked;
@@ -2645,6 +2904,7 @@
       }
     }
 
+    renderPrimaryActionButtons();
     renderAccounts();
     renderImportBusy();
     renderBulkControls();
@@ -2652,6 +2912,10 @@
 
   function setImportBusy(mode = "") {
     state.importMode = mode;
+    if (!mode) {
+      state.importProgressCurrent = 0;
+      state.importProgressTotal = 0;
+    }
     renderImportBusy();
     setRefreshBusy(state.refreshMode, state.refreshTargetKey);
   }
@@ -2687,15 +2951,18 @@
   function renderBulkControls() {
     const selectedCount = state.selectedAccountKeys.length;
     const busy = state.bulkMode === "refresh" || state.bulkMode === "delete" || state.cleanAbnormalBusy;
+    const cloudQuotaRefreshBusy = isCloudQuotaRefreshRunning();
     dom.bulkSelectedText.textContent = t("bulk.selected", { count: selectedCount });
     dom.multiSelectToggleBtn.textContent = state.multiSelectMode ? t("bulk.mode_on") : t("bulk.mode_off");
-    dom.bulkRefreshBtn.textContent = t("bulk.refresh");
-    dom.bulkDeleteBtn.textContent = t("bulk.delete");
+    dom.bulkRefreshBtn.textContent = "🔄 " + ((state.bulkMode === "refresh" || cloudQuotaRefreshBusy)
+      ? getRefreshProgressText(cloudQuotaRefreshBusy ? "cloud" : "batch")
+      : t("bulk.refresh"));
+    dom.bulkDeleteBtn.textContent = "🗑️ " + t("bulk.delete");
 
     const hasSelection = selectedCount > 0;
-    dom.bulkRefreshBtn.disabled = !state.multiSelectMode || !hasSelection || busy || !!state.importMode || !!state.refreshMode;
+    dom.bulkRefreshBtn.disabled = !state.multiSelectMode || !hasSelection || busy || !!state.importMode || !!state.refreshMode || cloudQuotaRefreshBusy;
     dom.bulkDeleteBtn.disabled = !state.multiSelectMode || !hasSelection || busy || !!state.importMode;
-    dom.bulkRefreshBtn.classList.toggle("loading", state.bulkMode === "refresh");
+    dom.bulkRefreshBtn.classList.toggle("loading", state.bulkMode === "refresh" || cloudQuotaRefreshBusy);
     dom.bulkDeleteBtn.classList.toggle("loading", state.bulkMode === "delete");
 
     const visibleKeys = state.filteredAccounts.map((x) => makeAccountKey(x.name, x.group));
@@ -2711,6 +2978,11 @@
 
   function setBulkBusy(mode = "") {
     state.bulkMode = mode;
+    if (mode !== "refresh" && state.refreshProgressScope === "batch") {
+      state.refreshProgressCurrent = 0;
+      state.refreshProgressTotal = 0;
+      state.refreshProgressScope = "";
+    }
     renderBulkControls();
     renderImportBusy();
     renderAccounts();
@@ -2721,12 +2993,15 @@
     const isOAuthBusy = state.importMode === "oauth";
     const isManualBusy = state.importMode === "manual";
     const disableAny = isCurrentBusy || isOAuthBusy || isManualBusy;
+    const cloudQuotaRefreshBusy = isCloudQuotaRefreshRunning();
+
+    renderPrimaryActionButtons();
 
     dom.addCurrentBtn.disabled = disableAny;
     dom.addCurrentBtn.classList.toggle("loading", disableAny);
 
-    dom.refreshBtn.disabled = (state.refreshMode === "all" || state.refreshMode === "account") || disableAny;
-    dom.refreshBtn.classList.toggle("loading", (state.refreshMode === "all") || disableAny);
+    dom.refreshBtn.disabled = (state.refreshMode === "all" || state.refreshMode === "account") || disableAny || cloudQuotaRefreshBusy;
+    dom.refreshBtn.classList.toggle("loading", (state.refreshMode === "all") || disableAny || cloudQuotaRefreshBusy);
 
     dom.addAccountImportCurrentBtn.disabled = disableAny;
     dom.addAccountImportCurrentBtn.classList.toggle("loading", isCurrentBusy);
@@ -3010,6 +3285,49 @@
     });
   }
 
+  function renderCloudAccountState() {
+    if (!dom.cloudAccountAutoDownloadToggle) return;
+    dom.cloudAccountAutoDownloadToggle.checked = !!state.cloudAccountAutoDownload;
+    syncInputValue(dom.cloudAccountUrlInput, state.cloudAccountUrl || "");
+    syncInputValue(dom.cloudAccountIntervalInput, clampWebDavSyncMinutes(state.cloudAccountIntervalMinutes, 60));
+    dom.cloudAccountPasswordState.textContent = state.cloudAccountPasswordConfigured
+      ? t("cloud_account.password_saved")
+      : t("cloud_account.password_missing");
+    dom.cloudAccountStatusDot.classList.toggle("running", !!state.cloudAccountDownloadRunning);
+    dom.cloudAccountStatusText.textContent = state.cloudAccountDownloadRunning
+      ? getCloudProgressStatusText()
+      : (String(state.cloudAccountLastDownloadStatus || "").trim() || t("cloud_account.status_idle"));
+    dom.cloudAccountLastDownloadText.textContent = state.cloudAccountLastDownloadAt
+      ? t("cloud_account.last_download", { time: formatSyncDateTime(state.cloudAccountLastDownloadAt) })
+      : t("cloud_account.last_download_empty");
+    dom.cloudAccountNextDownloadText.textContent = state.cloudAccountAutoDownload
+      ? t("cloud_account.next_download", { time: formatCountdown(state.cloudAccountRemainingSec) })
+      : t("cloud_account.next_download_disabled");
+    dom.cloudAccountAutoDownloadHint.textContent = t("cloud_account.auto_download_hint", {
+      minutes: clampWebDavSyncMinutes(state.cloudAccountIntervalMinutes, 60)
+    });
+    dom.cloudAccountPasswordInput.placeholder = state.cloudAccountPasswordConfigured
+      ? t("cloud_account.password_saved")
+      : t("cloud_account.password_missing");
+    dom.cloudAccountIntervalInput.placeholder = t("cloud_account.interval_hint");
+    dom.cloudAccountDownloadBtn.textContent = state.cloudAccountDownloadRunning
+      ? getCloudProgressButtonText()
+      : t("cloud_account.download_now");
+    [
+      dom.cloudAccountUrlInput,
+      dom.cloudAccountPasswordInput,
+      dom.cloudAccountAutoDownloadToggle,
+      dom.cloudAccountIntervalInput,
+      dom.cloudAccountDownloadBtn
+    ].forEach((el) => {
+      if (!el) return;
+      el.disabled = !!state.cloudAccountDownloadRunning;
+    });
+    if (dom.cloudAccountClearPasswordBtn) {
+      dom.cloudAccountClearPasswordBtn.disabled = !state.cloudAccountPasswordConfigured || !!state.cloudAccountDownloadRunning;
+    }
+  }
+
   function parseEnableAutoRefreshQuota(msg, fallback = true) {
     const hasEnable = !!(msg && Object.prototype.hasOwnProperty.call(msg, "enableAutoRefreshQuota"));
     if (hasEnable) {
@@ -3023,6 +3341,7 @@
   }
 
   function buildConfigPayload() {
+    const cloudAccountPassword = String(dom.cloudAccountPasswordInput?.value || "").trim();
     const webdavPassword = String(dom.webdavPasswordInput?.value || "").trim();
     return {
       language: state.currentLanguage,
@@ -3046,6 +3365,11 @@
       proxyDispatchMode: String(state.proxyDispatchMode || "round_robin"),
       proxyFixedAccount: "",
       proxyFixedGroup: "personal",
+      cloudAccountUrl: String(dom.cloudAccountUrlInput?.value || "").trim(),
+      cloudAccountPassword,
+      cloudAccountPasswordClear: !cloudAccountPassword && !!state.cloudAccountPasswordClear,
+      cloudAccountAutoDownload: !!state.cloudAccountAutoDownload,
+      cloudAccountIntervalMinutes: clampWebDavSyncMinutes(state.cloudAccountIntervalMinutes, 60),
       webdavEnabled: !!state.webdavEnabled,
       webdavAutoSync: !!state.webdavAutoSync,
       webdavSyncIntervalMinutes: clampWebDavSyncMinutes(state.webdavSyncIntervalMinutes, 15),
@@ -3089,6 +3413,10 @@
     const msgProxyDispatchMode = String(msg.proxyDispatchMode || "round_robin");
     const msgProxyFixedAccount = String(msg.proxyFixedAccount || "");
     const msgProxyFixedGroup = String(msg.proxyFixedGroup || "personal");
+    const msgCloudAccountUrl = String(msg.cloudAccountUrl || "").trim();
+    const msgCloudAccountAutoDownload = msg.cloudAccountAutoDownload === true || msg.cloudAccountAutoDownload === "true";
+    const msgCloudAccountIntervalMinutes = clampWebDavSyncMinutes(msg.cloudAccountIntervalMinutes, 60);
+    const msgCloudAccountPasswordConfigured = msg.cloudAccountPasswordConfigured === true || msg.cloudAccountPasswordConfigured === "true";
     const msgWebdavEnabled = msg.webdavEnabled === true || msg.webdavEnabled === "true";
     const msgWebdavAutoSync = msg.webdavAutoSync !== false && msg.webdavAutoSync !== "false";
     const msgWebdavSyncIntervalMinutes = clampWebDavSyncMinutes(msg.webdavSyncIntervalMinutes, 15);
@@ -3115,6 +3443,10 @@
       && msgProxyDispatchMode === String(pending.proxyDispatchMode || "round_robin")
       && msgProxyFixedAccount === String(pending.proxyFixedAccount || "")
       && msgProxyFixedGroup === String(pending.proxyFixedGroup || "personal")
+      && msgCloudAccountUrl === String(pending.cloudAccountUrl || "").trim()
+      && msgCloudAccountAutoDownload === !!pending.cloudAccountAutoDownload
+      && msgCloudAccountIntervalMinutes === clampWebDavSyncMinutes(pending.cloudAccountIntervalMinutes, 60)
+      && msgCloudAccountPasswordConfigured === (String(pending.cloudAccountPassword || "").trim() ? true : (!!state.cloudAccountPasswordConfigured && !pending.cloudAccountPasswordClear))
       && msgWebdavEnabled === !!pending.webdavEnabled
       && msgWebdavAutoSync === !!pending.webdavAutoSync
       && msgWebdavSyncIntervalMinutes === clampWebDavSyncMinutes(pending.webdavSyncIntervalMinutes, 15)
@@ -3186,11 +3518,12 @@
     };
 
     const bulkBusy = state.bulkMode === "refresh" || state.bulkMode === "delete";
+    const cloudQuotaRefreshBusy = isCloudQuotaRefreshRunning();
 
     dom.accountsBody.innerHTML = state.filteredAccounts.map((item) => {
       const accountKey = makeAccountKey(item.name, item.group);
       const isThisRefreshing = state.refreshMode === "account" && state.refreshTargetKey === accountKey;
-      const disableRefreshAction = state.refreshMode === "all" || isThisRefreshing || !!state.importMode || bulkBusy;
+      const disableRefreshAction = state.refreshMode === "all" || isThisRefreshing || !!state.importMode || bulkBusy || cloudQuotaRefreshBusy;
       const disableRowAction = bulkBusy;
       const normalizedPlanType = normalizePlanType(item.planType);
       const normalizedGroup = normalizeGroupValue(item.group);
@@ -3493,6 +3826,49 @@
       state.proxyAllowLan = dom.proxyAllowLanToggle.checked;
       renderProxyStatus();
       queueSaveConfig();
+    });
+    [dom.cloudAccountUrlInput].forEach((el) => {
+      el.addEventListener("change", queueSaveConfig);
+      el.addEventListener("blur", queueSaveConfig);
+    });
+    dom.cloudAccountPasswordInput.addEventListener("change", () => {
+      state.cloudAccountPasswordClear = false;
+      queueSaveConfig();
+    });
+    dom.cloudAccountClearPasswordBtn.addEventListener("click", () => {
+      state.cloudAccountPasswordClear = true;
+      dom.cloudAccountPasswordInput.value = "";
+      state.cloudAccountPasswordConfigured = false;
+      renderCloudAccountState();
+      queueSaveConfig();
+    });
+    dom.cloudAccountAutoDownloadToggle.addEventListener("change", () => {
+      state.cloudAccountAutoDownload = dom.cloudAccountAutoDownloadToggle.checked;
+      renderCloudAccountState();
+      queueSaveConfig();
+    });
+    const handleCloudAccountMinutesChanged = () => {
+      state.cloudAccountIntervalMinutes = clampWebDavSyncMinutes(dom.cloudAccountIntervalInput.value, state.cloudAccountIntervalMinutes || 60);
+      renderCloudAccountState();
+      queueSaveConfig();
+    };
+    dom.cloudAccountIntervalInput.addEventListener("input", handleCloudAccountMinutesChanged);
+    dom.cloudAccountIntervalInput.addEventListener("change", handleCloudAccountMinutesChanged);
+    dom.cloudAccountDownloadBtn.addEventListener("click", () => {
+      if (state.cloudAccountDownloadRunning) return;
+      state.cloudAccountDownloadRunning = true;
+      state.cloudAccountProgressCurrent = 0;
+      state.cloudAccountProgressTotal = 0;
+      if (state.enableAutoRefreshQuota) {
+        state.refreshProgressCurrent = 0;
+        state.refreshProgressTotal = 0;
+        state.refreshProgressScope = "cloud";
+        renderPrimaryActionButtons();
+        renderBulkControls();
+        renderAccounts();
+      }
+      renderCloudAccountState();
+      post("download_latest_cloud_account");
     });
     dom.webdavEnabledToggle.addEventListener("change", () => {
       state.webdavEnabled = dom.webdavEnabledToggle.checked;
@@ -4062,6 +4438,41 @@
         return;
       }
 
+      if (msg && typeof msg === "object" && msg.type === "cloud_account_status") {
+        const wasCloudQuotaRefreshRunning = isCloudQuotaRefreshRunning();
+        state.cloudAccountAutoDownload = msg.autoDownload === true || msg.autoDownload === "true";
+        state.cloudAccountIntervalMinutes = clampWebDavSyncMinutes(msg.intervalMinutes, state.cloudAccountIntervalMinutes || 60);
+        state.cloudAccountRemainingSec = Number.isFinite(Number(msg.remainingSec)) ? Number(msg.remainingSec) : state.cloudAccountRemainingSec;
+        state.cloudAccountDownloadRunning = msg.running === true || msg.running === "true";
+        state.cloudAccountLastDownloadAt = String(msg.lastDownloadAt || state.cloudAccountLastDownloadAt || "");
+        state.cloudAccountLastDownloadStatus = String(msg.lastDownloadStatus || state.cloudAccountLastDownloadStatus || "");
+        state.cloudAccountPasswordConfigured = msg.passwordConfigured === true || msg.passwordConfigured === "true";
+        if (state.cloudAccountDownloadRunning && state.enableAutoRefreshQuota && !state.refreshMode && !state.refreshProgressScope) {
+          state.refreshProgressCurrent = 0;
+          state.refreshProgressTotal = 0;
+          state.refreshProgressScope = "cloud";
+          renderPrimaryActionButtons();
+          renderBulkControls();
+          renderAccounts();
+        }
+        if (!state.cloudAccountDownloadRunning) {
+          state.cloudAccountProgressCurrent = 0;
+          state.cloudAccountProgressTotal = 0;
+          if (wasCloudQuotaRefreshRunning || state.refreshProgressScope === "cloud") {
+            state.refreshProgressCurrent = 0;
+            state.refreshProgressTotal = 0;
+            state.refreshProgressScope = "";
+            clearProgressToast("quota_refresh");
+            renderPrimaryActionButtons();
+            renderBulkControls();
+            renderAccounts();
+          }
+          clearProgressToast("cloud_account");
+        }
+        renderCloudAccountState();
+        return;
+      }
+
       if (msg && typeof msg === "object" && msg.type === "webdav_sync_conflicts") {
         state.webdavConflicts = Array.isArray(msg.conflicts)
           ? msg.conflicts.map((item) => ({ ...item, winner: "remote" }))
@@ -4179,7 +4590,46 @@
         if (isManualSwitchSuccess) {
           switchTab("accounts");
         }
+        if (statusCode === "cloud_account_progress") {
+          state.cloudAccountDownloadRunning = true;
+          state.cloudAccountProgressCurrent = Math.max(0, Math.trunc(Number(msg.current) || 0));
+          state.cloudAccountProgressTotal = Math.max(0, Math.trunc(Number(msg.total) || 0));
+          renderCloudAccountState();
+          showProgressToast("cloud_account", getCloudProgressStatusText(), msg.level || "info");
+          return;
+        }
+        if (statusCode === "import_auth_batch_progress") {
+          if (!state.importMode) {
+            setImportBusy("oauth");
+          }
+          state.importProgressCurrent = Math.max(0, Math.trunc(Number(msg.current) || 0));
+          state.importProgressTotal = Math.max(0, Math.trunc(Number(msg.total) || 0));
+          renderImportBusy();
+          showProgressToast("import_auth", getImportProgressText(), msg.level || "info");
+          return;
+        }
+        if (statusCode === "quota_refresh_progress") {
+          const scope = String(msg.scope || "all").toLowerCase() === "batch" ? "batch" : "all";
+          const isCloudScope = String(msg.scope || "").toLowerCase() === "cloud";
+          const effectiveScope = isCloudScope ? "cloud" : scope;
+          if (!isCloudScope && !state.refreshMode) {
+            setRefreshBusy("all");
+          }
+          state.refreshProgressCurrent = Math.max(0, Math.trunc(Number(msg.current) || 0));
+          state.refreshProgressTotal = Math.max(0, Math.trunc(Number(msg.total) || 0));
+          state.refreshProgressScope = effectiveScope;
+          if (effectiveScope === "batch" && state.bulkMode !== "refresh") {
+            setBulkBusy("refresh");
+          } else {
+            renderPrimaryActionButtons();
+            renderBulkControls();
+            renderAccounts();
+          }
+          showProgressToast("quota_refresh", getRefreshProgressText(effectiveScope), msg.level || "info");
+          return;
+        }
         if (["quota_refreshed", "account_quota_refreshed", "account_abnormal_marked"].includes(String(msg.code || ""))) {
+          clearProgressToast("quota_refresh");
           setRefreshBusy("", "");
           if (state.importMode === "current") {
             setImportBusy("");
@@ -4188,6 +4638,7 @@
             setBulkBusy("");
           }
         } else if (msg.code === "batch_refresh_done") {
+          clearProgressToast("quota_refresh");
           setRefreshBusy("", "");
           if (state.bulkMode === "refresh") {
             setBulkBusy("");
@@ -4210,6 +4661,7 @@
             "quota_refresh_running"
           ].includes(statusCode)
         ) {
+          clearProgressToast("quota_refresh");
           setRefreshBusy("", "");
           if (state.bulkMode === "refresh") {
             setBulkBusy("");
@@ -4222,6 +4674,7 @@
           "import_auth_batch_partial",
           "import_auth_batch_failed"
         ].includes(String(msg.code || "")) || isOAuthTerminalCode(msg.code) || msg.level === "error")) {
+          clearProgressToast("import_auth");
           setImportBusy("");
           state.oauthFlowActive = false;
           renderOAuthFlowPanel();
@@ -4232,8 +4685,23 @@
         if (state.importMode === "current" && msg.level === "error") {
           setImportBusy("");
         }
+        if ([
+          "cloud_account_batch_done",
+          "cloud_account_batch_partial",
+          "cloud_account_batch_failed",
+          "cloud_account_invalid_config",
+          "cloud_account_provider_empty",
+          "cloud_account_provider_request_failed",
+          "cloud_account_provider_invalid_index",
+          "cloud_account_provider_item_failed",
+          "cloud_account_invalid_payload"
+        ].includes(statusCode)) {
+          clearProgressToast("cloud_account");
+        }
 
-        showToast(mapStatusMessage(msg), msg.level || "info");
+        if (!(msg.silent === true || msg.silent === "true")) {
+          showToast(mapStatusMessage(msg), msg.level || "info");
+        }
         return;
       }
 
@@ -4272,6 +4740,13 @@
           state.proxyDispatchMode = String(msg.proxyDispatchMode || "round_robin");
           state.proxyFixedAccount = String(msg.proxyFixedAccount || "");
           state.proxyFixedGroup = String(msg.proxyFixedGroup || "personal");
+          state.cloudAccountUrl = String(msg.cloudAccountUrl || "");
+          state.cloudAccountPasswordConfigured = msg.cloudAccountPasswordConfigured === true || msg.cloudAccountPasswordConfigured === "true";
+          state.cloudAccountPasswordClear = false;
+          state.cloudAccountAutoDownload = msg.cloudAccountAutoDownload === true || msg.cloudAccountAutoDownload === "true";
+          state.cloudAccountIntervalMinutes = clampWebDavSyncMinutes(msg.cloudAccountIntervalMinutes, 60);
+          state.cloudAccountLastDownloadAt = String(msg.cloudAccountLastDownloadAt || "");
+          state.cloudAccountLastDownloadStatus = String(msg.cloudAccountLastDownloadStatus || "");
           state.webdavEnabled = msg.webdavEnabled === true || msg.webdavEnabled === "true";
           state.webdavAutoSync = msg.webdavAutoSync !== false && msg.webdavAutoSync !== "false";
           state.webdavSyncIntervalMinutes = clampWebDavSyncMinutes(msg.webdavSyncIntervalMinutes, 15);
@@ -4282,6 +4757,7 @@
           state.webdavPasswordClear = false;
           state.webdavLastSyncAt = String(msg.webdavLastSyncAt || "");
           state.webdavLastSyncStatus = String(msg.webdavLastSyncStatus || "");
+          if (dom.cloudAccountPasswordInput) dom.cloudAccountPasswordInput.value = "";
           if (dom.webdavPasswordInput) dom.webdavPasswordInput.value = "";
           if (Number.isFinite(Number(msg.proxyPort))) dom.proxyPortInput.value = String(Number(msg.proxyPort));
           if (Number.isFinite(Number(msg.proxyTimeoutSec))) dom.proxyTimeoutInput.value = String(Number(msg.proxyTimeoutSec));
@@ -4329,6 +4805,13 @@
           state.proxyDispatchMode = String(msg.proxyDispatchMode || state.proxyDispatchMode || "round_robin");
           state.proxyFixedAccount = String(msg.proxyFixedAccount || state.proxyFixedAccount || "");
           state.proxyFixedGroup = String(msg.proxyFixedGroup || state.proxyFixedGroup || "personal");
+          state.cloudAccountUrl = String(msg.cloudAccountUrl || state.cloudAccountUrl || "");
+          state.cloudAccountPasswordConfigured = msg.cloudAccountPasswordConfigured === true || msg.cloudAccountPasswordConfigured === "true";
+          state.cloudAccountPasswordClear = false;
+          state.cloudAccountAutoDownload = msg.cloudAccountAutoDownload === true || msg.cloudAccountAutoDownload === "true";
+          state.cloudAccountIntervalMinutes = clampWebDavSyncMinutes(msg.cloudAccountIntervalMinutes, state.cloudAccountIntervalMinutes || 60);
+          state.cloudAccountLastDownloadAt = String(msg.cloudAccountLastDownloadAt || state.cloudAccountLastDownloadAt || "");
+          state.cloudAccountLastDownloadStatus = String(msg.cloudAccountLastDownloadStatus || state.cloudAccountLastDownloadStatus || "");
           state.webdavEnabled = msg.webdavEnabled === true || msg.webdavEnabled === "true";
           state.webdavAutoSync = msg.webdavAutoSync !== false && msg.webdavAutoSync !== "false";
           state.webdavSyncIntervalMinutes = clampWebDavSyncMinutes(msg.webdavSyncIntervalMinutes, state.webdavSyncIntervalMinutes || 15);
@@ -4339,6 +4822,7 @@
           state.webdavPasswordClear = false;
           state.webdavLastSyncAt = String(msg.webdavLastSyncAt || state.webdavLastSyncAt || "");
           state.webdavLastSyncStatus = String(msg.webdavLastSyncStatus || state.webdavLastSyncStatus || "");
+          if (dom.cloudAccountPasswordInput) dom.cloudAccountPasswordInput.value = "";
           if (dom.webdavPasswordInput) dom.webdavPasswordInput.value = "";
           if (Number.isFinite(Number(msg.proxyPort))) dom.proxyPortInput.value = String(Number(msg.proxyPort));
           if (Number.isFinite(Number(msg.proxyTimeoutSec))) dom.proxyTimeoutInput.value = String(Number(msg.proxyTimeoutSec));

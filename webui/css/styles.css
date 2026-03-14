@@ -2123,6 +2123,13 @@ select.settings-number-input option {
   color: var(--danger);
 }
 
+#settingsWebDavWarning,
+#cloudAccountDependencyHint {
+  display: block;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
 .settings-countdown {
   color: var(--text);
   font-size: 13px;

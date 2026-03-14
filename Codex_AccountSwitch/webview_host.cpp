@@ -69,6 +69,14 @@ namespace
   bool RestoreCodexProfileFromStealthBackup(std::wstring &error);
   bool SyncStealthProxyEnvironment(const AppConfig &cfg, std::wstring &error);
   std::wstring ParseJwtPayload(const std::wstring &token);
+  bool IsLikelyValidAuthJson(const std::wstring &json);
+  std::wstring UrlEncode(const std::wstring &value);
+  std::wstring MakeUniqueImportedName(const std::wstring &baseName,
+                                      const std::vector<std::wstring> &reservedNames);
+  bool ImportAuthJsonFile(const std::wstring &jsonPath,
+                          const std::wstring &preferredName, std::wstring &status,
+                          std::wstring &code, const bool queryUsage,
+                          bool *outAbnormal);
   bool SendCodexApiRequestByAuthFile(const fs::path &authPath,
                                      const std::wstring &model,
                                      const std::wstring &inputText,
@@ -100,6 +108,7 @@ namespace
   constexpr int kDefaultAllRefreshMinutes = 15;
   constexpr int kDefaultCurrentRefreshMinutes = 5;
   constexpr int kDefaultWebDavSyncMinutes = 15;
+  constexpr int kDefaultCloudAccountSyncMinutes = 60;
   constexpr int kMinRefreshMinutes = 1;
   constexpr int kMaxRefreshMinutes = 240;
   constexpr int kMinWebDavSyncMinutes = 1;
@@ -118,6 +127,7 @@ namespace
   constexpr wchar_t kWebDavManifestFileName[] = L"manifest.json";
   constexpr wchar_t kWebDavSecretFileName[] = L"webdav_secret.bin";
   constexpr wchar_t kWebDavSyncStateFileName[] = L"webdav_sync_state.json";
+  constexpr wchar_t kCloudAccountSecretFileName[] = L"cloud_account_secret.bin";
   constexpr wchar_t kCodexApiPathCompact[] = L"/backend-api/codex/responses";
   HWND g_DebugWebHwnd = nullptr;
   bool g_AutoDeleteAbnormalAccounts = false;
@@ -551,6 +561,11 @@ namespace
     return GetUserDataRoot() / kWebDavSyncStateFileName;
   }
 
+  fs::path GetCloudAccountSecretPath()
+  {
+    return GetUserDataRoot() / kCloudAccountSecretFileName;
+  }
+
   fs::path GetLegacyBackupsDir() { return GetLegacyDataRoot() / L"backups"; }
 
   fs::path GetLegacyIndexPath() { return GetLegacyBackupsDir() / L"index.json"; }
@@ -564,6 +579,7 @@ namespace
     bool api = true;
     bool traffic = true;
     bool token = true;
+    bool cloud = true;
     bool about = true;
     bool settings = true;
   };
@@ -595,6 +611,12 @@ namespace
     std::wstring lastSwitchedAccount;
     std::wstring lastSwitchedGroup;
     std::wstring lastSwitchedAt;
+    std::wstring cloudAccountUrl;
+    bool cloudAccountAutoDownload = false;
+    int cloudAccountIntervalMinutes = kDefaultCloudAccountSyncMinutes;
+    std::wstring cloudAccountLastDownloadAt;
+    std::wstring cloudAccountLastDownloadStatus;
+    bool cloudAccountPasswordConfigured = false;
     bool webdavEnabled = false;
     bool webdavAutoSync = true;
     int webdavSyncIntervalMinutes = kDefaultWebDavSyncMinutes;
@@ -779,6 +801,7 @@ namespace
     out.api = ExtractJsonBoolField(json, L"api", out.api);
     out.traffic = ExtractJsonBoolField(json, L"traffic", out.traffic);
     out.token = ExtractJsonBoolField(json, L"token", out.token);
+    out.cloud = ExtractJsonBoolField(json, L"cloud", out.cloud);
     out.about = ExtractJsonBoolField(json, L"about", out.about);
     out.settings = ExtractJsonBoolField(json, L"settings", true);
     NormalizeTabVisibility(out);
@@ -796,6 +819,7 @@ namespace
            L",\"traffic\":" +
            std::wstring(cfg.traffic ? L"true" : L"false") +
            L",\"token\":" + std::wstring(cfg.token ? L"true" : L"false") +
+           L",\"cloud\":" + std::wstring(cfg.cloud ? L"true" : L"false") +
            L",\"about\":" + std::wstring(cfg.about ? L"true" : L"false") +
            L",\"settings\":true}";
   }
@@ -2562,6 +2586,23 @@ namespace
         ExtractJsonField(json, L"lastSwitchedAccount");
     const std::wstring lastGroup = ExtractJsonField(json, L"lastSwitchedGroup");
     const std::wstring lastAt = ExtractJsonField(json, L"lastSwitchedAt");
+    const std::wstring cloudAccountUrl =
+        ExtractJsonField(json, L"cloudAccountUrl");
+    const bool cloudAccountAutoDownload =
+        ExtractJsonBoolField(json, L"cloudAccountAutoDownload", false);
+    const int cloudAccountIntervalMinutes =
+        ExtractJsonIntField(json, L"cloudAccountIntervalMinutes",
+                            kDefaultCloudAccountSyncMinutes);
+    const std::wstring cloudAccountLastDownloadAt =
+        ExtractJsonField(json, L"cloudAccountLastDownloadAt");
+    const std::wstring cloudAccountLastDownloadStatus =
+        ExtractJsonField(json, L"cloudAccountLastDownloadStatus");
+    const bool hasCloudAccountPasswordConfigured =
+        json.find(L"\"cloudAccountPasswordConfigured\"") != std::wstring::npos;
+    const bool cloudAccountPasswordConfigured =
+        hasCloudAccountPasswordConfigured
+            ? ExtractJsonBoolField(json, L"cloudAccountPasswordConfigured", false)
+            : fs::exists(GetCloudAccountSecretPath());
     const bool webdavEnabled =
         ExtractJsonBoolField(json, L"webdavEnabled", false);
     const bool webdavAutoSync =
@@ -2638,6 +2679,14 @@ namespace
     out.lastSwitchedAccount = lastAccount;
     out.lastSwitchedGroup = NormalizeGroup(lastGroup);
     out.lastSwitchedAt = lastAt;
+    out.cloudAccountUrl = cloudAccountUrl;
+    out.cloudAccountAutoDownload = cloudAccountAutoDownload;
+    out.cloudAccountIntervalMinutes = ClampWebDavSyncMinutes(
+        cloudAccountIntervalMinutes, kDefaultCloudAccountSyncMinutes);
+    out.cloudAccountLastDownloadAt = cloudAccountLastDownloadAt;
+    out.cloudAccountLastDownloadStatus = cloudAccountLastDownloadStatus;
+    out.cloudAccountPasswordConfigured =
+        cloudAccountPasswordConfigured && fs::exists(GetCloudAccountSecretPath());
     out.webdavEnabled = webdavEnabled;
     out.webdavAutoSync = webdavAutoSync;
     out.webdavSyncIntervalMinutes = ClampWebDavSyncMinutes(
@@ -2696,6 +2745,10 @@ namespace
       }
       tmp.proxyFixedGroup = NormalizeGroup(tmp.proxyFixedGroup);
       tmp.lastSwitchedGroup = NormalizeGroup(tmp.lastSwitchedGroup);
+      tmp.cloudAccountIntervalMinutes = ClampWebDavSyncMinutes(
+          tmp.cloudAccountIntervalMinutes, kDefaultCloudAccountSyncMinutes);
+      tmp.cloudAccountPasswordConfigured =
+          tmp.cloudAccountPasswordConfigured && fs::exists(GetCloudAccountSecretPath());
       tmp.webdavSyncIntervalMinutes = ClampWebDavSyncMinutes(
           tmp.webdavSyncIntervalMinutes, kDefaultWebDavSyncMinutes);
       if (tmp.webdavRemotePath.empty())
@@ -2754,6 +2807,18 @@ namespace
        << EscapeJsonString(cfg.lastSwitchedGroup) << L"\",\n";
     ss << L"  \"lastSwitchedAt\": \"" << EscapeJsonString(cfg.lastSwitchedAt)
        << L"\",\n";
+    ss << L"  \"cloudAccountUrl\": \"" << EscapeJsonString(cfg.cloudAccountUrl)
+       << L"\",\n";
+    ss << L"  \"cloudAccountAutoDownload\": "
+       << (cfg.cloudAccountAutoDownload ? L"true" : L"false") << L",\n";
+    ss << L"  \"cloudAccountIntervalMinutes\": "
+       << cfg.cloudAccountIntervalMinutes << L",\n";
+    ss << L"  \"cloudAccountLastDownloadAt\": \""
+       << EscapeJsonString(cfg.cloudAccountLastDownloadAt) << L"\",\n";
+    ss << L"  \"cloudAccountLastDownloadStatus\": \""
+       << EscapeJsonString(cfg.cloudAccountLastDownloadStatus) << L"\",\n";
+    ss << L"  \"cloudAccountPasswordConfigured\": "
+       << (cfg.cloudAccountPasswordConfigured ? L"true" : L"false") << L",\n";
     ss << L"  \"webdavEnabled\": "
        << (cfg.webdavEnabled ? L"true" : L"false") << L",\n";
     ss << L"  \"webdavAutoSync\": "
@@ -5182,6 +5247,820 @@ namespace
     {
       *cfgOut = cfg;
     }
+  }
+
+  struct CloudAccountRequestConfig
+  {
+    bool secure = false;
+    INTERNET_PORT port = 0;
+    std::wstring host;
+    std::wstring basePath;
+    std::wstring accessKey;
+  };
+
+  struct CloudProviderItemMeta
+  {
+    std::wstring name;
+    std::wstring mtime;
+    std::wstring path;
+  };
+
+  struct CloudAccountIdentity
+  {
+    std::wstring accountId;
+    std::wstring email;
+    std::wstring normalizedContent;
+  };
+
+  struct CloudAccountDownloadResult
+  {
+    bool ok = false;
+    bool accountsChanged = false;
+    std::wstring level = L"error";
+    std::wstring statusText;
+    std::wstring statusCode;
+    int successCount = 0;
+    int failedCount = 0;
+    int skippedCount = 0;
+    int totalCount = 0;
+    std::wstring lastError;
+    AppConfig cfg;
+  };
+
+  std::wstring BuildProgressStatusJson(const std::wstring &code,
+                                       const int current,
+                                       const int total,
+                                       const std::wstring &scope = L"")
+  {
+    std::wstringstream ss;
+    ss << L"{\"type\":\"status\",\"level\":\"info\",\"code\":\""
+       << EscapeJsonString(code) << L"\",\"message\":\"\""
+       << L",\"current\":" << std::to_wstring(current < 0 ? 0 : current)
+       << L",\"total\":" << std::to_wstring(total < 0 ? 0 : total);
+    if (!scope.empty())
+    {
+      ss << L",\"scope\":\"" << EscapeJsonString(scope) << L"\"";
+    }
+    ss << L"}";
+    return ss.str();
+  }
+
+  std::wstring BuildCloudAccountResultStatusJson(
+      const CloudAccountDownloadResult &result)
+  {
+    std::wstringstream ss;
+    ss << L"{\"type\":\"status\",\"level\":\""
+       << EscapeJsonString(result.level.empty() ? L"error" : result.level)
+       << L"\",\"code\":\""
+       << EscapeJsonString(result.statusCode.empty() ? L"cloud_account_batch_failed"
+                                                     : result.statusCode)
+       << L"\",\"message\":\""
+       << EscapeJsonString(result.statusText.empty() ? L"云账号下载失败"
+                                                     : result.statusText)
+       << L"\",\"success\":" << std::to_wstring(result.successCount)
+       << L",\"failed\":" << std::to_wstring(result.failedCount)
+       << L",\"skipped\":" << std::to_wstring(result.skippedCount)
+       << L",\"total\":" << std::to_wstring(result.totalCount)
+       << L",\"lastError\":\"" << EscapeJsonString(result.lastError) << L"\"}";
+    return ss.str();
+  }
+
+  std::wstring BuildCloudAccountStateJson(const AppConfig &cfg,
+                                          const bool running,
+                                          const int remainingSec)
+  {
+    return L"{\"type\":\"cloud_account_status\",\"autoDownload\":" +
+           std::wstring(cfg.cloudAccountAutoDownload ? L"true" : L"false") +
+           L",\"intervalMinutes\":" +
+           std::to_wstring(cfg.cloudAccountIntervalMinutes) +
+           L",\"remainingSec\":" +
+           std::to_wstring(remainingSec < 0 ? 0 : remainingSec) +
+           L",\"running\":" + std::wstring(running ? L"true" : L"false") +
+           L",\"lastDownloadAt\":\"" +
+           EscapeJsonString(cfg.cloudAccountLastDownloadAt) +
+           L"\",\"lastDownloadStatus\":\"" +
+           EscapeJsonString(cfg.cloudAccountLastDownloadStatus) +
+           L"\",\"passwordConfigured\":" +
+           std::wstring(cfg.cloudAccountPasswordConfigured ? L"true" : L"false") +
+           L"}";
+  }
+
+  void UpdateCloudAccountStatusInConfig(const std::wstring &status,
+                                        const bool touchTime,
+                                        AppConfig *cfgOut = nullptr)
+  {
+    AppConfig cfg;
+    LoadConfig(cfg);
+    cfg.cloudAccountLastDownloadStatus = status;
+    if (touchTime)
+    {
+      cfg.cloudAccountLastDownloadAt = NowText();
+    }
+    cfg.cloudAccountPasswordConfigured = fs::exists(GetCloudAccountSecretPath());
+    SaveConfig(cfg);
+    if (cfgOut != nullptr)
+    {
+      *cfgOut = cfg;
+    }
+  }
+
+  std::wstring NormalizeCloudAccountBasePath(std::wstring path)
+  {
+    while (path.size() > 1 && path.back() == L'/')
+    {
+      path.pop_back();
+    }
+    const std::wstring lower = ToLowerCopy(path);
+    if (lower.size() >= 5 && lower.substr(lower.size() - 5) == L"/json")
+    {
+      path.resize(path.size() - 5);
+    }
+    while (path.size() > 1 && path.back() == L'/')
+    {
+      path.pop_back();
+    }
+    return path == L"/" ? L"" : path;
+  }
+
+  std::wstring BuildCloudAccountRequestPath(const CloudAccountRequestConfig &cfg,
+                                            const std::wstring &suffix)
+  {
+    if (cfg.basePath.empty())
+    {
+      return suffix.empty() ? L"/" : suffix;
+    }
+    if (suffix.empty())
+    {
+      return cfg.basePath;
+    }
+    if (!suffix.empty() && suffix.front() == L'/')
+    {
+      return cfg.basePath + suffix;
+    }
+    return cfg.basePath + L"/" + suffix;
+  }
+
+  bool BuildCloudAccountRequestConfig(const AppConfig &cfg,
+                                      CloudAccountRequestConfig &out,
+                                      std::wstring &error)
+  {
+    error.clear();
+    out = CloudAccountRequestConfig{};
+    if (cfg.cloudAccountUrl.empty())
+    {
+      error = L"missing_url";
+      return false;
+    }
+    std::wstring accessKey;
+    if (!LoadProtectedWideText(GetCloudAccountSecretPath(), accessKey, error) ||
+        accessKey.empty())
+    {
+      if (error.empty())
+      {
+        error = L"missing_password";
+      }
+      return false;
+    }
+
+    URL_COMPONENTS parts{};
+    parts.dwStructSize = sizeof(parts);
+    parts.dwSchemeLength = static_cast<DWORD>(-1);
+    parts.dwHostNameLength = static_cast<DWORD>(-1);
+    parts.dwUrlPathLength = static_cast<DWORD>(-1);
+    parts.dwExtraInfoLength = static_cast<DWORD>(-1);
+    if (!WinHttpCrackUrl(cfg.cloudAccountUrl.c_str(), 0, 0, &parts))
+    {
+      error = L"invalid_url";
+      return false;
+    }
+
+    out.secure = parts.nScheme != INTERNET_SCHEME_HTTP;
+    out.port = parts.nPort;
+    out.host.assign(parts.lpszHostName, parts.dwHostNameLength);
+    std::wstring urlPath;
+    if (parts.dwUrlPathLength > 0)
+    {
+      urlPath.append(parts.lpszUrlPath, parts.dwUrlPathLength);
+    }
+    if (parts.dwExtraInfoLength > 0)
+    {
+      urlPath.append(parts.lpszExtraInfo, parts.dwExtraInfoLength);
+    }
+    if (urlPath.empty())
+    {
+      urlPath = L"/";
+    }
+    out.basePath = NormalizeCloudAccountBasePath(urlPath);
+    out.accessKey = accessKey;
+    return !out.host.empty();
+  }
+
+  bool SendCloudAccountRequest(const CloudAccountRequestConfig &cfg,
+                               const std::wstring &path,
+                               DWORD &statusCode,
+                               std::wstring &responseBody,
+                               std::wstring &error)
+  {
+    statusCode = 0;
+    responseBody.clear();
+    error.clear();
+
+    HINTERNET hSession = WinHttpOpen(L"Codex Account Switch/1.0",
+                                     WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                                     WINHTTP_NO_PROXY_NAME,
+                                     WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession)
+    {
+      error = L"WinHttpOpen_failed";
+      return false;
+    }
+    HINTERNET hConnect =
+        WinHttpConnect(hSession, cfg.host.c_str(), cfg.port, 0);
+    if (!hConnect)
+    {
+      WinHttpCloseHandle(hSession);
+      error = L"WinHttpConnect_failed";
+      return false;
+    }
+    HINTERNET hRequest =
+        WinHttpOpenRequest(hConnect, L"GET", path.c_str(), nullptr,
+                           WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES,
+                           cfg.secure ? WINHTTP_FLAG_SECURE : 0);
+    if (!hRequest)
+    {
+      WinHttpCloseHandle(hConnect);
+      WinHttpCloseHandle(hSession);
+      error = L"WinHttpOpenRequest_failed";
+      return false;
+    }
+
+    DWORD decompression =
+        WINHTTP_DECOMPRESSION_FLAG_GZIP | WINHTTP_DECOMPRESSION_FLAG_DEFLATE;
+    WinHttpSetOption(hRequest, WINHTTP_OPTION_DECOMPRESSION, &decompression,
+                     sizeof(decompression));
+    WinHttpSetTimeouts(hRequest, 10000, 10000, 30000, 30000);
+
+    const std::wstring headers =
+        L"Accept: application/json\r\nX-Access-Key: " + cfg.accessKey + L"\r\n";
+    BOOL ok = WinHttpSendRequest(hRequest, headers.c_str(),
+                                 static_cast<DWORD>(-1L),
+                                 WINHTTP_NO_REQUEST_DATA, 0, 0, 0);
+    if (ok)
+    {
+      ok = WinHttpReceiveResponse(hRequest, nullptr);
+    }
+    if (!ok)
+    {
+      error = L"http_transport_failed";
+      WinHttpCloseHandle(hRequest);
+      WinHttpCloseHandle(hConnect);
+      WinHttpCloseHandle(hSession);
+      return false;
+    }
+
+    DWORD statusSize = sizeof(statusCode);
+    if (!WinHttpQueryHeaders(hRequest,
+                             WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                             WINHTTP_HEADER_NAME_BY_INDEX, &statusCode,
+                             &statusSize, WINHTTP_NO_HEADER_INDEX))
+    {
+      error = L"http_status_query_failed";
+      WinHttpCloseHandle(hRequest);
+      WinHttpCloseHandle(hConnect);
+      WinHttpCloseHandle(hSession);
+      return false;
+    }
+
+    std::string body;
+    for (;;)
+    {
+      DWORD bytesAvailable = 0;
+      if (!WinHttpQueryDataAvailable(hRequest, &bytesAvailable))
+      {
+        error = L"http_query_data_failed";
+        break;
+      }
+      if (bytesAvailable == 0)
+      {
+        break;
+      }
+      std::string chunk(static_cast<size_t>(bytesAvailable), '\0');
+      DWORD bytesRead = 0;
+      if (!WinHttpReadData(hRequest, chunk.data(), bytesAvailable, &bytesRead))
+      {
+        error = L"http_read_failed";
+        break;
+      }
+      body.append(chunk.data(), chunk.data() + bytesRead);
+    }
+
+    WinHttpCloseHandle(hRequest);
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
+    if (!error.empty())
+    {
+      return false;
+    }
+    responseBody = Utf8ToWide(body);
+    return true;
+  }
+
+  std::wstring TrimWideCopy(const std::wstring &value)
+  {
+    size_t start = 0;
+    while (start < value.size() && iswspace(value[start]))
+    {
+      ++start;
+    }
+    size_t end = value.size();
+    while (end > start && iswspace(value[end - 1]))
+    {
+      --end;
+    }
+    return value.substr(start, end - start);
+  }
+
+  bool LooksLikeJsonText(const std::wstring &value)
+  {
+    const std::wstring trimmed = TrimWideCopy(value);
+    if (trimmed.empty())
+    {
+      return false;
+    }
+    return trimmed.front() == L'{' || trimmed.front() == L'[';
+  }
+
+  std::wstring ExtractCloudAccountContentValue(const std::wstring &detailJson)
+  {
+    std::wstring objectText;
+    if (ExtractJsonObjectField(detailJson, L"content", objectText))
+    {
+      return objectText;
+    }
+    std::wstring arrayText;
+    if (ExtractJsonArrayField(detailJson, L"content", arrayText))
+    {
+      return arrayText;
+    }
+    return UnescapeJsonString(ExtractJsonStringField(detailJson, L"content"));
+  }
+
+  bool TryDownloadCloudAccountLinkedContent(const CloudAccountRequestConfig &cfg,
+                                            const std::wstring &candidate,
+                                            std::wstring &downloadedContent,
+                                            std::wstring &error)
+  {
+    downloadedContent.clear();
+    error.clear();
+    const std::wstring trimmed = TrimWideCopy(candidate);
+    if (trimmed.empty() || LooksLikeJsonText(trimmed))
+    {
+      return false;
+    }
+
+    std::wstring resolvedPath = trimmed;
+    const std::wstring lower = ToLowerCopy(trimmed);
+    if (lower.rfind(L"http://", 0) == 0 || lower.rfind(L"https://", 0) == 0)
+    {
+      URL_COMPONENTS parts{};
+      parts.dwStructSize = sizeof(parts);
+      parts.dwSchemeLength = static_cast<DWORD>(-1);
+      parts.dwHostNameLength = static_cast<DWORD>(-1);
+      parts.dwUrlPathLength = static_cast<DWORD>(-1);
+      parts.dwExtraInfoLength = static_cast<DWORD>(-1);
+      if (!WinHttpCrackUrl(trimmed.c_str(), 0, 0, &parts))
+      {
+        error = L"invalid_link_url";
+        return false;
+      }
+      const std::wstring host(parts.lpszHostName, parts.dwHostNameLength);
+      const bool secure = parts.nScheme != INTERNET_SCHEME_HTTP;
+      if (!EqualsIgnoreCase(host, cfg.host) || parts.nPort != cfg.port ||
+          secure != cfg.secure)
+      {
+        error = L"unsupported_external_link";
+        return false;
+      }
+      resolvedPath.clear();
+      if (parts.dwUrlPathLength > 0)
+      {
+        resolvedPath.append(parts.lpszUrlPath, parts.dwUrlPathLength);
+      }
+      if (parts.dwExtraInfoLength > 0)
+      {
+        resolvedPath.append(parts.lpszExtraInfo, parts.dwExtraInfoLength);
+      }
+      if (resolvedPath.empty())
+      {
+        resolvedPath = L"/";
+      }
+    }
+
+    DWORD statusCode = 0;
+    std::wstring body;
+    if (!SendCloudAccountRequest(cfg, BuildCloudAccountRequestPath(cfg, resolvedPath),
+                                 statusCode, body, error) ||
+        statusCode != 200)
+    {
+      if (error.empty())
+      {
+        error = L"linked_download_http_" + std::to_wstring(statusCode);
+      }
+      return false;
+    }
+
+    downloadedContent = body;
+    return !downloadedContent.empty();
+  }
+
+  std::wstring ExtractCloudAccountIdFromAuthJson(const std::wstring &json)
+  {
+    const AuthJsonCompatFields fields = ExtractAuthJsonCompatFields(json);
+    if (!fields.accountId.empty())
+    {
+      return fields.accountId;
+    }
+    if (fields.idToken.empty())
+    {
+      return L"";
+    }
+    const std::wstring payload = ParseJwtPayload(fields.idToken);
+    if (payload.empty())
+    {
+      return L"";
+    }
+    std::wstring authInfo;
+    if (!ExtractJsonObjectField(payload, L"https://api.openai.com/auth", authInfo))
+    {
+      authInfo = payload;
+    }
+    std::wstring accountId = ExtractJsonField(authInfo, L"chatgpt_account_id");
+    if (accountId.empty())
+    {
+      accountId = ExtractJsonField(payload, L"chatgpt_account_id");
+    }
+    return accountId;
+  }
+
+  std::wstring ExtractCloudAccountEmailFromAuthJson(const std::wstring &json)
+  {
+    std::wstring email = ExtractJsonField(json, L"email");
+    if (!email.empty())
+    {
+      return ToLowerCopy(email);
+    }
+    const AuthJsonCompatFields fields = ExtractAuthJsonCompatFields(json);
+    if (fields.idToken.empty())
+    {
+      return L"";
+    }
+    const std::wstring payload = ParseJwtPayload(fields.idToken);
+    if (payload.empty())
+    {
+      return L"";
+    }
+    email = ExtractJsonField(payload, L"email");
+    return email.empty() ? L"" : ToLowerCopy(email);
+  }
+
+  CloudAccountIdentity BuildCloudAccountIdentity(const std::wstring &content)
+  {
+    CloudAccountIdentity out;
+    out.normalizedContent = content;
+    NormalizeAuthJsonForCompatibility(content, out.normalizedContent);
+    out.accountId = ExtractCloudAccountIdFromAuthJson(out.normalizedContent);
+    out.email = ExtractCloudAccountEmailFromAuthJson(out.normalizedContent);
+    return out;
+  }
+
+  bool IsDuplicateCloudAccount(const CloudAccountIdentity &target,
+                               const CloudAccountIdentity &local)
+  {
+    if (!target.accountId.empty())
+    {
+      return !local.accountId.empty() &&
+             EqualsIgnoreCase(local.accountId, target.accountId);
+    }
+    if (!target.email.empty())
+    {
+      return !local.email.empty() && EqualsIgnoreCase(local.email, target.email);
+    }
+    return !target.normalizedContent.empty() &&
+           target.normalizedContent == local.normalizedContent;
+  }
+
+  bool FindDuplicateLocalCloudAccount(const std::wstring &downloadedContent,
+                                      std::wstring &matchedName,
+                                      std::wstring &matchedGroup)
+  {
+    matchedName.clear();
+    matchedGroup.clear();
+    const CloudAccountIdentity target = BuildCloudAccountIdentity(downloadedContent);
+    const std::lock_guard<std::recursive_mutex> lock(g_IndexDataMutex);
+    EnsureIndexExists();
+    IndexData idx;
+    if (!LoadIndex(idx))
+    {
+      return false;
+    }
+    for (const auto &row : idx.accounts)
+    {
+      const fs::path authPath = ResolveAuthPathFromIndex(row);
+      if (!fs::exists(authPath))
+      {
+        continue;
+      }
+      std::wstring localContent;
+      if (!ReadUtf8File(authPath, localContent))
+      {
+        continue;
+      }
+      CloudAccountIdentity local = BuildCloudAccountIdentity(localContent);
+      if (local.email.empty() && !row.quotaEmail.empty())
+      {
+        local.email = ToLowerCopy(row.quotaEmail);
+      }
+      if (IsDuplicateCloudAccount(target, local))
+      {
+        matchedName = row.name;
+        matchedGroup = row.group;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  std::wstring BuildPreferredCloudAccountName(
+      const std::wstring &providerItemName,
+      const std::wstring &downloadedContent)
+  {
+    const CloudAccountIdentity identity = BuildCloudAccountIdentity(downloadedContent);
+    if (!identity.email.empty())
+    {
+      return identity.email;
+    }
+    const std::wstring stem = fs::path(providerItemName).stem().wstring();
+    if (!stem.empty())
+    {
+      return stem;
+    }
+    return L"cloud_auth";
+  }
+
+  bool ImportCloudAccountContent(const std::wstring &content,
+                                 const std::wstring &preferredBaseName,
+                                 const bool queryUsage,
+                                 std::wstring &savedName,
+                                 std::wstring &status,
+                                 std::wstring &code)
+  {
+    savedName.clear();
+    std::wstring normalizedContent = content;
+    NormalizeAuthJsonForCompatibility(content, normalizedContent);
+    if (!IsLikelyValidAuthJson(normalizedContent))
+    {
+      status = L"下载内容不是有效 auth.json";
+      code = L"cloud_account_invalid_payload";
+      return false;
+    }
+
+    std::vector<std::wstring> reservedNames;
+    {
+      const std::lock_guard<std::recursive_mutex> lock(g_IndexDataMutex);
+      EnsureIndexExists();
+      IndexData idx;
+      LoadIndex(idx);
+      reservedNames.reserve(idx.accounts.size());
+      for (const auto &row : idx.accounts)
+      {
+        reservedNames.push_back(row.name);
+      }
+    }
+
+    const std::wstring uniqueName =
+        MakeUniqueImportedName(preferredBaseName, reservedNames);
+    const fs::path tempPath =
+        fs::temp_directory_path() /
+        (L"codex_cloud_import_" + std::to_wstring(GetCurrentProcessId()) + L"_" +
+         std::to_wstring(GetTickCount64()) + L".json");
+    if (!WriteUtf8File(tempPath, normalizedContent))
+    {
+      status = L"无法写入临时文件";
+      code = L"write_failed";
+      return false;
+    }
+
+    const bool ok =
+        ImportAuthJsonFile(tempPath.wstring(), uniqueName, status, code, queryUsage,
+                           nullptr);
+    std::error_code ec;
+    fs::remove(tempPath, ec);
+    if (ok)
+    {
+      savedName = uniqueName;
+    }
+    return ok;
+  }
+
+  CloudAccountDownloadResult ExecuteCloudAccountDownload(const HWND progressHwnd)
+  {
+    CloudAccountDownloadResult result;
+    AppConfig cfg;
+    LoadConfig(cfg);
+    cfg.cloudAccountPasswordConfigured = fs::exists(GetCloudAccountSecretPath());
+    const bool queryUsage = cfg.enableAutoRefreshQuota;
+
+    CloudAccountRequestConfig requestCfg;
+    std::wstring error;
+    if (!BuildCloudAccountRequestConfig(cfg, requestCfg, error))
+    {
+      result.level = L"warning";
+      result.statusCode = L"cloud_account_invalid_config";
+      result.statusText = L"云账号配置不完整，请先填写下载地址和密码";
+      UpdateCloudAccountStatusInConfig(result.statusText, false, &result.cfg);
+      return result;
+    }
+
+    DWORD statusCode = 0;
+    std::wstring indexJson;
+    if (!SendCloudAccountRequest(
+            requestCfg, BuildCloudAccountRequestPath(requestCfg, L"/json"),
+            statusCode, indexJson, error) ||
+        statusCode != 200)
+    {
+      result.statusCode = L"cloud_account_provider_request_failed";
+      result.statusText = L"请求云账号 Provider 失败";
+      UpdateCloudAccountStatusInConfig(result.statusText, true, &result.cfg);
+      return result;
+    }
+
+    std::wstring itemsArray;
+    if (!ExtractJsonArrayField(indexJson, L"items", itemsArray))
+    {
+      result.statusCode = L"cloud_account_provider_invalid_index";
+      result.statusText = L"Provider 索引返回格式无效";
+      UpdateCloudAccountStatusInConfig(result.statusText, true, &result.cfg);
+      return result;
+    }
+
+    std::vector<CloudProviderItemMeta> providerItems;
+    for (const auto &obj : ExtractTopLevelObjectsFromArray(itemsArray))
+    {
+      CloudProviderItemMeta item;
+      item.name = UnescapeJsonString(ExtractJsonStringField(obj, L"name"));
+      item.mtime = UnescapeJsonString(ExtractJsonStringField(obj, L"mtime"));
+      item.path = UnescapeJsonString(ExtractJsonStringField(obj, L"path"));
+      if (item.name.empty())
+      {
+        continue;
+      }
+      providerItems.push_back(item);
+    }
+    if (providerItems.empty())
+    {
+      result.level = L"warning";
+      result.statusCode = L"cloud_account_provider_empty";
+      result.statusText = L"Provider 当前没有可下载账号";
+      UpdateCloudAccountStatusInConfig(result.statusText, true, &result.cfg);
+      return result;
+    }
+    std::sort(providerItems.begin(), providerItems.end(),
+              [](const CloudProviderItemMeta &a, const CloudProviderItemMeta &b)
+              {
+                if (a.mtime != b.mtime)
+                {
+                  return a.mtime > b.mtime;
+                }
+                return ToLowerCopy(a.name) < ToLowerCopy(b.name);
+              });
+
+    result.totalCount = static_cast<int>(providerItems.size());
+    for (size_t i = 0; i < providerItems.size(); ++i)
+    {
+      const auto &providerItem = providerItems[i];
+      if (progressHwnd != nullptr && IsWindow(progressHwnd))
+      {
+        PostAsyncWebJson(progressHwnd,
+                         BuildProgressStatusJson(
+                             L"cloud_account_progress",
+                             static_cast<int>(i + 1), result.totalCount));
+        if (queryUsage)
+        {
+          PostAsyncWebJson(progressHwnd,
+                           BuildProgressStatusJson(
+                               L"quota_refresh_progress",
+                               static_cast<int>(i + 1), result.totalCount,
+                               L"cloud"));
+        }
+      }
+      std::wstring detailJson;
+      const std::wstring detailPath =
+          BuildCloudAccountRequestPath(requestCfg,
+                                       L"/json/item?name=" +
+                                           UrlEncode(providerItem.name));
+      if (!SendCloudAccountRequest(requestCfg, detailPath, statusCode, detailJson,
+                                   error) ||
+          statusCode != 200)
+      {
+        ++result.failedCount;
+        result.lastError = L"获取云账号失败：" + providerItem.name;
+        continue;
+      }
+
+      std::wstring downloadedContent = ExtractCloudAccountContentValue(detailJson);
+      std::wstring detailItemJson;
+      std::wstring detailItemPath;
+      if (ExtractJsonObjectField(detailJson, L"item", detailItemJson))
+      {
+        detailItemPath =
+            UnescapeJsonString(ExtractJsonStringField(detailItemJson, L"path"));
+      }
+      std::wstring normalizedContent = downloadedContent;
+      NormalizeAuthJsonForCompatibility(downloadedContent, normalizedContent);
+      if (downloadedContent.empty() || !IsLikelyValidAuthJson(normalizedContent))
+      {
+        std::wstring linkedContent;
+        std::wstring linkedError;
+        bool linkedDownloaded = false;
+        for (const std::wstring &candidate :
+             {downloadedContent, detailItemPath, providerItem.path})
+        {
+          linkedContent.clear();
+          linkedError.clear();
+          if (!TryDownloadCloudAccountLinkedContent(requestCfg, candidate,
+                                                    linkedContent, linkedError))
+          {
+            continue;
+          }
+          std::wstring linkedNormalized = linkedContent;
+          NormalizeAuthJsonForCompatibility(linkedContent, linkedNormalized);
+          if (!linkedContent.empty() && IsLikelyValidAuthJson(linkedNormalized))
+          {
+            downloadedContent = linkedContent;
+            normalizedContent = linkedNormalized;
+            linkedDownloaded = true;
+            break;
+          }
+        }
+        if (!linkedDownloaded)
+        {
+          ++result.failedCount;
+          result.lastError = L"云端数据无效：" + providerItem.name;
+          continue;
+        }
+      }
+
+      std::wstring duplicateName;
+      std::wstring duplicateGroup;
+      if (FindDuplicateLocalCloudAccount(normalizedContent, duplicateName,
+                                         duplicateGroup))
+      {
+        ++result.skippedCount;
+        continue;
+      }
+
+      std::wstring savedName;
+      std::wstring importStatus;
+      std::wstring importCode;
+      const std::wstring preferredName =
+          BuildPreferredCloudAccountName(providerItem.name, normalizedContent);
+      if (!ImportCloudAccountContent(normalizedContent, preferredName, queryUsage,
+                                     savedName, importStatus, importCode))
+      {
+        ++result.failedCount;
+        result.lastError =
+            importStatus.empty() ? (L"导入失败：" + providerItem.name) : importStatus;
+        continue;
+      }
+
+      ++result.successCount;
+      result.accountsChanged = true;
+    }
+
+    if (result.successCount > 0)
+    {
+      result.ok = true;
+      result.level = result.failedCount > 0 ? L"warning" : L"success";
+      result.statusCode = result.failedCount > 0 ? L"cloud_account_batch_partial"
+                                                 : L"cloud_account_batch_done";
+    }
+    else if (result.failedCount == 0 && result.skippedCount > 0)
+    {
+      result.ok = true;
+      result.level = L"warning";
+      result.statusCode = L"cloud_account_batch_done";
+    }
+    else
+    {
+      result.level = L"error";
+      result.statusCode = L"cloud_account_batch_failed";
+    }
+    result.statusText = L"云账号导入完成：成功 " +
+                        std::to_wstring(result.successCount) + L"，失败 " +
+                        std::to_wstring(result.failedCount) + L"，跳过 " +
+                        std::to_wstring(result.skippedCount);
+    UpdateCloudAccountStatusInConfig(result.statusText, true, &result.cfg);
+    return result;
   }
 
   fs::path ResolveLocalWebDavAuthPath(const WebDavFileEntry &entry)
@@ -11695,7 +12574,19 @@ void WebViewHost::SendConfig(bool firstRun) const
       EscapeJsonString(cfg.lastSwitchedAccount) +
       L"\",\"lastSwitchedGroup\":\"" + EscapeJsonString(cfg.lastSwitchedGroup) +
       L"\",\"lastSwitchedAt\":\"" + EscapeJsonString(cfg.lastSwitchedAt) +
-      L"\",\"webdavEnabled\":" +
+      L"\",\"cloudAccountUrl\":\"" +
+      EscapeJsonString(cfg.cloudAccountUrl) +
+      L"\",\"cloudAccountAutoDownload\":" +
+      std::wstring(cfg.cloudAccountAutoDownload ? L"true" : L"false") +
+      L",\"cloudAccountIntervalMinutes\":" +
+      std::to_wstring(cfg.cloudAccountIntervalMinutes) +
+      L",\"cloudAccountLastDownloadAt\":\"" +
+      EscapeJsonString(cfg.cloudAccountLastDownloadAt) +
+      L"\",\"cloudAccountLastDownloadStatus\":\"" +
+      EscapeJsonString(cfg.cloudAccountLastDownloadStatus) +
+      L"\",\"cloudAccountPasswordConfigured\":" +
+      std::wstring(cfg.cloudAccountPasswordConfigured ? L"true" : L"false") +
+      L",\"webdavEnabled\":" +
       std::wstring(cfg.webdavEnabled ? L"true" : L"false") +
       L",\"webdavAutoSync\":" +
       std::wstring(cfg.webdavAutoSync ? L"true" : L"false") +
@@ -11743,6 +12634,14 @@ void WebViewHost::SendWebDavSyncState() const
   LoadConfig(cfg);
   SendWebJson(BuildWebDavSyncStateJson(cfg, webDavSyncRunning_.load(),
                                        webDavSyncRemainingSec_));
+}
+
+void WebViewHost::SendCloudAccountState() const
+{
+  AppConfig cfg;
+  LoadConfig(cfg);
+  SendWebJson(BuildCloudAccountStateJson(cfg, cloudAccountDownloadRunning_.load(),
+                                         cloudAccountRemainingSec_));
 }
 
 std::wstring BuildTrayQuotaText(const IndexEntry &row)
@@ -12104,6 +13003,14 @@ void WebViewHost::TriggerRefreshAll(const bool notifyStatus)
       } else {
         for (size_t i = 0; i < targets.size(); ++i) {
           const auto &item = targets[i];
+          if (targetHwnd != nullptr && IsWindow(targetHwnd)) {
+            PostAsyncWebJson(
+                targetHwnd,
+                BuildProgressStatusJson(L"quota_refresh_progress",
+                                        static_cast<int>(i + 1),
+                                        static_cast<int>(targets.size()),
+                                        L"all"));
+          }
           latestJson = BuildAccountsListJson(true, item.first, item.second);
           if (!latestJson.empty()) {
             // Push incremental result immediately so UI updates account rows progressively.
@@ -12120,11 +13027,11 @@ void WebViewHost::TriggerRefreshAll(const bool notifyStatus)
           }
         }
       }
-      if (notifyStatus) {
-        PostAsyncWebJson(targetHwnd,
-                         L"{\"type\":\"status\",\"level\":\"success\",\"code\":"
-                         L"\"quota_refreshed\",\"message\":\"\"}");
-      }
+      PostAsyncWebJson(
+          targetHwnd,
+          L"{\"type\":\"status\",\"level\":\"success\",\"code\":"
+          L"\"quota_refreshed\",\"message\":\"\",\"silent\":" +
+              std::wstring(notifyStatus ? L"false" : L"true") + L"}");
 
       const std::vector<AccountEntry> accounts = CollectAccounts(false, L"", L"");
       const AccountEntry *current = FindCurrentAccountEntry(accounts);
@@ -12156,11 +13063,14 @@ void WebViewHost::TriggerRefreshAll(const bool notifyStatus)
     }
 
     runningFlag->store(false);
-    if (!refreshError.empty() && notifyStatus) {
+    if (!refreshError.empty()) {
       PostAsyncWebJson(targetHwnd,
                        L"{\"type\":\"status\",\"level\":\"error\",\"code\":"
                        L"\"quota_refresh_failed\",\"message\":\"" +
-                           EscapeJsonString(refreshError) + L"\"}");
+                           EscapeJsonString(refreshError) +
+                           L"\",\"silent\":" +
+                           std::wstring(notifyStatus ? L"false" : L"true") +
+                           L"}");
     } })
       .detach();
 }
@@ -12309,6 +13219,42 @@ void WebViewHost::TriggerWebDavSync(const std::wstring &mode,
       .detach();
 }
 
+void WebViewHost::TriggerCloudAccountDownload(const bool notifyStatus)
+{
+  if (cloudAccountDownloadRunning_.exchange(true))
+  {
+    if (notifyStatus)
+    {
+      SendWebStatus(L"云账号下载任务已在进行中", L"warning",
+                    L"cloud_account_download_running");
+    }
+    return;
+  }
+  cloudAccountRemainingSec_ = cloudAccountIntervalSec_;
+  SendCloudAccountState();
+
+  const HWND targetHwnd = hwnd_;
+  auto *runningFlag = &cloudAccountDownloadRunning_;
+  const int nextRemainingSec = cloudAccountIntervalSec_;
+  std::thread([targetHwnd, notifyStatus, runningFlag, nextRemainingSec]()
+              {
+    const CloudAccountDownloadResult result =
+        ExecuteCloudAccountDownload(targetHwnd);
+    runningFlag->store(false);
+    PostAsyncWebJson(targetHwnd,
+                     BuildCloudAccountStateJson(result.cfg, false,
+                                                nextRemainingSec));
+    if (result.accountsChanged)
+    {
+      PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L""));
+    }
+    if (notifyStatus)
+    {
+      PostAsyncWebJson(targetHwnd, BuildCloudAccountResultStatusJson(result));
+    } })
+      .detach();
+}
+
 void WebViewHost::HandleAutoRefreshTick()
 {
   if (autoRefreshQuotaDisabled_)
@@ -12329,6 +13275,10 @@ void WebViewHost::HandleAutoRefreshTick()
   {
     --webDavSyncRemainingSec_;
   }
+  if (cloudAccountAutoDownloadEnabled_ && cloudAccountRemainingSec_ > 0)
+  {
+    --cloudAccountRemainingSec_;
+  }
 
   if (!autoRefreshQuotaDisabled_ && allRefreshRemainingSec_ <= 0)
   {
@@ -12343,8 +13293,13 @@ void WebViewHost::HandleAutoRefreshTick()
   {
     TriggerWebDavSync(L"bidirectional", false);
   }
+  if (cloudAccountAutoDownloadEnabled_ && cloudAccountRemainingSec_ <= 0)
+  {
+    TriggerCloudAccountDownload(false);
+  }
   SendRefreshTimerState();
   SendWebDavSyncState();
+  SendCloudAccountState();
 }
 
 void WebViewHost::SendWebJson(const std::wstring &json) const
@@ -12632,6 +13587,14 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       std::wstring latestJson = BuildAccountsListJson(false, L"", L"");
       for (size_t i = 0; i < targets.size(); ++i) {
         const auto &item = targets[i];
+        if (targetHwnd != nullptr && IsWindow(targetHwnd)) {
+          PostAsyncWebJson(
+              targetHwnd,
+              BuildProgressStatusJson(L"quota_refresh_progress",
+                                      static_cast<int>(i + 1),
+                                      static_cast<int>(targets.size()),
+                                      L"batch"));
+        }
         latestJson = BuildAccountsListJson(true, item.first, item.second);
         if (!latestJson.empty()) {
           // Push incremental result immediately so UI updates account rows progressively.
@@ -13088,6 +14051,13 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
       lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
       proxyStealthModeEnabled_ = cfg.proxyStealthMode;
+      cloudAccountAutoDownloadEnabled_ = cfg.cloudAccountAutoDownload;
+      cloudAccountIntervalSec_ =
+          ClampWebDavSyncMinutes(cfg.cloudAccountIntervalMinutes,
+                                 kDefaultCloudAccountSyncMinutes) *
+          60;
+      cloudAccountLastDownloadAt_ = cfg.cloudAccountLastDownloadAt;
+      cloudAccountLastDownloadStatus_ = cfg.cloudAccountLastDownloadStatus;
       webDavEnabled_ = cfg.webdavEnabled;
       webDavAutoSyncEnabled_ = cfg.webdavEnabled && cfg.webdavAutoSync;
       webDavSyncIntervalSec_ =
@@ -13123,10 +14093,16 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       {
         webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
       }
+      if (cloudAccountRemainingSec_ <= 0 ||
+          cloudAccountRemainingSec_ > cloudAccountIntervalSec_)
+      {
+        cloudAccountRemainingSec_ = cloudAccountIntervalSec_;
+      }
     }
     SendConfig(created);
     SendRefreshTimerState();
     SendWebDavSyncState();
+    SendCloudAccountState();
     return;
   }
 
@@ -13202,6 +14178,16 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         rawMessage.find(L"\"autoMarkAbnormalAccounts\"") != std::wstring::npos;
     const bool hasAutoDeleteAbnormalAccounts =
         rawMessage.find(L"\"autoDeleteAbnormalAccounts\"") != std::wstring::npos;
+    const bool hasCloudAccountUrl =
+        rawMessage.find(L"\"cloudAccountUrl\"") != std::wstring::npos;
+    const bool hasCloudAccountPassword =
+        rawMessage.find(L"\"cloudAccountPassword\"") != std::wstring::npos;
+    const bool hasCloudAccountPasswordClear =
+        rawMessage.find(L"\"cloudAccountPasswordClear\"") != std::wstring::npos;
+    const bool hasCloudAccountAutoDownload =
+        rawMessage.find(L"\"cloudAccountAutoDownload\"") != std::wstring::npos;
+    const bool hasCloudAccountIntervalMinutes =
+        rawMessage.find(L"\"cloudAccountIntervalMinutes\"") != std::wstring::npos;
     const bool hasWebdavEnabled =
         rawMessage.find(L"\"webdavEnabled\"") != std::wstring::npos;
     const bool hasWebdavAutoSync =
@@ -13244,6 +14230,18 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         ExtractJsonBoolField(rawMessage, L"proxyAutoStart", false);
     const bool proxyStealthMode =
         ExtractJsonBoolField(rawMessage, L"proxyStealthMode", false);
+    const std::wstring cloudAccountUrl =
+        UnescapeJsonString(ExtractJsonStringField(rawMessage, L"cloudAccountUrl"));
+    const std::wstring cloudAccountPassword =
+        UnescapeJsonString(
+            ExtractJsonStringField(rawMessage, L"cloudAccountPassword"));
+    const bool cloudAccountPasswordClear =
+        ExtractJsonBoolField(rawMessage, L"cloudAccountPasswordClear", false);
+    const bool cloudAccountAutoDownload =
+        ExtractJsonBoolField(rawMessage, L"cloudAccountAutoDownload", false);
+    const int cloudAccountIntervalMinutes =
+        ExtractJsonIntField(rawMessage, L"cloudAccountIntervalMinutes",
+                            kDefaultCloudAccountSyncMinutes);
     const std::wstring proxyApiKey =
         UnescapeJsonString(ExtractJsonStringField(rawMessage, L"proxyApiKey"));
     const std::wstring proxyDispatchMode =
@@ -13333,6 +14331,38 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     {
       cfg.proxyFixedGroup = proxyFixedGroup;
     }
+    if (hasCloudAccountUrl)
+    {
+      cfg.cloudAccountUrl = cloudAccountUrl;
+    }
+    if (hasCloudAccountAutoDownload)
+    {
+      cfg.cloudAccountAutoDownload = cloudAccountAutoDownload;
+    }
+    if (hasCloudAccountIntervalMinutes)
+    {
+      cfg.cloudAccountIntervalMinutes = ClampWebDavSyncMinutes(
+          cloudAccountIntervalMinutes, kDefaultCloudAccountSyncMinutes);
+    }
+
+    std::wstring cloudAccountSecretError;
+    if (hasCloudAccountPasswordClear && cloudAccountPasswordClear)
+    {
+      DeleteProtectedFile(GetCloudAccountSecretPath(), cloudAccountSecretError);
+      cfg.cloudAccountPasswordConfigured = false;
+    }
+    if (hasCloudAccountPassword && !cloudAccountPassword.empty())
+    {
+      if (SaveProtectedWideText(GetCloudAccountSecretPath(), cloudAccountPassword,
+                                cloudAccountSecretError))
+      {
+        cfg.cloudAccountPasswordConfigured = true;
+      }
+    }
+    else if (fs::exists(GetCloudAccountSecretPath()))
+    {
+      cfg.cloudAccountPasswordConfigured = true;
+    }
     if (hasWebdavEnabled)
     {
       cfg.webdavEnabled = webdavEnabled;
@@ -13388,6 +14418,11 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
       lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
       proxyStealthModeEnabled_ = cfg.proxyStealthMode;
+      cloudAccountAutoDownloadEnabled_ = cfg.cloudAccountAutoDownload;
+      cloudAccountIntervalSec_ =
+          cfg.cloudAccountIntervalMinutes * 60;
+      cloudAccountLastDownloadAt_ = cfg.cloudAccountLastDownloadAt;
+      cloudAccountLastDownloadStatus_ = cfg.cloudAccountLastDownloadStatus;
       webDavEnabled_ = cfg.webdavEnabled;
       webDavAutoSyncEnabled_ = cfg.webdavEnabled && cfg.webdavAutoSync;
       webDavSyncIntervalSec_ = cfg.webdavSyncIntervalMinutes * 60;
@@ -13410,6 +14445,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         allRefreshRemainingSec_ = allRefreshIntervalSec_;
         currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
       }
+      cloudAccountRemainingSec_ = cloudAccountIntervalSec_;
       webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
 
       if (cfg.proxyStealthMode || wasProxyStealthMode)
@@ -13463,6 +14499,12 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     SendConfig(false);
     SendRefreshTimerState();
     SendWebDavSyncState();
+    SendCloudAccountState();
+    if (!cloudAccountSecretError.empty())
+    {
+      SendWebStatus(L"云账号密码处理失败：" + cloudAccountSecretError, L"warning",
+                    L"config_saved");
+    }
     if (!webdavSecretError.empty())
     {
       SendWebStatus(L"WebDAV 密码处理失败：" + webdavSecretError, L"warning",
@@ -13518,6 +14560,12 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       mode = L"bidirectional";
     }
     TriggerWebDavSync(mode, true);
+    return;
+  }
+
+  if (action == L"download_latest_cloud_account")
+  {
+    TriggerCloudAccountDownload(true);
     return;
   }
 
@@ -13712,7 +14760,14 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       int abnormalCount = 0;
       std::wstring lastError;
 
-      for (const auto &jsonPath : jsonPaths) {
+      for (size_t i = 0; i < jsonPaths.size(); ++i) {
+        const auto &jsonPath = jsonPaths[i];
+        if (targetHwnd != nullptr && IsWindow(targetHwnd)) {
+          PostAsyncWebJson(
+              targetHwnd,
+              BuildProgressStatusJson(L"import_auth_batch_progress",
+                                      static_cast<int>(i + 1), totalCount));
+        }
         UsageSnapshot usage;
         if (queryUsage) {
           QueryUsageFromAuthFile(jsonPath, usage);
@@ -14030,6 +15085,7 @@ void WebViewHost::Initialize(HWND hwnd)
   g_ProxyDispatchMode = startCfg.proxyDispatchMode;
   g_ProxyFixedAccount = startCfg.proxyFixedAccount;
   g_ProxyFixedGroup = startCfg.proxyFixedGroup;
+  cloudAccountAutoDownloadEnabled_ = startCfg.cloudAccountAutoDownload;
   webDavEnabled_ = startCfg.webdavEnabled;
   webDavAutoSyncEnabled_ = startCfg.webdavEnabled && startCfg.webdavAutoSync;
   allRefreshIntervalSec_ = ClampRefreshMinutes(startCfg.autoRefreshAllMinutes,
@@ -14043,9 +15099,16 @@ void WebViewHost::Initialize(HWND hwnd)
                               startCfg.webdavSyncIntervalMinutes,
                               kDefaultWebDavSyncMinutes) *
                           60;
+  cloudAccountIntervalSec_ = ClampWebDavSyncMinutes(
+                                 startCfg.cloudAccountIntervalMinutes,
+                                 kDefaultCloudAccountSyncMinutes) *
+                             60;
   allRefreshRemainingSec_ = allRefreshIntervalSec_;
   currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
   webDavSyncRemainingSec_ = webDavSyncIntervalSec_;
+  cloudAccountRemainingSec_ = cloudAccountIntervalSec_;
+  cloudAccountLastDownloadAt_ = startCfg.cloudAccountLastDownloadAt;
+  cloudAccountLastDownloadStatus_ = startCfg.cloudAccountLastDownloadStatus;
   if (autoRefreshQuotaDisabled_)
   {
     allRefreshRemainingSec_ = allRefreshIntervalSec_;
