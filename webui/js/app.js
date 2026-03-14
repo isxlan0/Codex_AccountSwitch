@@ -71,6 +71,10 @@
     "settings.theme_hint": "Auto follows your Windows theme.",
     "settings.auto_update_label": "Auto Update",
     "settings.auto_update_hint": "Check update automatically at startup and prompt before downloading.",
+    "settings.tab_visibility_section": "Menu Visibility",
+    "settings.tab_visibility_hint": "Choose which top tabs are shown. Hidden tabs stay hidden until re-enabled. Settings is always visible.",
+    "settings.tab_visibility_badge": "Required",
+    "settings.tab_visibility_locked": "This tab is required and always visible.",
     "settings.quota_refresh_section": "Quota Refresh",
     "settings.enable_auto_refresh_quota_label": "Enable Auto Quota Refresh",
     "settings.enable_auto_refresh_quota_hint": "When enabled, importing accounts will auto-refresh plan type and quota.",
@@ -487,6 +491,10 @@
     "settings.theme_hint": "自动模式会跟随 Windows 主题。",
     "settings.auto_update_label": "自动更新",
     "settings.auto_update_hint": "启动时自动检查更新，并在下载前提示。",
+    "settings.tab_visibility_section": "菜单显示设置",
+    "settings.tab_visibility_hint": "选择顶部导航中显示哪些页面。关闭后对应 Tab 不再显示，设置页始终固定显示。",
+    "settings.tab_visibility_badge": "必选",
+    "settings.tab_visibility_locked": "此页面为必选项，始终显示。",
     "settings.quota_refresh_section": "额度刷新",
     "settings.enable_auto_refresh_quota_label": "开启自动刷新额度",
     "settings.enable_auto_refresh_quota_hint": "开启后，导入账号时会自动刷新账号类型和额度。",
@@ -950,6 +958,9 @@
     themeDarkBtn: document.getElementById("themeDarkBtn"),
     settingsAutoUpdateLabel: document.getElementById("settingsAutoUpdateLabel"),
     settingsAutoUpdateHint: document.getElementById("settingsAutoUpdateHint"),
+    settingsTabVisibilitySectionTitle: document.getElementById("settingsTabVisibilitySectionTitle"),
+    settingsTabVisibilitySectionHint: document.getElementById("settingsTabVisibilitySectionHint"),
+    settingsTabVisibilityList: document.getElementById("settingsTabVisibilityList"),
     settingsQuotaSectionTitle: document.getElementById("settingsQuotaSectionTitle"),
     settingsDisableAutoRefreshQuotaLabel: document.getElementById("settingsDisableAutoRefreshQuotaLabel"),
     settingsDisableAutoRefreshQuotaHint: document.getElementById("settingsDisableAutoRefreshQuotaHint"),
@@ -1198,6 +1209,16 @@
     accountsWrap: document.querySelector(".accounts-wrap")
   };
 
+  const TOP_LEVEL_TABS = [
+    { key: "dashboard", icon: "\ud83d\udcca", button: dom.tabBtnDashboard, panelId: "tab-dashboard", hideable: true },
+    { key: "accounts", icon: "\ud83d\udc65", button: dom.tabBtnAccounts, panelId: "tab-accounts", hideable: true },
+    { key: "api", icon: "\ud83d\udd0c", button: dom.tabBtnApi, panelId: "tab-api", hideable: true },
+    { key: "traffic", icon: "\ud83d\udcc3", button: dom.tabBtnTraffic, panelId: "tab-traffic", hideable: true },
+    { key: "token", icon: "\ud83d\udcb0", button: dom.tabBtnToken, panelId: "tab-token", hideable: true },
+    { key: "about", icon: "\ud83d\udca1", button: dom.tabBtnAbout, panelId: "tab-about", hideable: true },
+    { key: "settings", icon: "\u2699\ufe0f", button: dom.tabBtnSettings, panelId: "tab-settings", hideable: false }
+  ];
+
   const state = {
     appVersion: "v1.0.0",
     repoUrl: "https://github.com/isxlan0/Codex_AccountSwitch",
@@ -1218,10 +1239,12 @@
     autoRefreshAllMinutes: 15,
     autoRefreshCurrentMinutes: 5,
     settingsSubTab: "general",
+    currentTab: "dashboard",
     themeMode: readCachedThemeMode(),
     firstRun: false,
     languageIndex: [],
     i18n: {},
+    tabVisibility: getDefaultTabVisibility(),
     didAutoCheckUpdate: false,
     updateCheckContext: "manual",
     refreshMode: "",
@@ -1447,15 +1470,119 @@
     return map[key] || String(exe || "VSCode").replace(".exe", "");
   }
 
+  function getDefaultTabVisibility() {
+    return TOP_LEVEL_TABS.reduce((acc, tab) => {
+      acc[tab.key] = true;
+      return acc;
+    }, {});
+  }
+
+  function normalizeTabVisibility(value) {
+    const normalized = getDefaultTabVisibility();
+    const source = value && typeof value === "object" ? value : {};
+    TOP_LEVEL_TABS.forEach((tab) => {
+      if (tab.key === "settings") {
+        normalized[tab.key] = true;
+        return;
+      }
+      if (Object.prototype.hasOwnProperty.call(source, tab.key)) {
+        normalized[tab.key] = !(source[tab.key] === false || source[tab.key] === "false");
+      }
+    });
+    normalized.settings = true;
+    return normalized;
+  }
+
+  function isTabVisible(tabKey) {
+    const key = String(tabKey || "");
+    if (!TOP_LEVEL_TABS.some((tab) => tab.key === key)) {
+      return false;
+    }
+    return normalizeTabVisibility(state.tabVisibility)[key] !== false;
+  }
+
+  function getFirstVisibleTab() {
+    return TOP_LEVEL_TABS.find((tab) => isTabVisible(tab.key))?.key || "settings";
+  }
+
+  function resolveVisibleTab(tabKey) {
+    const key = String(tabKey || "");
+    return isTabVisible(key) ? key : getFirstVisibleTab();
+  }
+
+  function renderTopLevelTabs() {
+    const visibility = normalizeTabVisibility(state.tabVisibility);
+    TOP_LEVEL_TABS.forEach((tab) => {
+      if (!tab.button) return;
+      tab.button.textContent = `${tab.icon} ${t(`tab.${tab.key}`)}`;
+      tab.button.hidden = visibility[tab.key] === false;
+    });
+  }
+
+  function ensureTabVisibilitySettingsRendered() {
+    if (!dom.settingsTabVisibilityList || dom.settingsTabVisibilityList.childElementCount > 0) return;
+    dom.settingsTabVisibilityList.classList.add("tab-visibility-grid");
+    TOP_LEVEL_TABS.forEach((tab) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "tab-visibility-card";
+      button.setAttribute("data-tab-visibility-card", tab.key);
+
+      const lockBadge = tab.hideable
+        ? ""
+        : `<span class="tab-visibility-badge">${escapeHtml(t("settings.tab_visibility_badge"))}</span>`;
+      button.innerHTML = `
+        ${lockBadge}
+        <div class="tab-visibility-icon" data-tab-visibility-icon="${tab.key}">${tab.icon}</div>
+        <div class="tab-visibility-name" data-tab-visibility-name="${tab.key}"></div>
+        <div class="tab-visibility-state" data-tab-visibility-state="${tab.key}"></div>
+      `;
+      dom.settingsTabVisibilityList.appendChild(button);
+    });
+  }
+
+  function renderTabVisibilitySettings() {
+    if (!dom.settingsTabVisibilityList) return;
+    ensureTabVisibilitySettingsRendered();
+    TOP_LEVEL_TABS.forEach((tab) => {
+      const button = dom.settingsTabVisibilityList.querySelector(`[data-tab-visibility-card="${tab.key}"]`);
+      if (!button) return;
+      const enabled = isTabVisible(tab.key);
+      const locked = !tab.hideable;
+      button.classList.toggle("active", enabled);
+      button.classList.toggle("locked", locked);
+      button.setAttribute("aria-pressed", enabled ? "true" : "false");
+      button.disabled = locked;
+      const nameEl = button.querySelector(`[data-tab-visibility-name="${tab.key}"]`);
+      const stateEl = button.querySelector(`[data-tab-visibility-state="${tab.key}"]`);
+      if (nameEl) nameEl.textContent = t(`tab.${tab.key}`);
+      if (stateEl) {
+        stateEl.textContent = locked
+          ? t("settings.tab_visibility_locked")
+          : (enabled ? t("settings.auto_update_on") : t("settings.auto_update_off"));
+      }
+    });
+  }
+
   function switchTab(tab) {
-    document.querySelectorAll(".tab-btn").forEach((x) => x.classList.toggle("active", x.getAttribute("data-tab") === tab));
-    document.querySelectorAll(".tab-panel").forEach((x) => x.classList.toggle("active", x.id === `tab-${tab}`));
-    renderToolbarActionsForTab(tab);
-    if (tab === "dashboard" || tab === "accounts") {
+    const nextTab = resolveVisibleTab(tab || state.currentTab || "dashboard");
+    state.currentTab = nextTab;
+    TOP_LEVEL_TABS.forEach((item) => {
+      if (item.button) {
+        item.button.classList.toggle("active", item.key === nextTab);
+      }
+      const panel = document.getElementById(item.panelId);
+      if (panel) {
+        panel.classList.toggle("active", item.key === nextTab);
+      }
+    });
+    renderTopLevelTabs();
+    renderToolbarActionsForTab(nextTab);
+    if (nextTab === "dashboard" || nextTab === "accounts") {
       requestAccountsList(true);
-    } else if (tab === "traffic") {
+    } else if (nextTab === "traffic") {
       requestTrafficLogs(true);
-    } else if (tab === "token") {
+    } else if (nextTab === "token") {
       requestTokenStats(true);
     }
   }
@@ -1804,6 +1931,9 @@
   }
 
   function refreshSettingsOptions() {
+    state.tabVisibility = normalizeTabVisibility(state.tabVisibility);
+    renderTopLevelTabs();
+    renderTabVisibilitySettings();
     document.querySelectorAll("[data-lang-option]").forEach((x) => {
       x.classList.toggle("active", x.getAttribute("data-lang-option") === state.currentLanguage);
     });
@@ -1835,13 +1965,7 @@
   }
 
   function applyI18n() {
-    dom.tabBtnDashboard.textContent = "\ud83d\udcca " + t("tab.dashboard");
-    dom.tabBtnAccounts.textContent = "\ud83d\udc65 " + t("tab.accounts");
-    dom.tabBtnApi.textContent = "\ud83d\udd0c " + t("tab.api");
-    dom.tabBtnTraffic.textContent = "\ud83d\udcc3 " + t("tab.traffic");
-    dom.tabBtnToken.textContent = "\ud83d\udcb0 " + t("tab.token");
-    dom.tabBtnAbout.textContent = "\ud83d\udca1 " + t("tab.about");
-    dom.tabBtnSettings.textContent = "\u2699\ufe0f " + t("tab.settings");
+    renderTopLevelTabs();
     dom.quickThemeBtn.title = t("quick.theme_title");
     dom.quickLangBtn.title = t("quick.language_title");
     dom.accountsSectionTitle.textContent = "\ud83d\udc65 " + t("tab.accounts");
@@ -1885,6 +2009,8 @@
     dom.themeDarkBtn.textContent = t("settings.theme_dark");
     dom.settingsAutoUpdateLabel.textContent = t("settings.auto_update_label");
     dom.settingsAutoUpdateHint.textContent = t("settings.auto_update_hint");
+    dom.settingsTabVisibilitySectionTitle.textContent = t("settings.tab_visibility_section");
+    dom.settingsTabVisibilitySectionHint.textContent = t("settings.tab_visibility_hint");
     dom.settingsQuotaSectionTitle.textContent = t("settings.quota_refresh_section");
     dom.settingsDisableAutoRefreshQuotaLabel.textContent = t("settings.enable_auto_refresh_quota_label");
     dom.settingsDisableAutoRefreshQuotaHint.textContent = t("settings.enable_auto_refresh_quota_hint");
@@ -2075,7 +2201,8 @@
     renderTokenStats();
     refreshCustomSelects();
     renderBulkControls();
-    switchTab(document.querySelector(".tab-btn.active")?.getAttribute("data-tab") || "dashboard");
+    renderTabVisibilitySettings();
+    switchTab(state.currentTab || document.querySelector(".tab-btn.active")?.getAttribute("data-tab") || "dashboard");
   }
 
   function formatTokenNumber(v) {
@@ -2900,6 +3027,7 @@
     return {
       language: state.currentLanguage,
       ideExe: state.currentIdeExe,
+      tabVisibility: normalizeTabVisibility(state.tabVisibility),
       autoUpdate: state.autoUpdate,
       enableAutoRefreshQuota: state.enableAutoRefreshQuota,
       autoMarkAbnormalAccounts: state.autoMarkAbnormalAccounts,
@@ -2941,6 +3069,8 @@
   function configMatchesPending(msg) {
     if (!state.pendingConfigSnapshot) return false;
     const pending = state.pendingConfigSnapshot;
+    const msgTabVisibility = normalizeTabVisibility(msg.tabVisibility);
+    const pendingTabVisibility = normalizeTabVisibility(pending.tabVisibility);
     const msgLanguage = msg.language || "zh-CN";
     const msgIdeExe = msg.ideExe || "Code.exe";
     const msgAutoUpdate = msg.autoUpdate !== false && msg.autoUpdate !== "false";
@@ -2968,6 +3098,7 @@
     const msgWebdavPasswordConfigured = msg.webdavPasswordConfigured === true || msg.webdavPasswordConfigured === "true";
     return msgLanguage === pending.language
       && msgIdeExe === pending.ideExe
+      && TOP_LEVEL_TABS.every((tab) => msgTabVisibility[tab.key] === pendingTabVisibility[tab.key])
       && msgAutoUpdate === pending.autoUpdate
       && msgEnableAutoRefreshQuota === !!pending.enableAutoRefreshQuota
       && msgAutoMarkAbnormalAccounts === !!pending.autoMarkAbnormalAccounts
@@ -3562,6 +3693,29 @@
       queueSaveConfig();
     });
 
+    dom.settingsTabVisibilityList.addEventListener("click", (e) => {
+      const target = e.target instanceof HTMLElement
+        ? e.target.closest("[data-tab-visibility-card]")
+        : null;
+      if (!(target instanceof HTMLButtonElement)) return;
+      const key = String(target.getAttribute("data-tab-visibility-card") || "");
+      if (!key) return;
+      if (key === "settings") {
+        return;
+      }
+      state.tabVisibility = normalizeTabVisibility({
+        ...state.tabVisibility,
+        [key]: !isTabVisible(key)
+      });
+      refreshSettingsOptions();
+      if (!isTabVisible(state.currentTab)) {
+        switchTab(state.currentTab || "dashboard");
+      } else {
+        renderToolbarActionsForTab(state.currentTab);
+      }
+      queueSaveConfig();
+    });
+
     dom.disableAutoRefreshQuotaToggle.addEventListener("change", () => {
       state.enableAutoRefreshQuota = dom.disableAutoRefreshQuotaToggle.checked;
       refreshSettingsOptions();
@@ -4108,6 +4262,7 @@
           state.lowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
           state.autoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
           state.autoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, 5);
+          state.tabVisibility = normalizeTabVisibility(msg.tabVisibility);
           state.themeMode = normalizeThemeMode(msg.theme || "auto");
           try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) {}
           state.proxyAllowLan = msg.proxyAllowLan === true || msg.proxyAllowLan === "true";
@@ -4132,6 +4287,7 @@
           if (Number.isFinite(Number(msg.proxyTimeoutSec))) dom.proxyTimeoutInput.value = String(Number(msg.proxyTimeoutSec));
           if (document.documentElement.getAttribute("data-theme") !== resolveEffectiveTheme()) applyTheme();
           state.firstRun = msg.firstRun === true || msg.firstRun === "true";
+          renderTopLevelTabs();
           post("get_languages", { code: state.currentLanguage });
           if (state.autoUpdate && !state.didAutoCheckUpdate) {
             state.didAutoCheckUpdate = true;
@@ -4140,6 +4296,8 @@
           if (state.firstRun) {
             switchTab("settings");
             showToast(t("settings.first_run_toast"), "warning");
+          } else {
+            switchTab(state.currentTab || "dashboard");
           }
           state.configLoaded = true;
           refreshSettingsOptions();
@@ -4161,6 +4319,7 @@
           state.autoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, state.autoRefreshCurrentMinutes || 5);
           state.autoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
           state.lowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
+          state.tabVisibility = normalizeTabVisibility(msg.tabVisibility);
           state.themeMode = normalizeThemeMode(msg.theme || state.themeMode || "auto");
           try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) {}
           state.proxyAllowLan = msg.proxyAllowLan === true || msg.proxyAllowLan === "true";
@@ -4184,6 +4343,10 @@
           if (Number.isFinite(Number(msg.proxyPort))) dom.proxyPortInput.value = String(Number(msg.proxyPort));
           if (Number.isFinite(Number(msg.proxyTimeoutSec))) dom.proxyTimeoutInput.value = String(Number(msg.proxyTimeoutSec));
           if (document.documentElement.getAttribute("data-theme") !== resolveEffectiveTheme()) applyTheme();
+          renderTopLevelTabs();
+          if (!isTabVisible(state.currentTab)) {
+            switchTab(state.currentTab || "dashboard");
+          }
           refreshSettingsOptions();
           renderRefreshCountdowns();
         }

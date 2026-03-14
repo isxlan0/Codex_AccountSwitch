@@ -557,12 +557,24 @@ namespace
 
   fs::path GetLegacyConfigPath() { return GetLegacyDataRoot() / L"config.json"; }
 
+  struct TabVisibilityConfig
+  {
+    bool dashboard = true;
+    bool accounts = true;
+    bool api = true;
+    bool traffic = true;
+    bool token = true;
+    bool about = true;
+    bool settings = true;
+  };
+
   struct AppConfig
   {
     std::wstring language = L"zh-CN";
     int languageIndex = 0;
     std::wstring ideExe = L"Code.exe";
     std::wstring theme = L"auto";
+    TabVisibilityConfig tabVisibility{};
     bool autoUpdate = true;
     bool enableAutoRefreshQuota = true;
     bool autoMarkAbnormalAccounts = true;
@@ -752,6 +764,40 @@ namespace
       return false;
     }
     return fallback;
+  }
+
+  void NormalizeTabVisibility(TabVisibilityConfig &cfg)
+  {
+    cfg.settings = true;
+  }
+
+  void ReadTabVisibilityFromJson(const std::wstring &json,
+                                 TabVisibilityConfig &out)
+  {
+    out.dashboard = ExtractJsonBoolField(json, L"dashboard", out.dashboard);
+    out.accounts = ExtractJsonBoolField(json, L"accounts", out.accounts);
+    out.api = ExtractJsonBoolField(json, L"api", out.api);
+    out.traffic = ExtractJsonBoolField(json, L"traffic", out.traffic);
+    out.token = ExtractJsonBoolField(json, L"token", out.token);
+    out.about = ExtractJsonBoolField(json, L"about", out.about);
+    out.settings = ExtractJsonBoolField(json, L"settings", true);
+    NormalizeTabVisibility(out);
+  }
+
+  std::wstring BuildTabVisibilityJson(const TabVisibilityConfig &input)
+  {
+    TabVisibilityConfig cfg = input;
+    NormalizeTabVisibility(cfg);
+    return L"{\"dashboard\":" +
+           std::wstring(cfg.dashboard ? L"true" : L"false") +
+           L",\"accounts\":" +
+           std::wstring(cfg.accounts ? L"true" : L"false") +
+           L",\"api\":" + std::wstring(cfg.api ? L"true" : L"false") +
+           L",\"traffic\":" +
+           std::wstring(cfg.traffic ? L"true" : L"false") +
+           L",\"token\":" + std::wstring(cfg.token ? L"true" : L"false") +
+           L",\"about\":" + std::wstring(cfg.about ? L"true" : L"false") +
+           L",\"settings\":true}";
   }
 
   long long ExtractJsonInt64Field(const std::wstring &json,
@@ -2470,6 +2516,9 @@ namespace
     const int languageIndex = ExtractJsonIntField(json, L"languageIndex", 0);
     const std::wstring ide = ExtractJsonField(json, L"ideExe");
     const std::wstring theme = ExtractJsonField(json, L"theme");
+    std::wstring tabVisibilityJson;
+    const bool hasTabVisibility =
+        ExtractJsonObjectField(json, L"tabVisibility", tabVisibilityJson);
     const bool autoUpdate = ExtractJsonBoolField(json, L"autoUpdate", true);
     const bool hasEnableAutoRefreshQuota =
         json.find(L"\"enableAutoRefreshQuota\"") != std::wstring::npos;
@@ -2552,6 +2601,11 @@ namespace
     out.languageIndex = FindLanguageIndexByCode(langs, out.language);
     out.ideExe = NormalizeIdeExe(ide);
     out.theme = NormalizeTheme(theme);
+    if (hasTabVisibility)
+    {
+      ReadTabVisibilityFromJson(tabVisibilityJson, out.tabVisibility);
+    }
+    NormalizeTabVisibility(out.tabVisibility);
     out.autoUpdate = autoUpdate;
     out.enableAutoRefreshQuota = enableAutoRefreshQuota;
     out.autoMarkAbnormalAccounts = autoMarkAbnormalAccounts;
@@ -2612,6 +2666,7 @@ namespace
       tmp.languageIndex = FindLanguageIndexByCode(langs, tmp.language);
       tmp.ideExe = NormalizeIdeExe(tmp.ideExe);
       tmp.theme = NormalizeTheme(tmp.theme);
+      NormalizeTabVisibility(tmp.tabVisibility);
       tmp.autoRefreshAllMinutes = ClampRefreshMinutes(tmp.autoRefreshAllMinutes,
                                                       kDefaultAllRefreshMinutes);
       tmp.autoRefreshCurrentMinutes = ClampRefreshMinutes(
@@ -2658,6 +2713,8 @@ namespace
     ss << L"  \"languageIndex\": " << cfg.languageIndex << L",\n";
     ss << L"  \"ideExe\": \"" << EscapeJsonString(cfg.ideExe) << L"\",\n";
     ss << L"  \"theme\": \"" << EscapeJsonString(cfg.theme) << L"\",\n";
+    ss << L"  \"tabVisibility\": " << BuildTabVisibilityJson(cfg.tabVisibility)
+       << L",\n";
     ss << L"  \"autoUpdate\": " << (cfg.autoUpdate ? L"true" : L"false")
        << L",\n";
     ss << L"  \"enableAutoRefreshQuota\": "
@@ -11602,7 +11659,8 @@ void WebViewHost::SendConfig(bool firstRun) const
       EscapeJsonString(cfg.language) + L"\",\"languageIndex\":" +
       std::to_wstring(cfg.languageIndex) + L",\"ideExe\":\"" +
       EscapeJsonString(cfg.ideExe) + L"\",\"theme\":\"" +
-      EscapeJsonString(cfg.theme) + L"\",\"autoUpdate\":" +
+      EscapeJsonString(cfg.theme) + L"\",\"tabVisibility\":" +
+      BuildTabVisibilityJson(cfg.tabVisibility) + L",\"autoUpdate\":" +
       std::wstring(cfg.autoUpdate ? L"true" : L"false") +
       L",\"enableAutoRefreshQuota\":" +
       std::wstring(cfg.enableAutoRefreshQuota ? L"true" : L"false") +
@@ -13094,6 +13152,9 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     const std::wstring language = ExtractJsonField(rawMessage, L"language");
     const std::wstring ideExe = ExtractJsonField(rawMessage, L"ideExe");
     const std::wstring theme = ExtractJsonField(rawMessage, L"theme");
+    std::wstring tabVisibilityJson;
+    const bool hasTabVisibility =
+        ExtractJsonObjectField(rawMessage, L"tabVisibility", tabVisibilityJson);
     const bool autoUpdate =
         ExtractJsonBoolField(rawMessage, L"autoUpdate", true);
     const bool hasEnableAutoRefreshQuota =
@@ -13208,6 +13269,11 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     {
       cfg.theme = NormalizeTheme(theme);
     }
+    if (hasTabVisibility)
+    {
+      ReadTabVisibilityFromJson(tabVisibilityJson, cfg.tabVisibility);
+    }
+    NormalizeTabVisibility(cfg.tabVisibility);
     cfg.autoUpdate = autoUpdate;
     cfg.enableAutoRefreshQuota = enableAutoRefreshQuota;
     if (hasAutoMarkAbnormalAccounts)

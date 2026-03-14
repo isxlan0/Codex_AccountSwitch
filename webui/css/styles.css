@@ -2019,6 +2019,106 @@ select.settings-number-input option {
   margin-top: 8px;
 }
 
+.tab-visibility-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.tab-visibility-card {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  min-height: 108px;
+  padding: 14px 12px 12px;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--surface-soft) 100%);
+  color: var(--tab-text);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  transition: transform var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+
+.tab-visibility-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 10px 24px var(--primary-glow);
+}
+
+.tab-visibility-card:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring), 0 10px 24px var(--primary-glow);
+}
+
+.tab-visibility-card:active {
+  transform: scale(0.98);
+}
+
+.tab-visibility-card.active {
+  border-color: var(--primary);
+  background: linear-gradient(180deg, rgba(0, 184, 212, 0.08) 0%, rgba(0, 184, 212, 0.16) 100%);
+  color: var(--text);
+  box-shadow: 0 12px 28px var(--primary-glow);
+}
+
+.tab-visibility-card.locked {
+  cursor: default;
+}
+
+.tab-visibility-card.locked:active {
+  transform: none;
+}
+
+.tab-visibility-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 184, 212, 0.1);
+  color: var(--primary);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.tab-visibility-card:not(.active) .tab-visibility-icon {
+  background: rgba(137, 150, 173, 0.12);
+  color: #96a1b4;
+}
+
+.tab-visibility-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.tab-visibility-state {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.tab-visibility-card.active .tab-visibility-state {
+  color: var(--primary);
+}
+
+.tab-visibility-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  border-radius: 999px;
+  padding: 2px 7px;
+  background: rgba(137, 150, 173, 0.16);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .settings-sub-note.warning {
   color: var(--danger);
 }
@@ -2919,6 +3019,35 @@ body.compact-ui .dashboard-title {
 :root[data-theme="dark"] .switch-toggle input:checked+.switch-slider {
   background: var(--primary);
   border-color: var(--primary);
+}
+
+:root[data-theme="dark"] .tab-visibility-card {
+  border-color: #324660;
+  background: linear-gradient(180deg, #162232 0%, #101925 100%);
+  color: #b7c6db;
+}
+
+:root[data-theme="dark"] .tab-visibility-card.active {
+  border-color: var(--primary);
+  background: linear-gradient(180deg, rgba(60, 196, 220, 0.14) 0%, rgba(60, 196, 220, 0.22) 100%);
+}
+
+:root[data-theme="dark"] .tab-visibility-card:not(.active) .tab-visibility-icon {
+  background: rgba(118, 138, 166, 0.14);
+  color: #9fb0c8;
+}
+
+:root[data-theme="dark"] .tab-visibility-name {
+  color: #edf4ff;
+}
+
+:root[data-theme="dark"] .tab-visibility-state {
+  color: #9fb0c8;
+}
+
+:root[data-theme="dark"] .tab-visibility-badge {
+  background: rgba(118, 138, 166, 0.18);
+  color: #c5d2e4;
 }
 
 :root[data-theme="dark"] .proxy-config {
