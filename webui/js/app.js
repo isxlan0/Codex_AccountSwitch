@@ -333,6 +333,8 @@
     "bulk.mode_on": "Exit Multi-select",
     "bulk.mode_off": "Multi-select",
     "bulk.refresh": "Batch Refresh",
+    "bulk.refresh_running": "Refreshing quota...",
+    "bulk.refresh_progress": "Refreshing quota... {progress}",
     "bulk.delete": "Batch Delete",
     "bulk.selected": "Selected {count}",
     "bulk.select_all": "Select all",

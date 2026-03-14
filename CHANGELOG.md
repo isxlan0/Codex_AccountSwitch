@@ -15,6 +15,28 @@
 
 ---
 
+## v1.3.7
+
+### 新增
+- 设置-菜单显示设置:可快速隐藏不需要的TAB
+- 云账号TAB:可定时下载其他人分享的账号数据,此功能依赖 ([Token-JSON-Provider](https://github.com/isxlan0/Token-JSON-Provider)) 作为下载提供商
+
+### 优化
+- 刷新账号配额与导入账号时添加提示导入进度
+
+### 修复
+
+### Added
+- Settings - Menu Display Settings: Quickly hide unnecessary tabs
+- Cloud Account Tab: Schedules downloading account data shared by others. This feature relies on ([Token-JSON-Provider](https://github.com/isxlan0/Token-JSON-Provider)) as the download provider.
+
+### Improve
+- Add progress indicators when refreshing account quotas and importing accounts.
+
+### Fix
+
+---
+
 ## v1.3.6
 
 ### 新增

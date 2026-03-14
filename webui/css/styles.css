@@ -146,7 +146,7 @@ button {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  align-items: center;
+  align-items: flex-start;
   background: var(--toolbar-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -157,6 +157,7 @@ button {
 
 
 .brand {
+  flex: 0 0 auto;
   font-family: var(--font-display);
   font-size: 24px;
   font-weight: 800;
@@ -170,15 +171,31 @@ button {
 
 .top-tabs {
   display: inline-flex;
+  flex-wrap: wrap;
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 4px;
   gap: 4px;
   background: var(--panel-bg);
-  flex: 0 0 auto;
-  max-width: max-content;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  width: fit-content;
   overflow: visible;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  align-self: center;
+  order: 1;
+}
+
+.toolbar-break {
+  display: none;
+  flex-basis: 100%;
+  height: 0;
+  order: 2;
+}
+
+.toolbar-break-actions {
+  display: block !important;
 }
 
 .tab-btn {
@@ -225,30 +242,32 @@ button {
   display: inline-flex;
   gap: 8px;
   flex-wrap: nowrap;
-  justify-content: flex-end;
-  white-space: nowrap;
-  position: absolute;
-  right: 24px;
-  top: 78px;
+  justify-content: flex-start;
+  flex: 0 0 auto;
+  margin-left: 0;
   z-index: 25;
   padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--content-bg);
   box-shadow: none;
-  margin: 0;
+  white-space: nowrap;
+  order: 3;
 }
 
 body.has-floating-toolbar-actions .content {
-  padding-top: 42px;
+  padding-top: 16px;
 }
 
 .toolbar-quick {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 8px;
   position: relative;
+  flex: 0 0 auto;
+  margin-left: auto;
+  align-self: center;
+  order: 1;
 }
 
 .quick-btn {
@@ -458,7 +477,7 @@ body.has-floating-toolbar-actions .content {
   animation: theme-reveal 420ms var(--ease-standard);
 }
 
-.toolbar > div:empty {
+.toolbar > div:empty:not(.toolbar-break):not(.toolbar-break-actions) {
   display: none;
 }
 
@@ -2603,13 +2622,12 @@ select.settings-number-input option {
 }
 
 @media (max-width: 980px) {
-  .toolbar {
-    grid-template-columns: 1fr;
+  .toolbar-break {
+    display: none;
   }
 
-  .top-tabs,
-  .toolbar-actions {
-    justify-self: start;
+  .toolbar-quick {
+    margin-left: auto;
   }
 
   .brand {
@@ -2646,6 +2664,17 @@ select.settings-number-input option {
 }
 
 @media (max-width: 760px) {
+  .toolbar-quick {
+    margin-left: auto;
+  }
+
+  .toolbar-actions {
+    margin-left: 0;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    white-space: normal;
+  }
+
   .search {
     min-width: 100%;
     flex: 1 1 100%;
