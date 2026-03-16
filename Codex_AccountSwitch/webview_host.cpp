@@ -10889,6 +10889,28 @@ namespace
     const std::wstring mode = ToLowerCopy(g_ProxyDispatchMode);
     if (mode == L"fixed")
     {
+      if (idx.currentName.empty())
+      {
+        // Auto-select the first normal account when fixed mode is enabled
+        // but no current account is chosen.
+        for (const auto &row : idx.accounts)
+        {
+          if (row.abnormal)
+          {
+            continue;
+          }
+          const fs::path candidate = ResolveAuthPathFromIndex(row);
+          if (candidate.empty() || !fs::exists(candidate))
+          {
+            continue;
+          }
+          idx.currentName = row.name;
+          idx.currentGroup = NormalizeGroup(row.group);
+          SaveIndex(idx);
+          break;
+        }
+      }
+
       const std::wstring targetName = idx.currentName;
       const std::wstring targetGroup = NormalizeGroup(idx.currentGroup);
       if (targetName.empty())
