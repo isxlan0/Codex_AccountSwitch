@@ -13,6 +13,25 @@
 
 ### Fix
 
+--
+
+## v1.3.8
+
+### 新增
+
+### 优化
+- API反代-固定账号模式下，原来的规则为未选中账号则报错，修改为自动选择一个配额高的账号使用
+
+### 修复
+
+### Added
+
+### Improve
+- API reverse proxy - In fixed account mode, the original rule was to report an error if no account was selected. This has been changed to automatically select an account with a higher quota.
+
+### Fix
+
+
 ---
 
 ## v1.3.7
