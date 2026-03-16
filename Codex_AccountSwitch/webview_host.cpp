@@ -10311,6 +10311,54 @@ namespace
     return true;
   }
 
+  bool AutoSelectProxyFixedAccountIfNeeded(std::wstring &selectedName,
+                                           std::wstring &selectedGroup)
+  {
+    selectedName.clear();
+    selectedGroup.clear();
+
+    if (!g_ProxyRunning.load())
+    {
+      return false;
+    }
+    if (ToLowerCopy(g_ProxyDispatchMode) != L"fixed")
+    {
+      return false;
+    }
+
+    const std::lock_guard<std::recursive_mutex> lock(g_IndexDataMutex);
+    EnsureIndexExists();
+    IndexData idx;
+    if (!LoadIndex(idx))
+    {
+      return false;
+    }
+    if (!idx.currentName.empty())
+    {
+      return false;
+    }
+
+    for (const auto &row : idx.accounts)
+    {
+      if (row.abnormal)
+      {
+        continue;
+      }
+      const fs::path candidate = ResolveAuthPathFromIndex(row);
+      if (candidate.empty() || !fs::exists(candidate))
+      {
+        continue;
+      }
+      idx.currentName = row.name;
+      idx.currentGroup = NormalizeGroup(row.group);
+      SaveIndex(idx);
+      selectedName = idx.currentName;
+      selectedGroup = idx.currentGroup;
+      return true;
+    }
+    return false;
+  }
+
   bool HasUsableProxyQuota(const IndexEntry &row)
   {
     if (g_ProxyAutoMarkAbnormalAccounts && row.abnormal)
@@ -13441,6 +13489,9 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     SendWebStatus(status, level, code);
     if (ok)
     {
+      std::wstring autoName;
+      std::wstring autoGroup;
+      AutoSelectProxyFixedAccountIfNeeded(autoName, autoGroup);
       SendAccountsList(false, L"", L"");
     }
     return;
@@ -14820,6 +14871,9 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
           L",\"abnormal\":" + std::to_wstring(abnormalCount) +
           L",\"lastError\":\"" + EscapeJsonString(lastError) + L"\"}";
 
+      std::wstring autoName;
+      std::wstring autoGroup;
+      AutoSelectProxyFixedAccountIfNeeded(autoName, autoGroup);
       PostAsyncWebJson(targetHwnd, statusJson);
       PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L"")); })
         .detach();
