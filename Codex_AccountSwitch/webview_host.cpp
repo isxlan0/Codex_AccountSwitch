@@ -1892,6 +1892,13 @@ namespace
 
   std::wstring DetectUsageRefreshAbnormalReason(const UsageSnapshot &usage)
   {
+    const bool isUnauthorized401 =
+        usage.httpStatusCode == 401 || ToLowerCopy(usage.error) == L"http_status_401";
+    if (!isUnauthorized401)
+    {
+      return L"";
+    }
+
     std::wstring reason =
         DetectProxyAccountAbnormalReason(usage.responseBody, usage.httpStatusCode);
     if (!reason.empty())
@@ -1899,21 +1906,7 @@ namespace
       return reason;
     }
 
-    const std::wstring error = ToLowerCopy(usage.error);
-    if (error == L"http_status_401" || error == L"http_status_403")
-    {
-      return L"unauthorized";
-    }
-    if (error.find(L"token_invalidated") != std::wstring::npos)
-    {
-      return L"token_invalidated";
-    }
-    if (error.find(L"invalid_token") != std::wstring::npos ||
-        error.find(L"token_invalid") != std::wstring::npos)
-    {
-      return L"invalid_token";
-    }
-    return L"";
+    return L"unauthorized";
   }
 
   bool ReadJsonStringToken(const std::wstring &text, size_t &i,
@@ -8674,8 +8667,6 @@ namespace
       return false;
     }
 
-    ClearIndexEntryQuotaState(row);
-    ClearAccountEntryQuotaState(item);
     row.abnormal = true;
     row.abnormalReason = abnormalReason;
     row.abnormalAt = NowText();
@@ -10531,6 +10522,11 @@ namespace
   std::wstring DetectProxyAccountAbnormalReason(const std::wstring &responseBody,
                                                 const DWORD statusCode)
   {
+    if (statusCode != 401)
+    {
+      return L"";
+    }
+
     const std::wstring lower = ToLowerCopy(responseBody);
     auto contains = [&](const wchar_t *token) -> bool
     {
@@ -10575,13 +10571,12 @@ namespace
         return token;
       }
     }
-    if ((statusCode == 401 || statusCode == 403) &&
-        (contains(L"auth") || contains(L"token") || contains(L"unauthorized") ||
-         contains(L"forbidden")))
+    if (contains(L"auth") || contains(L"token") || contains(L"unauthorized") ||
+        contains(L"forbidden"))
     {
       return L"unauthorized";
     }
-    return L"";
+    return L"unauthorized";
   }
 
   bool IsProxyAccountAbnormalPayload(const std::wstring &responseBody,
@@ -13757,22 +13752,18 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
               L"quota_refreshed\",\"message\":\"账号额度已刷新\"}");
         } else {
           const bool notFound = (err == L"account_not_found_in_index");
-          const bool markedAbnormal = !abnormalReason.empty();
           const std::wstring msg =
               notFound ? L"账号索引已变化，已跳过本次刷新（账号仍可直接使用）"
-                       : (markedAbnormal
-                              ? L"账号认证已失效，已标记为异常，请重新登录"
                        : (L"账号额度刷新失败" +
-                         (err.empty() ? L"" : (L": " + err))));
+                         (err.empty() ? L"" : (L": " + err)));
           PostAsyncWebJson(
               targetHwnd,
               L"{\"type\":\"status\",\"level\":\"" +
-                  std::wstring(notFound || markedAbnormal ? L"warning" : L"error") +
+                  std::wstring(notFound ? L"warning" : L"error") +
                   L"\",\"code\":\"" +
                   std::wstring(notFound
                                    ? L"account_quota_refresh_skipped"
-                                   : (markedAbnormal ? L"account_abnormal_marked"
-                                                     : L"account_quota_refresh_failed")) +
+                                   : L"account_quota_refresh_failed") +
                   L"\",\"message\":\"" + EscapeJsonString(msg) + L"\"}");
         } })
           .detach();

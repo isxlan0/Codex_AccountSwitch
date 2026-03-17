@@ -15,6 +15,24 @@
 
 --
 
+## v1.3.9
+
+### 新增
+
+### 优化
+- 异常标记仅在返回 401 错误时运行，以防止错误删除帐户。
+
+### 修复
+
+### Added
+
+### Improve
+- The exception flag only runs when a 401 error is returned, to prevent erroneous account deletion.
+
+### Fix
+
+--
+
 ## v1.3.8
 
 ### 新增
