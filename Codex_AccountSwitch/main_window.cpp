@@ -32,6 +32,14 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
     g_webviewHost.Resize(hwnd);
     return 0;
 
+  case WM_CLOSE:
+    if (GetPropW(hwnd, kExitWindowPropName) == nullptr) {
+      ShowWindow(hwnd, SW_HIDE);
+      return 0;
+    }
+    RemovePropW(hwnd, kExitWindowPropName);
+    break;
+
   case WM_GETMINMAXINFO: {
     auto *mm = reinterpret_cast<MINMAXINFO *>(lParam);
     if (mm != nullptr) {

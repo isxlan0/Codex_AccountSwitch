@@ -2,6 +2,7 @@
 
 #include "app_version.h"
 #include "file_utils.h"
+#include "main_window.h"
 #include "resource.h"
 #include "update_checker.h"
 
@@ -12911,6 +12912,7 @@ bool WebViewHost::HandleTrayCommand(const UINT commandId)
   }
   if (commandId == kTrayCmdExitApp)
   {
+    SetPropW(hwnd_, kExitWindowPropName, reinterpret_cast<HANDLE>(1));
     PostMessageW(hwnd_, WM_CLOSE, 0, 0);
     return true;
   }
