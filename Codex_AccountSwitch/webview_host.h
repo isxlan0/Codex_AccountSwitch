@@ -24,6 +24,7 @@ public:
     void Resize(HWND hwnd) const;
     void Cleanup();
     bool HandleWindowMessage(UINT msg, WPARAM wParam, LPARAM lParam);
+    bool ShouldCloseToTray() const { return closeWindowToTray_; }
 
 private:
     static void ShowHr(HWND hwnd, const wchar_t* where, HRESULT hr);
@@ -75,6 +76,7 @@ private:
     bool autoRefreshQuotaDisabled_ = false;
     bool currentAutoRefreshEnabled_ = true;
     bool lowQuotaPromptEnabled_ = true;
+    bool closeWindowToTray_ = true;
     bool proxyStealthModeEnabled_ = false;
     bool webDavAutoSyncEnabled_ = false;
     bool webDavEnabled_ = false;

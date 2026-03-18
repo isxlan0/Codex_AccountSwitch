@@ -72,6 +72,10 @@
     "settings.theme_hint": "Auto follows your Windows theme.",
     "settings.auto_update_label": "Auto Update",
     "settings.auto_update_hint": "Check update automatically at startup and prompt before downloading.",
+    "settings.close_behavior_label": "Close Button Behavior",
+    "settings.close_behavior_hint": "Choose whether clicking the window close button exits the app or sends it to tray.",
+    "settings.close_behavior_tray": "Minimize to Tray",
+    "settings.close_behavior_exit": "Exit App",
     "settings.tab_visibility_section": "Menu Visibility",
     "settings.tab_visibility_hint": "Choose which top tabs are shown. Hidden tabs stay hidden until re-enabled. Settings is always visible.",
     "settings.tab_visibility_badge": "Required",
@@ -539,6 +543,10 @@
     "settings.theme_hint": "自动模式会跟随 Windows 主题。",
     "settings.auto_update_label": "自动更新",
     "settings.auto_update_hint": "启动时自动检查更新，并在下载前提示。",
+    "settings.close_behavior_label": "关闭按钮行为",
+    "settings.close_behavior_hint": "选择点击窗口右上角关闭按钮时，是直接退出程序还是进入后台托盘。",
+    "settings.close_behavior_tray": "进入后台",
+    "settings.close_behavior_exit": "直接关闭",
     "settings.tab_visibility_section": "菜单显示设置",
     "settings.tab_visibility_hint": "选择顶部导航中显示哪些页面。关闭后对应 Tab 不再显示，设置页始终固定显示。",
     "settings.tab_visibility_badge": "必选",
@@ -1055,6 +1063,10 @@
     themeDarkBtn: document.getElementById("themeDarkBtn"),
     settingsAutoUpdateLabel: document.getElementById("settingsAutoUpdateLabel"),
     settingsAutoUpdateHint: document.getElementById("settingsAutoUpdateHint"),
+    settingsCloseBehaviorLabel: document.getElementById("settingsCloseBehaviorLabel"),
+    settingsCloseBehaviorHint: document.getElementById("settingsCloseBehaviorHint"),
+    closeBehaviorTrayBtn: document.getElementById("closeBehaviorTrayBtn"),
+    closeBehaviorExitBtn: document.getElementById("closeBehaviorExitBtn"),
     settingsTabVisibilitySectionTitle: document.getElementById("settingsTabVisibilitySectionTitle"),
     settingsTabVisibilitySectionHint: document.getElementById("settingsTabVisibilitySectionHint"),
     settingsTabVisibilityList: document.getElementById("settingsTabVisibilityList"),
@@ -1356,6 +1368,7 @@
     autoDeleteAbnormalAccounts: false,
     autoRefreshCurrent: true,
     lowQuotaAutoPrompt: true,
+    closeWindowBehavior: "tray",
     autoRefreshAllMinutes: 15,
     autoRefreshCurrentMinutes: 5,
     settingsSubTab: "general",
@@ -2110,6 +2123,9 @@
       x.classList.toggle("active", x.getAttribute("data-ide-option") === state.currentIdeExe);
     });
     dom.autoUpdateToggle.checked = state.autoUpdate;
+    document.querySelectorAll("[data-close-behavior-option]").forEach((x) => {
+      x.classList.toggle("active", x.getAttribute("data-close-behavior-option") === state.closeWindowBehavior);
+    });
     document.querySelectorAll("[data-theme-option]").forEach((x) => {
       x.classList.toggle("active", x.getAttribute("data-theme-option") === state.themeMode);
     });
@@ -2178,6 +2194,10 @@
     dom.themeDarkBtn.textContent = t("settings.theme_dark");
     dom.settingsAutoUpdateLabel.textContent = t("settings.auto_update_label");
     dom.settingsAutoUpdateHint.textContent = t("settings.auto_update_hint");
+    dom.settingsCloseBehaviorLabel.textContent = t("settings.close_behavior_label");
+    dom.settingsCloseBehaviorHint.textContent = t("settings.close_behavior_hint");
+    dom.closeBehaviorTrayBtn.textContent = t("settings.close_behavior_tray");
+    dom.closeBehaviorExitBtn.textContent = t("settings.close_behavior_exit");
     dom.settingsTabVisibilitySectionTitle.textContent = t("settings.tab_visibility_section");
     dom.settingsTabVisibilitySectionHint.textContent = t("settings.tab_visibility_hint");
     dom.settingsQuotaSectionTitle.textContent = t("settings.quota_refresh_section");
@@ -3355,6 +3375,7 @@
       autoDeleteAbnormalAccounts: state.autoDeleteAbnormalAccounts,
       autoRefreshCurrent: state.autoRefreshCurrent,
       lowQuotaAutoPrompt: state.lowQuotaAutoPrompt,
+      closeWindowBehavior: String(state.closeWindowBehavior || "tray"),
       autoRefreshAllMinutes: state.autoRefreshAllMinutes,
       autoRefreshCurrentMinutes: state.autoRefreshCurrentMinutes,
       theme: state.themeMode,
@@ -3405,6 +3426,7 @@
     const msgAutoDeleteAbnormalAccounts = msg.autoDeleteAbnormalAccounts === true || msg.autoDeleteAbnormalAccounts === "true";
     const msgAutoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
     const msgLowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
+    const msgCloseWindowBehavior = String(msg.closeWindowBehavior || "tray").toLowerCase() === "exit" ? "exit" : "tray";
     const msgAutoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
     const msgAutoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, 5);
     const msgTheme = normalizeThemeMode(msg.theme || "auto");
@@ -3435,6 +3457,7 @@
       && msgAutoDeleteAbnormalAccounts === !!pending.autoDeleteAbnormalAccounts
       && msgAutoRefreshCurrent === pending.autoRefreshCurrent
       && msgLowQuotaAutoPrompt === pending.lowQuotaAutoPrompt
+      && msgCloseWindowBehavior === String(pending.closeWindowBehavior || "tray")
       && msgAutoRefreshAllMinutes === pending.autoRefreshAllMinutes
       && msgAutoRefreshCurrentMinutes === pending.autoRefreshCurrentMinutes
       && msgTheme === pending.theme
@@ -4069,6 +4092,14 @@
       state.autoUpdate = dom.autoUpdateToggle.checked;
       refreshSettingsOptions();
       queueSaveConfig();
+    });
+    document.querySelectorAll("[data-close-behavior-option]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const value = String(btn.getAttribute("data-close-behavior-option") || "tray").toLowerCase();
+        state.closeWindowBehavior = value === "exit" ? "exit" : "tray";
+        refreshSettingsOptions();
+        queueSaveConfig();
+      });
     });
 
     dom.settingsTabVisibilityList.addEventListener("click", (e) => {
@@ -4730,6 +4761,7 @@
           state.autoDeleteAbnormalAccounts = msg.autoDeleteAbnormalAccounts === true || msg.autoDeleteAbnormalAccounts === "true";
           state.autoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
           state.lowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
+          state.closeWindowBehavior = String(msg.closeWindowBehavior || "tray").toLowerCase() === "exit" ? "exit" : "tray";
           state.autoRefreshAllMinutes = clampRefreshMinutes(msg.autoRefreshAllMinutes, 15);
           state.autoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, 5);
           state.tabVisibility = normalizeTabVisibility(msg.tabVisibility);
@@ -4797,6 +4829,7 @@
           state.autoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, state.autoRefreshCurrentMinutes || 5);
           state.autoRefreshCurrent = msg.autoRefreshCurrent !== false && msg.autoRefreshCurrent !== "false";
           state.lowQuotaAutoPrompt = msg.lowQuotaAutoPrompt !== false && msg.lowQuotaAutoPrompt !== "false";
+          state.closeWindowBehavior = String(msg.closeWindowBehavior || state.closeWindowBehavior || "tray").toLowerCase() === "exit" ? "exit" : "tray";
           state.tabVisibility = normalizeTabVisibility(msg.tabVisibility);
           state.themeMode = normalizeThemeMode(msg.theme || state.themeMode || "auto");
           try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) {}

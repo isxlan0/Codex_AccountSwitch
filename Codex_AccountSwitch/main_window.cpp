@@ -34,8 +34,10 @@ LRESULT CALLBACK MainWindowProc(HWND hwnd, UINT msg, WPARAM wParam,
 
   case WM_CLOSE:
     if (GetPropW(hwnd, kExitWindowPropName) == nullptr) {
-      ShowWindow(hwnd, SW_HIDE);
-      return 0;
+      if (g_webviewHost.ShouldCloseToTray()) {
+        ShowWindow(hwnd, SW_HIDE);
+        return 0;
+      }
     }
     RemovePropW(hwnd, kExitWindowPropName);
     break;

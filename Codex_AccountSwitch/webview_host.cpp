@@ -598,6 +598,7 @@ namespace
     bool autoDeleteAbnormalAccounts = false;
     bool autoRefreshCurrent = true;
     bool lowQuotaAutoPrompt = true;
+    std::wstring closeWindowBehavior = L"tray";
     int autoRefreshAllMinutes = kDefaultAllRefreshMinutes;
     int autoRefreshCurrentMinutes = kDefaultCurrentRefreshMinutes;
     int proxyPort = kDefaultProxyPort;
@@ -628,6 +629,16 @@ namespace
     std::wstring webdavLastSyncStatus;
     bool webdavPasswordConfigured = false;
   };
+
+  std::wstring NormalizeCloseWindowBehavior(const std::wstring &value)
+  {
+    const std::wstring lowered = ToLowerCopy(value);
+    if (lowered == L"exit")
+    {
+      return L"exit";
+    }
+    return L"tray";
+  }
 
   struct LanguageMeta
   {
@@ -2555,6 +2566,9 @@ namespace
         ExtractJsonBoolField(json, L"autoRefreshCurrent", true);
     const bool lowQuotaAutoPrompt =
         ExtractJsonBoolField(json, L"lowQuotaAutoPrompt", true);
+    const std::wstring closeWindowBehavior =
+        NormalizeCloseWindowBehavior(
+            ExtractJsonField(json, L"closeWindowBehavior"));
     const int autoRefreshAllMinutes = ExtractJsonIntField(
         json, L"autoRefreshAllMinutes", kDefaultAllRefreshMinutes);
     const int autoRefreshCurrentMinutes = ExtractJsonIntField(
@@ -2647,6 +2661,7 @@ namespace
     out.autoDeleteAbnormalAccounts = autoDeleteAbnormalAccounts;
     out.autoRefreshCurrent = autoRefreshCurrent;
     out.lowQuotaAutoPrompt = lowQuotaAutoPrompt;
+    out.closeWindowBehavior = closeWindowBehavior;
     out.autoRefreshAllMinutes =
         ClampRefreshMinutes(autoRefreshAllMinutes, kDefaultAllRefreshMinutes);
     out.autoRefreshCurrentMinutes = ClampRefreshMinutes(
@@ -2709,6 +2724,8 @@ namespace
       tmp.languageIndex = FindLanguageIndexByCode(langs, tmp.language);
       tmp.ideExe = NormalizeIdeExe(tmp.ideExe);
       tmp.theme = NormalizeTheme(tmp.theme);
+      tmp.closeWindowBehavior =
+          NormalizeCloseWindowBehavior(tmp.closeWindowBehavior);
       NormalizeTabVisibility(tmp.tabVisibility);
       tmp.autoRefreshAllMinutes = ClampRefreshMinutes(tmp.autoRefreshAllMinutes,
                                                       kDefaultAllRefreshMinutes);
@@ -2776,6 +2793,8 @@ namespace
        << (cfg.autoRefreshCurrent ? L"true" : L"false") << L",\n";
     ss << L"  \"lowQuotaAutoPrompt\": "
        << (cfg.lowQuotaAutoPrompt ? L"true" : L"false") << L",\n";
+    ss << L"  \"closeWindowBehavior\": \""
+       << EscapeJsonString(cfg.closeWindowBehavior) << L"\",\n";
     ss << L"  \"autoRefreshAllMinutes\": " << cfg.autoRefreshAllMinutes << L",\n";
     ss << L"  \"autoRefreshCurrentMinutes\": " << cfg.autoRefreshCurrentMinutes
        << L",\n";
@@ -12619,6 +12638,8 @@ void WebViewHost::SendConfig(bool firstRun) const
       std::wstring(cfg.autoRefreshCurrent ? L"true" : L"false") +
       L",\"lowQuotaAutoPrompt\":" +
       std::wstring(cfg.lowQuotaAutoPrompt ? L"true" : L"false") +
+      L",\"closeWindowBehavior\":\"" +
+      EscapeJsonString(cfg.closeWindowBehavior) + L"\"" +
       L",\"autoRefreshAllMinutes\":" +
       std::to_wstring(cfg.autoRefreshAllMinutes) +
       L",\"autoRefreshCurrentMinutes\":" +
@@ -14218,6 +14239,10 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         ExtractJsonBoolField(rawMessage, L"autoRefreshCurrent", true);
     const bool lowQuotaAutoPrompt =
         ExtractJsonBoolField(rawMessage, L"lowQuotaAutoPrompt", true);
+    const std::wstring closeWindowBehavior =
+        NormalizeCloseWindowBehavior(
+            UnescapeJsonString(
+                ExtractJsonStringField(rawMessage, L"closeWindowBehavior")));
     const int autoRefreshAllMinutes = ExtractJsonIntField(
         rawMessage, L"autoRefreshAllMinutes", kDefaultAllRefreshMinutes);
     const int autoRefreshCurrentMinutes =
@@ -14350,6 +14375,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     }
     cfg.autoRefreshCurrent = autoRefreshCurrent;
     cfg.lowQuotaAutoPrompt = lowQuotaAutoPrompt;
+    cfg.closeWindowBehavior = closeWindowBehavior;
     cfg.autoRefreshAllMinutes =
         ClampRefreshMinutes(autoRefreshAllMinutes, kDefaultAllRefreshMinutes);
     cfg.autoRefreshCurrentMinutes = ClampRefreshMinutes(
@@ -14483,6 +14509,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       g_AutoDeleteAbnormalAccounts = cfg.autoDeleteAbnormalAccounts;
       currentAutoRefreshEnabled_ = cfg.autoRefreshCurrent;
       lowQuotaPromptEnabled_ = cfg.lowQuotaAutoPrompt;
+      closeWindowToTray_ = cfg.closeWindowBehavior != L"exit";
       proxyStealthModeEnabled_ = cfg.proxyStealthMode;
       cloudAccountAutoDownloadEnabled_ = cfg.cloudAccountAutoDownload;
       cloudAccountIntervalSec_ =
@@ -15146,6 +15173,7 @@ void WebViewHost::Initialize(HWND hwnd)
   g_AutoDeleteAbnormalAccounts = startCfg.autoDeleteAbnormalAccounts;
   currentAutoRefreshEnabled_ = startCfg.autoRefreshCurrent;
   lowQuotaPromptEnabled_ = startCfg.lowQuotaAutoPrompt;
+  closeWindowToTray_ = startCfg.closeWindowBehavior != L"exit";
   proxyStealthModeEnabled_ = startCfg.proxyStealthMode;
   g_ProxyPort = startCfg.proxyPort;
   g_ProxyTimeoutSec = startCfg.proxyTimeoutSec;
