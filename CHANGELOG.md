@@ -15,6 +15,24 @@
 
 --
 
+## v1.3.10
+
+### 新增
+
+### 优化
+- 为窗口关闭消息添加选择行为 #9
+
+### 修复
+
+### Added
+
+### Improve
+- Add selection behavior to window close message #9
+
+### Fix
+
+--
+
 ## v1.3.9
 
 ### 新增
