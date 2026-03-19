@@ -15,6 +15,24 @@
 
 --
 
+## v1.3.11
+
+### 新增
+
+### 优化
+- 切换账号时 不再替换默认模型 #11
+
+### 修复
+
+### Added
+
+### Improve
+- When switching accounts, the default model will no longer be replaced. #11
+
+### Fix
+
+--
+
 ## v1.3.10
 
 ### 新增

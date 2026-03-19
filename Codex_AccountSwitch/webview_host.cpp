@@ -2936,8 +2936,7 @@ namespace
     }
     const std::wstring key = ToLowerCopy(TrimWide(line.substr(0, eqPos)));
     return key == L"disable_response_storage" ||
-           key == L"preferred_auth_method" || key == L"model" ||
-           key == L"model_provider";
+           key == L"preferred_auth_method";
   }
 
   bool IsManagedProviderSection(const std::wstring &trimmedLine)
@@ -3116,8 +3115,6 @@ namespace
     managed.push_back(L"# CAS_LOCAL_PROXY_BEGIN");
     managed.push_back(L"disable_response_storage = true");
     managed.push_back(L"preferred_auth_method = \"apikey\"");
-    managed.push_back(L"model = \"gpt-5.3-codex\"");
-    managed.push_back(L"model_provider = \"custom\"");
     managed.push_back(L"");
     managed.push_back(L"[model_providers.custom]");
     managed.push_back(L"name = \"custom\"");
