@@ -1,4 +1,4 @@
-﻿#include "webview_host.h"
+#include "webview_host.h"
 
 #include "app_version.h"
 #include "file_utils.h"
@@ -105,6 +105,8 @@ namespace
   constexpr wchar_t kUsagePath[] = L"/backend-api/wham/usage";
   constexpr wchar_t kUsageDefaultCodexVersion[] = L"0.98.0";
   constexpr wchar_t kUsageVsCodeVersion[] = L"0.4.71";
+  constexpr wchar_t kWebView2DownloadUrl[] =
+      L"https://developer.microsoft.com/en-us/microsoft-edge/webview2/";
   constexpr UINT_PTR kTimerAutoRefresh = 8201;
   constexpr int kDefaultAllRefreshMinutes = 15;
   constexpr int kDefaultCurrentRefreshMinutes = 5;
@@ -2527,6 +2529,22 @@ namespace
     const HINSTANCE result =
         ShellExecuteW(nullptr, L"open", url.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
     return reinterpret_cast<INT_PTR>(result) > 32;
+  }
+
+  bool IsMissingWebView2RuntimeError(const HRESULT hr)
+  {
+    return hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+  }
+
+  void RequestMainWindowExit(const HWND hwnd)
+  {
+    if (hwnd == nullptr)
+    {
+      return;
+    }
+
+    SetPropW(hwnd, kExitWindowPropName, reinterpret_cast<HANDLE>(1));
+    PostMessageW(hwnd, WM_CLOSE, 0, 0);
   }
 
   bool LoadConfig(AppConfig &out)
@@ -12458,10 +12476,39 @@ namespace
 
 void WebViewHost::ShowHr(HWND hwnd, const wchar_t *where, const HRESULT hr)
 {
-  wchar_t buf[256]{};
-  swprintf_s(buf, L"%s failed. HRESULT=0x%08X", where,
+  const wchar_t *errorPoint =
+      (where != nullptr && where[0] != L'\0') ? where : L"WebView2 initialization";
+
+  wchar_t detail[256]{};
+  swprintf_s(detail, L"%s failed. HRESULT=0x%08X", errorPoint,
              static_cast<unsigned>(hr));
-  MessageBoxW(hwnd, buf, L"WebView2 Error", MB_ICONERROR);
+
+  if (IsMissingWebView2RuntimeError(hr))
+  {
+    std::wstring message =
+        L"Microsoft Edge WebView2 Runtime is required but was not found.\n\n"
+        L"Please install WebView2 Runtime and then restart the application.\n\n"
+        L"Open the official Microsoft download page now?\n\n";
+    message += detail;
+
+    const int result =
+        MessageBoxW(hwnd, message.c_str(), L"Missing WebView2 Runtime",
+                    MB_ICONERROR | MB_YESNO | MB_SETFOREGROUND);
+    if (result == IDYES && !OpenExternalUrlByExplorer(kWebView2DownloadUrl))
+    {
+      const std::wstring fallback =
+          L"Unable to open the download page automatically.\nPlease visit:\n" +
+          std::wstring(kWebView2DownloadUrl);
+      MessageBoxW(hwnd, fallback.c_str(), L"Open Download Page Failed",
+                  MB_ICONERROR | MB_SETFOREGROUND);
+    }
+
+    RequestMainWindowExit(hwnd);
+    return;
+  }
+
+  MessageBoxW(hwnd, detail, L"WebView2 Error", MB_ICONERROR | MB_SETFOREGROUND);
+  RequestMainWindowExit(hwnd);
 }
 
 void WebViewHost::RegisterWebMessageHandler(HWND hwnd)
@@ -15208,6 +15255,21 @@ void WebViewHost::Initialize(HWND hwnd)
     allRefreshRemainingSec_ = allRefreshIntervalSec_;
     currentRefreshRemainingSec_ = currentRefreshIntervalSec_;
   }
+
+  LPWSTR browserVersion = nullptr;
+  const HRESULT browserVersionHr =
+      GetAvailableCoreWebView2BrowserVersionString(nullptr, &browserVersion);
+  if (browserVersion != nullptr)
+  {
+    CoTaskMemFree(browserVersion);
+  }
+  if (IsMissingWebView2RuntimeError(browserVersionHr))
+  {
+    ShowHr(hwnd, L"GetAvailableCoreWebView2BrowserVersionString",
+           browserVersionHr);
+    return;
+  }
+
   userDataFolder_ = MakeTempUserDataFolder();
   if (userDataFolder_.empty())
   {
