@@ -3742,8 +3742,6 @@
       });
     });
     dom.proxyStopBtn.addEventListener("click", () => {
-      state.proxyAutoStart = false;
-      dom.proxyAutoStartToggle.checked = false;
       post("stop_proxy_service");
     });
     if (dom.trafficRefreshBtn) {

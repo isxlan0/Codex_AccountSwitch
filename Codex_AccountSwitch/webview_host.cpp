@@ -9221,6 +9221,195 @@ namespace
     return output;
   }
 
+  // --- Streaming infrastructure ---
+
+  struct SseEvent
+  {
+    std::wstring type; // e.g. "response.output_text.delta"
+    std::wstring data; // the JSON data payload
+  };
+
+  // Incremental SSE parser: feed raw bytes, extract complete SSE events.
+  // Buffers incomplete lines internally between Feed() calls.
+  struct IncrementalSseParser
+  {
+    std::string buffer;
+
+    // Feed raw bytes, return any complete SSE events found.
+    std::vector<SseEvent> Feed(const char *chunk, size_t len)
+    {
+      buffer.append(chunk, len);
+      return ExtractEvents();
+    }
+
+    // Flush remaining buffer at end of stream.
+    std::vector<SseEvent> Flush()
+    {
+      return ExtractEvents();
+    }
+
+  private:
+    std::vector<SseEvent> ExtractEvents()
+    {
+      std::vector<SseEvent> events;
+      // SSE events are separated by blank lines (\n\n or \r\n\r\n)
+      while (true)
+      {
+        // Find double-newline boundary
+        size_t boundary = std::string::npos;
+        for (size_t i = 0; i < buffer.size(); ++i)
+        {
+          if (buffer[i] == '\n')
+          {
+            if (i + 1 < buffer.size() && buffer[i + 1] == '\n')
+            {
+              boundary = i + 2;
+              break;
+            }
+            if (i + 1 < buffer.size() && buffer[i + 1] == '\r' &&
+                i + 2 < buffer.size() && buffer[i + 2] == '\n')
+            {
+              boundary = i + 3;
+              break;
+            }
+          }
+          if (buffer[i] == '\r' && i + 1 < buffer.size() && buffer[i + 1] == '\n')
+          {
+            if (i + 2 < buffer.size() && buffer[i + 2] == '\r' &&
+                i + 3 < buffer.size() && buffer[i + 3] == '\n')
+            {
+              boundary = i + 4;
+              break;
+            }
+            if (i + 2 < buffer.size() && buffer[i + 2] == '\n')
+            {
+              boundary = i + 3;
+              break;
+            }
+          }
+        }
+        if (boundary == std::string::npos)
+        {
+          break;
+        }
+
+        const std::string block = buffer.substr(0, boundary);
+        buffer.erase(0, boundary);
+
+        SseEvent evt;
+        // Parse lines within the block
+        size_t pos = 0;
+        while (pos < block.size())
+        {
+          size_t eol = block.find('\n', pos);
+          if (eol == std::string::npos)
+          {
+            eol = block.size();
+          }
+          std::string line = block.substr(pos, eol - pos);
+          if (!line.empty() && line.back() == '\r')
+          {
+            line.pop_back();
+          }
+          pos = eol + 1;
+
+          if (line.empty())
+          {
+            continue;
+          }
+          if (line.rfind("event:", 0) == 0)
+          {
+            size_t s = 6;
+            while (s < line.size() && line[s] == ' ')
+            {
+              ++s;
+            }
+            evt.type = FromUtf8(line.substr(s));
+          }
+          else if (line.rfind("data:", 0) == 0)
+          {
+            size_t s = 5;
+            while (s < line.size() && line[s] == ' ')
+            {
+              ++s;
+            }
+            if (!evt.data.empty())
+            {
+              evt.data += L"\n";
+            }
+            evt.data += FromUtf8(line.substr(s));
+          }
+        }
+
+        if (!evt.data.empty())
+        {
+          // If no explicit event type, try to infer from data JSON "type" field
+          if (evt.type.empty())
+          {
+            evt.type = ToLowerCopy(ExtractJsonField(evt.data, L"type"));
+          }
+          events.push_back(std::move(evt));
+        }
+      }
+      return events;
+    }
+  };
+
+  // RAII wrapper for WinHTTP streaming handles
+  struct WinHttpStreamContext
+  {
+    HINTERNET hSession = nullptr;
+    HINTERNET hConnect = nullptr;
+    HINTERNET hRequest = nullptr;
+
+    void Close()
+    {
+      if (hRequest != nullptr)
+      {
+        WinHttpCloseHandle(hRequest);
+        hRequest = nullptr;
+      }
+      if (hConnect != nullptr)
+      {
+        WinHttpCloseHandle(hConnect);
+        hConnect = nullptr;
+      }
+      if (hSession != nullptr)
+      {
+        WinHttpCloseHandle(hSession);
+        hSession = nullptr;
+      }
+    }
+
+    ~WinHttpStreamContext() { Close(); }
+
+    // Non-copyable
+    WinHttpStreamContext() = default;
+    WinHttpStreamContext(const WinHttpStreamContext &) = delete;
+    WinHttpStreamContext &operator=(const WinHttpStreamContext &) = delete;
+    WinHttpStreamContext(WinHttpStreamContext &&o) noexcept
+        : hSession(o.hSession), hConnect(o.hConnect), hRequest(o.hRequest)
+    {
+      o.hSession = nullptr;
+      o.hConnect = nullptr;
+      o.hRequest = nullptr;
+    }
+    WinHttpStreamContext &operator=(WinHttpStreamContext &&o) noexcept
+    {
+      if (this != &o)
+      {
+        Close();
+        hSession = o.hSession;
+        hConnect = o.hConnect;
+        hRequest = o.hRequest;
+        o.hSession = nullptr;
+        o.hConnect = nullptr;
+        o.hRequest = nullptr;
+      }
+      return *this;
+    }
+  };
+
   std::mutex g_ProxyMutex;
   std::thread g_ProxyThread;
   SOCKET g_ProxyListenSocket = INVALID_SOCKET;
@@ -9233,7 +9422,8 @@ namespace
   std::wstring g_ProxyFixedAccount;
   std::wstring g_ProxyFixedGroup = L"personal";
   bool g_ProxyAutoMarkAbnormalAccounts = true;
-  size_t g_ProxyRoundRobinCursor = 0;
+  std::atomic<size_t> g_ProxyRoundRobinCursor{0};
+  std::mutex g_ProxyFailoverMutex; // protects failover dispatch across threads
   std::mutex g_ProxyLowQuotaHintMutex;
   std::chrono::steady_clock::time_point g_ProxyLowQuotaHintAt{};
   std::wstring g_ProxyLowQuotaHintAccountKey;
@@ -9517,6 +9707,83 @@ namespace
     {
       totalTokens = inputTokens + outputTokens;
     }
+  }
+
+  // Extract token usage from the response.completed event in SSE payload.
+  // Unlike ParseTokenUsage which finds the first occurrence of "input_tokens"
+  // (often 0 from response.created), this specifically targets response.completed.
+  void ExtractSseTokenUsage(const std::wstring &ssePayload,
+                            int &inputTokens, int &outputTokens, int &totalTokens)
+  {
+    inputTokens = -1;
+    outputTokens = -1;
+    totalTokens = -1;
+    size_t pos = 0;
+    while (pos < ssePayload.size())
+    {
+      size_t end = ssePayload.find(L'\n', pos);
+      if (end == std::wstring::npos)
+      {
+        end = ssePayload.size();
+      }
+      std::wstring line = ssePayload.substr(pos, end - pos);
+      if (!line.empty() && line.back() == L'\r')
+      {
+        line.pop_back();
+      }
+
+      const std::wstring prefix = L"data:";
+      if (line.size() >= prefix.size() &&
+          line.compare(0, prefix.size(), prefix) == 0)
+      {
+        size_t dataPos = prefix.size();
+        while (dataPos < line.size() && iswspace(line[dataPos]))
+        {
+          ++dataPos;
+        }
+        const std::wstring data = line.substr(dataPos);
+        if (!data.empty() && data != L"[DONE]")
+        {
+          const std::wstring eventType =
+              ToLowerCopy(ExtractJsonField(data, L"type"));
+          if (eventType == L"response.completed")
+          {
+            inputTokens =
+                ParseTokenField(data, L"input_tokens", L"prompt_tokens");
+            outputTokens =
+                ParseTokenField(data, L"output_tokens", L"completion_tokens");
+            totalTokens = ParseTokenField(data, L"total_tokens");
+            if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
+            {
+              totalTokens = inputTokens + outputTokens;
+            }
+            return;
+          }
+        }
+      }
+
+      pos = (end == ssePayload.size()) ? end : end + 1;
+    }
+  }
+
+  // Smart wrapper: for SSE payloads, extract tokens from response.completed event
+  // (avoiding the misleading input_tokens:0 from response.created).
+  // Falls back to ParseTokenUsage for non-SSE responses.
+  void ParseTokenUsageSmart(const std::wstring &response,
+                            int &inputTokens, int &outputTokens, int &totalTokens)
+  {
+    const bool looksLikeSse =
+        response.find(L"event: ") != std::wstring::npos &&
+        response.find(L"data: ") != std::wstring::npos;
+    if (looksLikeSse)
+    {
+      ExtractSseTokenUsage(response, inputTokens, outputTokens, totalTokens);
+      if (inputTokens >= 0 || outputTokens >= 0)
+      {
+        return;
+      }
+    }
+    ParseTokenUsage(response, inputTokens, outputTokens, totalTokens);
   }
 
   std::wstring BuildTrafficLogsJson(const std::wstring &accountFilter, int limit)
@@ -10293,6 +10560,19 @@ namespace
     const std::string header = ss.str();
     return SendSocketAll(clientSock, header.data(), header.size()) &&
            SendSocketAll(clientSock, body.data(), body.size());
+  }
+
+  bool SendHttpStreamingHeaders(SOCKET clientSock, const int statusCode,
+                                const std::string &reason,
+                                const std::string &contentType)
+  {
+    std::ostringstream ss;
+    ss << "HTTP/1.1 " << statusCode << " " << reason << "\r\n";
+    ss << "Content-Type: " << contentType << "\r\n";
+    ss << "Cache-Control: no-cache\r\n";
+    ss << "Connection: close\r\n\r\n";
+    const std::string header = ss.str();
+    return SendSocketAll(clientSock, header.data(), header.size());
   }
 
   bool ResolveCurrentAuthPath(fs::path &authPath, std::wstring &accountName,
@@ -11358,17 +11638,738 @@ namespace
     return false;
   }
 
+  // --- Streaming API functions ---
+
+  // Open a streaming connection to the Codex API. On success (HTTP 200),
+  // returns true with ctx holding open WinHTTP handles for WinHttpReadData.
+  // On HTTP error (>= 400), reads the full error body into errorBody and returns false.
+  // On transport failure, returns false with error set.
+  bool SendCodexApiRequestStreaming(const fs::path &authPath,
+                                   const std::wstring &model,
+                                   const std::wstring &inputText,
+                                   WinHttpStreamContext &ctx,
+                                   int &statusCodeOut,
+                                   std::wstring &errorBody,
+                                   std::wstring &error)
+  {
+    ctx.Close();
+    errorBody.clear();
+    error.clear();
+    statusCodeOut = 0;
+
+    std::wstring accessToken;
+    std::wstring accountId;
+    if (!ReadAuthTokenInfo(authPath, accessToken, accountId))
+    {
+      error = L"auth_token_missing";
+      return false;
+    }
+
+    if (model.empty())
+    {
+      error = L"model_required";
+      statusCodeOut = 400;
+      errorBody =
+          L"{\"error\":{\"message\":\"model is required\",\"type\":\"invalid_request_error\",\"code\":\"model_required\"}}";
+      return false;
+    }
+
+    const std::wstring body =
+        L"{\"model\":\"" + EscapeJsonString(model) +
+        L"\",\"stream\":true,\"store\":false,\"instructions\":\"You are Codex.\",\"input\":[{\"type\":"
+        L"\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\","
+        L"\"text\":\"" +
+        EscapeJsonString(inputText) +
+        L"\"}]}]}";
+    const std::string bodyUtf8 = WideToUtf8(body);
+
+    ctx.hSession = WinHttpOpen(
+        BuildCodexApiUserAgent().c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+        WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (ctx.hSession == nullptr)
+    {
+      error = L"WinHttpOpen_failed";
+      return false;
+    }
+
+    ctx.hConnect =
+        WinHttpConnect(ctx.hSession, kUsageHost, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (ctx.hConnect == nullptr)
+    {
+      ctx.Close();
+      error = L"WinHttpConnect_failed";
+      return false;
+    }
+
+    ctx.hRequest = WinHttpOpenRequest(
+        ctx.hConnect, L"POST", kCodexApiPathCompact, nullptr, WINHTTP_NO_REFERER,
+        WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    if (ctx.hRequest == nullptr)
+    {
+      ctx.Close();
+      error = L"WinHttpOpenRequest_failed";
+      return false;
+    }
+
+    const std::wstring headers =
+        L"Content-Type: application/json\r\nAccept: text/event-stream\r\n"
+        L"Accept-Encoding: identity\r\nCache-Control: no-cache\r\n"
+        L"Authorization: Bearer " +
+        accessToken + L"\r\nChatGPT-Account-Id: " + accountId +
+        L"\r\nVersion: " + ReadCodexLatestVersion() +
+        L"\r\nOpenai-Beta: responses=experimental\r\nSession_id: " +
+        NewSessionId() + L"\r\nOriginator: codex_cli_rs\r\nUser-Agent: " +
+        BuildCodexApiUserAgent() + L"\r\nConnection: Keep-Alive\r\n";
+
+    BOOL ok = WinHttpSendRequest(
+        ctx.hRequest, headers.c_str(), static_cast<DWORD>(-1L),
+        const_cast<char *>(bodyUtf8.data()), static_cast<DWORD>(bodyUtf8.size()),
+        static_cast<DWORD>(bodyUtf8.size()), 0);
+    if (ok)
+    {
+      ok = WinHttpReceiveResponse(ctx.hRequest, nullptr);
+    }
+    if (!ok)
+    {
+      error = L"http_transport_failed";
+      ctx.Close();
+      return false;
+    }
+
+    DWORD statusCode = 0;
+    DWORD statusSize = sizeof(statusCode);
+    WinHttpQueryHeaders(ctx.hRequest,
+                        WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusSize,
+                        WINHTTP_NO_HEADER_INDEX);
+    statusCodeOut = static_cast<int>(statusCode);
+
+    if (statusCode >= 400)
+    {
+      // Read full error body for failover decision
+      std::string payload;
+      while (true)
+      {
+        char readBuf[2048]{};
+        DWORD read = 0;
+        if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
+            read == 0)
+        {
+          break;
+        }
+        payload.append(readBuf, read);
+      }
+      errorBody = FromUtf8(payload);
+      error = L"http_status_" + std::to_wstring(statusCode);
+      ctx.Close();
+      return false;
+    }
+
+    // status 200 — handles remain open for streaming reads
+    return true;
+  }
+
+  // Open a streaming connection for passthrough upstream requests.
+  // Similar to SendProxyUpstreamRequestByAuth but leaves handles open on 200.
+  bool SendProxyUpstreamRequestStreaming(
+      const fs::path &authPath, const std::string &methodLower,
+      const std::wstring &upstreamPath,
+      const std::map<std::string, std::string> &clientHeaders,
+      const std::string &body, const int timeoutSec,
+      WinHttpStreamContext &ctx, int &statusCodeOut,
+      std::wstring &contentType, std::string &errorBody, std::wstring &error)
+  {
+    ctx.Close();
+    contentType.clear();
+    errorBody.clear();
+    error.clear();
+    statusCodeOut = 0;
+
+    std::wstring accessToken;
+    std::wstring accountId;
+    if (!ReadAuthTokenInfo(authPath, accessToken, accountId))
+    {
+      error = L"auth_token_missing";
+      return false;
+    }
+
+    ctx.hSession = WinHttpOpen(
+        BuildCodexApiUserAgent().c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+        WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (ctx.hSession == nullptr)
+    {
+      error = L"WinHttpOpen_failed";
+      return false;
+    }
+    ctx.hConnect =
+        WinHttpConnect(ctx.hSession, kUsageHost, INTERNET_DEFAULT_HTTPS_PORT, 0);
+    if (ctx.hConnect == nullptr)
+    {
+      ctx.Close();
+      error = L"WinHttpConnect_failed";
+      return false;
+    }
+    std::wstring methodW = L"POST";
+    if (methodLower == "get")
+    {
+      methodW = L"GET";
+    }
+    else if (methodLower == "put")
+    {
+      methodW = L"PUT";
+    }
+    else if (methodLower == "delete")
+    {
+      methodW = L"DELETE";
+    }
+    else if (!methodLower.empty() && methodLower != "post")
+    {
+      methodW = FromUtf8(methodLower);
+    }
+    ctx.hRequest = WinHttpOpenRequest(
+        ctx.hConnect, methodW.c_str(), upstreamPath.c_str(), nullptr,
+        WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+    if (ctx.hRequest == nullptr)
+    {
+      ctx.Close();
+      error = L"WinHttpOpenRequest_failed";
+      return false;
+    }
+
+    const int timeoutMs = timeoutSec * 1000;
+    WinHttpSetTimeouts(ctx.hRequest, timeoutMs, timeoutMs, timeoutMs, timeoutMs);
+
+    std::wstring contentTypeHeader = L"application/json";
+    auto itContentType = clientHeaders.find("content-type");
+    if (itContentType != clientHeaders.end() && !itContentType->second.empty())
+    {
+      contentTypeHeader = FromUtf8(itContentType->second);
+    }
+    std::wstring acceptHeader = L"application/json";
+    auto itAccept = clientHeaders.find("accept");
+    if (itAccept != clientHeaders.end() && !itAccept->second.empty())
+    {
+      acceptHeader = FromUtf8(itAccept->second);
+    }
+
+    const std::wstring reqHeaders =
+        L"Content-Type: " + contentTypeHeader + L"\r\nAccept: " + acceptHeader +
+        L"\r\nAuthorization: Bearer " + accessToken +
+        L"\r\nChatGPT-Account-Id: " + accountId +
+        L"\r\nVersion: " + ReadCodexLatestVersion() +
+        L"\r\nOpenai-Beta: responses=experimental\r\nSession_id: " +
+        NewSessionId() + L"\r\nOriginator: codex_cli_rs\r\nUser-Agent: " +
+        BuildCodexApiUserAgent() + L"\r\nConnection: close\r\n";
+
+    BOOL ok = WinHttpSendRequest(
+        ctx.hRequest, reqHeaders.c_str(), static_cast<DWORD>(-1L),
+        body.empty() ? WINHTTP_NO_REQUEST_DATA
+                     : const_cast<char *>(body.data()),
+        static_cast<DWORD>(body.size()), static_cast<DWORD>(body.size()), 0);
+    if (ok)
+    {
+      ok = WinHttpReceiveResponse(ctx.hRequest, nullptr);
+    }
+    if (!ok)
+    {
+      error = L"http_transport_failed";
+      ctx.Close();
+      return false;
+    }
+
+    DWORD statusCode = 0;
+    DWORD statusSize = sizeof(statusCode);
+    WinHttpQueryHeaders(ctx.hRequest,
+                        WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                        WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusSize,
+                        WINHTTP_NO_HEADER_INDEX);
+    statusCodeOut = static_cast<int>(statusCode);
+    contentType = QueryWinHttpHeaderText(ctx.hRequest, WINHTTP_QUERY_CONTENT_TYPE);
+
+    if (statusCode >= 400)
+    {
+      while (true)
+      {
+        char chunk[4096]{};
+        DWORD read = 0;
+        if (!WinHttpReadData(ctx.hRequest, chunk, sizeof(chunk), &read) ||
+            read == 0)
+        {
+          break;
+        }
+        errorBody.append(chunk, read);
+      }
+      error = L"http_status_" + std::to_wstring(statusCode);
+      ctx.Close();
+      return false;
+    }
+
+    return true;
+  }
+
+  // Stream Codex SSE response to client as OpenAI chat.completion.chunk format.
+  // Returns true on success. Populates token counts in the output parameters.
+  bool StreamCodexToClientAsOpenAiChat(WinHttpStreamContext &ctx,
+                                       SOCKET clientSock,
+                                       const std::wstring &model,
+                                       int &inputTokens,
+                                       int &outputTokens,
+                                       int &totalTokens)
+  {
+    inputTokens = -1;
+    outputTokens = -1;
+    totalTokens = -1;
+
+    if (!SendHttpStreamingHeaders(clientSock, 200, "OK",
+                                  "text/event-stream; charset=utf-8"))
+    {
+      return false;
+    }
+
+    const long long created = static_cast<long long>(time(nullptr));
+    const std::wstring cid = L"chatcmpl_local_" + NewSessionId();
+    const std::string modelEsc = WideToUtf8(EscapeJsonString(model));
+    const std::string cidEsc = WideToUtf8(EscapeJsonString(cid));
+
+    // Send initial role chunk
+    {
+      std::ostringstream ss;
+      ss << "data: {\"id\":\"" << cidEsc
+         << "\",\"object\":\"chat.completion.chunk\",\"created\":" << created
+         << ",\"model\":\"" << modelEsc
+         << "\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\n";
+      const std::string chunk = ss.str();
+      if (!SendSocketAll(clientSock, chunk.data(), chunk.size()))
+      {
+        return false;
+      }
+    }
+
+    IncrementalSseParser parser;
+    bool ok = true;
+    while (true)
+    {
+      char readBuf[4096]{};
+      DWORD read = 0;
+      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
+          read == 0)
+      {
+        break;
+      }
+
+      auto events = parser.Feed(readBuf, read);
+      for (const auto &evt : events)
+      {
+        const std::wstring eventType = ToLowerCopy(
+            evt.type.empty() ? ExtractJsonField(evt.data, L"type") : evt.type);
+
+        if (eventType == L"response.output_text.delta")
+        {
+          const std::wstring delta =
+              UnescapeJsonString(ExtractJsonField(evt.data, L"delta"));
+          if (!delta.empty())
+          {
+            const std::string deltaEsc = WideToUtf8(EscapeJsonString(delta));
+            std::ostringstream ss;
+            ss << "data: {\"id\":\"" << cidEsc
+               << "\",\"object\":\"chat.completion.chunk\",\"created\":" << created
+               << ",\"model\":\"" << modelEsc
+               << "\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\""
+               << deltaEsc << "\"},\"finish_reason\":null}]}\n\n";
+            const std::string chunk = ss.str();
+            if (!SendSocketAll(clientSock, chunk.data(), chunk.size()))
+            {
+              ok = false;
+              break;
+            }
+          }
+        }
+        else if (eventType == L"response.completed")
+        {
+          inputTokens =
+              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+          outputTokens =
+              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+          if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
+          {
+            totalTokens = inputTokens + outputTokens;
+          }
+        }
+      }
+      if (!ok)
+      {
+        break;
+      }
+    }
+
+    // Flush remaining events
+    if (ok)
+    {
+      auto remaining = parser.Flush();
+      for (const auto &evt : remaining)
+      {
+        const std::wstring eventType = ToLowerCopy(
+            evt.type.empty() ? ExtractJsonField(evt.data, L"type") : evt.type);
+        if (eventType == L"response.completed")
+        {
+          inputTokens =
+              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+          outputTokens =
+              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+          if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
+          {
+            totalTokens = inputTokens + outputTokens;
+          }
+        }
+      }
+    }
+
+    // Send finish chunk and [DONE]
+    if (ok)
+    {
+      std::ostringstream ss;
+      ss << "data: {\"id\":\"" << cidEsc
+         << "\",\"object\":\"chat.completion.chunk\",\"created\":" << created
+         << ",\"model\":\"" << modelEsc
+         << "\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n";
+      ss << "data: [DONE]\n\n";
+      const std::string tail = ss.str();
+      ok = SendSocketAll(clientSock, tail.data(), tail.size());
+    }
+
+    ctx.Close();
+    return ok;
+  }
+
+  // Stream Codex SSE response to client as legacy text_completion format.
+  bool StreamCodexToClientAsLegacyCompletion(WinHttpStreamContext &ctx,
+                                             SOCKET clientSock,
+                                             const std::wstring &model,
+                                             int &inputTokens,
+                                             int &outputTokens,
+                                             int &totalTokens)
+  {
+    inputTokens = -1;
+    outputTokens = -1;
+    totalTokens = -1;
+
+    if (!SendHttpStreamingHeaders(clientSock, 200, "OK",
+                                  "text/event-stream; charset=utf-8"))
+    {
+      return false;
+    }
+
+    const long long created = static_cast<long long>(time(nullptr));
+    const std::wstring cid = L"cmpl_local_" + NewSessionId();
+    const std::string modelEsc = WideToUtf8(EscapeJsonString(model));
+    const std::string cidEsc = WideToUtf8(EscapeJsonString(cid));
+
+    IncrementalSseParser parser;
+    bool ok = true;
+    while (true)
+    {
+      char readBuf[4096]{};
+      DWORD read = 0;
+      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
+          read == 0)
+      {
+        break;
+      }
+
+      auto events = parser.Feed(readBuf, read);
+      for (const auto &evt : events)
+      {
+        const std::wstring eventType = ToLowerCopy(
+            evt.type.empty() ? ExtractJsonField(evt.data, L"type") : evt.type);
+
+        if (eventType == L"response.output_text.delta")
+        {
+          const std::wstring delta =
+              UnescapeJsonString(ExtractJsonField(evt.data, L"delta"));
+          if (!delta.empty())
+          {
+            const std::string deltaEsc = WideToUtf8(EscapeJsonString(delta));
+            std::ostringstream ss;
+            ss << "data: {\"id\":\"" << cidEsc
+               << "\",\"object\":\"text_completion\",\"created\":" << created
+               << ",\"model\":\"" << modelEsc
+               << "\",\"choices\":[{\"text\":\"" << deltaEsc
+               << "\",\"index\":0,\"finish_reason\":null}]}\n\n";
+            const std::string chunk = ss.str();
+            if (!SendSocketAll(clientSock, chunk.data(), chunk.size()))
+            {
+              ok = false;
+              break;
+            }
+          }
+        }
+        else if (eventType == L"response.completed")
+        {
+          inputTokens =
+              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+          outputTokens =
+              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+          if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
+          {
+            totalTokens = inputTokens + outputTokens;
+          }
+        }
+      }
+      if (!ok)
+      {
+        break;
+      }
+    }
+
+    if (ok)
+    {
+      auto remaining = parser.Flush();
+      for (const auto &evt : remaining)
+      {
+        const std::wstring eventType = ToLowerCopy(
+            evt.type.empty() ? ExtractJsonField(evt.data, L"type") : evt.type);
+        if (eventType == L"response.completed")
+        {
+          inputTokens =
+              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+          outputTokens =
+              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+          if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
+          {
+            totalTokens = inputTokens + outputTokens;
+          }
+        }
+      }
+    }
+
+    if (ok)
+    {
+      std::ostringstream ss;
+      ss << "data: {\"id\":\"" << cidEsc
+         << "\",\"object\":\"text_completion\",\"created\":" << created
+         << ",\"model\":\"" << modelEsc
+         << "\",\"choices\":[{\"text\":\"\",\"index\":0,\"finish_reason\":\"stop\"}]}\n\n";
+      ss << "data: [DONE]\n\n";
+      const std::string tail = ss.str();
+      ok = SendSocketAll(clientSock, tail.data(), tail.size());
+    }
+
+    ctx.Close();
+    return ok;
+  }
+
+  // Stream Codex SSE response to client as Anthropic Messages API format.
+  bool StreamCodexToClientAsAnthropic(WinHttpStreamContext &ctx,
+                                      SOCKET clientSock,
+                                      const std::wstring &model,
+                                      int &inputTokens,
+                                      int &outputTokens,
+                                      int &totalTokens)
+  {
+    inputTokens = -1;
+    outputTokens = -1;
+    totalTokens = -1;
+
+    if (!SendHttpStreamingHeaders(clientSock, 200, "OK",
+                                  "text/event-stream; charset=utf-8"))
+    {
+      return false;
+    }
+
+    const std::wstring msgId = L"msg_local_" + NewSessionId();
+    const std::string modelEsc = WideToUtf8(EscapeJsonString(model));
+    const std::string msgIdEsc = WideToUtf8(EscapeJsonString(msgId));
+
+    // Send message_start
+    {
+      std::ostringstream ss;
+      ss << "event: message_start\n";
+      ss << "data: {\"type\":\"message_start\",\"message\":{\"id\":\"" << msgIdEsc
+         << "\",\"type\":\"message\",\"role\":\"assistant\",\"model\":\""
+         << modelEsc
+         << "\",\"content\":[],\"stop_reason\":null,\"stop_sequence\":null,"
+         << "\"usage\":{\"input_tokens\":0,\"output_tokens\":0}}}\n\n";
+      ss << "event: content_block_start\n";
+      ss << "data: {\"type\":\"content_block_start\",\"index\":0,"
+         << "\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n";
+      const std::string header = ss.str();
+      if (!SendSocketAll(clientSock, header.data(), header.size()))
+      {
+        return false;
+      }
+    }
+
+    IncrementalSseParser parser;
+    bool ok = true;
+    while (true)
+    {
+      char readBuf[4096]{};
+      DWORD read = 0;
+      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
+          read == 0)
+      {
+        break;
+      }
+
+      auto events = parser.Feed(readBuf, read);
+      for (const auto &evt : events)
+      {
+        const std::wstring eventType = ToLowerCopy(
+            evt.type.empty() ? ExtractJsonField(evt.data, L"type") : evt.type);
+
+        if (eventType == L"response.output_text.delta")
+        {
+          const std::wstring delta =
+              UnescapeJsonString(ExtractJsonField(evt.data, L"delta"));
+          if (!delta.empty())
+          {
+            const std::string deltaEsc = WideToUtf8(EscapeJsonString(delta));
+            std::ostringstream ss;
+            ss << "event: content_block_delta\n";
+            ss << "data: {\"type\":\"content_block_delta\",\"index\":0,"
+               << "\"delta\":{\"type\":\"text_delta\",\"text\":\""
+               << deltaEsc << "\"}}\n\n";
+            const std::string chunk = ss.str();
+            if (!SendSocketAll(clientSock, chunk.data(), chunk.size()))
+            {
+              ok = false;
+              break;
+            }
+          }
+        }
+        else if (eventType == L"response.completed")
+        {
+          inputTokens =
+              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+          outputTokens =
+              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+          if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
+          {
+            totalTokens = inputTokens + outputTokens;
+          }
+        }
+      }
+      if (!ok)
+      {
+        break;
+      }
+    }
+
+    if (ok)
+    {
+      auto remaining = parser.Flush();
+      for (const auto &evt : remaining)
+      {
+        const std::wstring eventType = ToLowerCopy(
+            evt.type.empty() ? ExtractJsonField(evt.data, L"type") : evt.type);
+        if (eventType == L"response.completed")
+        {
+          inputTokens =
+              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+          outputTokens =
+              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+          if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
+          {
+            totalTokens = inputTokens + outputTokens;
+          }
+        }
+      }
+    }
+
+    // Send closing events
+    if (ok)
+    {
+      std::ostringstream ss;
+      ss << "event: content_block_stop\n";
+      ss << "data: {\"type\":\"content_block_stop\",\"index\":0}\n\n";
+      ss << "event: message_delta\n";
+      ss << "data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\","
+         << "\"stop_sequence\":null},\"usage\":{\"output_tokens\":"
+         << (outputTokens >= 0 ? outputTokens : 0) << "}}\n\n";
+      ss << "event: message_stop\n";
+      ss << "data: {\"type\":\"message_stop\"}\n\n";
+      const std::string tail = ss.str();
+      ok = SendSocketAll(clientSock, tail.data(), tail.size());
+    }
+
+    ctx.Close();
+    return ok;
+  }
+
+  // Stream upstream response directly to client (passthrough).
+  // Accumulates the full response for token extraction.
+  bool StreamProxyUpstreamToClient(WinHttpStreamContext &ctx,
+                                   SOCKET clientSock,
+                                   const std::wstring &upstreamContentType,
+                                   int &inputTokens,
+                                   int &outputTokens,
+                                   int &totalTokens)
+  {
+    inputTokens = -1;
+    outputTokens = -1;
+    totalTokens = -1;
+
+    const std::string ct = upstreamContentType.empty()
+                               ? "text/event-stream; charset=utf-8"
+                               : WideToUtf8(upstreamContentType);
+    if (!SendHttpStreamingHeaders(clientSock, 200, "OK", ct))
+    {
+      return false;
+    }
+
+    std::string accumulated;
+    bool ok = true;
+    while (true)
+    {
+      char readBuf[4096]{};
+      DWORD read = 0;
+      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
+          read == 0)
+      {
+        break;
+      }
+      accumulated.append(readBuf, read);
+      if (!SendSocketAll(clientSock, readBuf, read))
+      {
+        ok = false;
+        break;
+      }
+    }
+
+    // Extract token usage from accumulated response
+    if (!accumulated.empty())
+    {
+      const std::wstring responseWide = FromUtf8(accumulated);
+      ParseTokenUsageSmart(responseWide, inputTokens, outputTokens, totalTokens);
+    }
+
+    ctx.Close();
+    return ok;
+  }
+
   bool ForwardProxyToUpstream(const std::string &method, const std::string &path,
                               const std::map<std::string, std::string> &headers,
                               const std::string &body, const int timeoutSec,
                               DWORD &statusCode, std::wstring &contentType,
                               std::string &responseBody, std::wstring &error,
-                              TrafficLogEntry *trafficMeta = nullptr)
+                              TrafficLogEntry *trafficMeta = nullptr,
+                              SOCKET clientSock = INVALID_SOCKET,
+                              bool *alreadyStreamed = nullptr)
   {
     statusCode = 0;
     contentType.clear();
     responseBody.clear();
     error.clear();
+    if (alreadyStreamed != nullptr)
+    {
+      *alreadyStreamed = false;
+    }
 
     fs::path authPath;
     std::wstring accountName;
@@ -11654,13 +12655,60 @@ namespace
           prompt.empty() ? UnescapeJsonString(ExtractJsonField(jsonBody, L"input"))
                          : prompt;
 
+      // True streaming path: stream directly to client when possible
+      if (requestStream && clientSock != INVALID_SOCKET)
+      {
+        while (true)
+        {
+          WinHttpStreamContext ctx;
+          int innerStatus = 0;
+          std::wstring errorBody;
+          if (!SendCodexApiRequestStreaming(authPath, modelToUse, inputToUse,
+                                           ctx, innerStatus, errorBody, error))
+          {
+            if (innerStatus >= 400)
+            {
+              ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
+                                   totalTokens);
+              std::lock_guard<std::mutex> lock(g_ProxyFailoverMutex);
+              if (handleRetryableProxyFailure(
+                      static_cast<DWORD>(innerStatus), errorBody, inputTokens,
+                      outputTokens, totalTokens))
+              {
+                continue; // retry with next account
+              }
+              // Not retryable — return error (HandleProxyClient will send it)
+              statusCode = static_cast<DWORD>(innerStatus);
+              contentType = L"application/json";
+              responseBody = errorBody.empty()
+                                 ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
+                                 : WideToUtf8(errorBody);
+              reqModel = modelToUse;
+              return finalizeReturn(true);
+            }
+            return false;
+          }
+          // HTTP 200 — begin true streaming (no more retries possible)
+          if (alreadyStreamed != nullptr)
+          {
+            *alreadyStreamed = true;
+          }
+          statusCode = 200;
+          StreamCodexToClientAsOpenAiChat(ctx, clientSock, modelToUse,
+                                         inputTokens, outputTokens, totalTokens);
+          reqModel = modelToUse;
+          return finalizeReturn(true);
+        }
+      }
+
+      // Non-streaming or no client socket: use buffered path
       std::wstring outputText;
       std::wstring rawResponse;
       int innerStatus = 0;
       if (!SendCodexApiRequestByAuthFile(authPath, modelToUse, inputToUse, outputText,
                                          rawResponse, error, innerStatus))
       {
-        ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+        ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
         while (innerStatus > 0 &&
                handleRetryableProxyFailure(static_cast<DWORD>(innerStatus),
                                            rawResponse, inputTokens, outputTokens,
@@ -11674,7 +12722,7 @@ namespace
             innerStatus = 0;
             break;
           }
-          ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
         }
         if (innerStatus > 0)
         {
@@ -11683,7 +12731,7 @@ namespace
           responseBody = rawResponse.empty()
                              ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
                              : WideToUtf8(rawResponse);
-          ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
           reqModel = modelToUse;
           return finalizeReturn(true);
         }
@@ -11717,6 +12765,8 @@ namespace
         statusCode = 200;
         contentType = L"text/event-stream; charset=utf-8";
         responseBody = WideToUtf8(sse.str());
+        ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
+        reqModel = modelToUse;
         return finalizeReturn(true);
       }
 
@@ -11730,7 +12780,7 @@ namespace
       statusCode = 200;
       contentType = L"application/json";
       responseBody = WideToUtf8(ss.str());
-      ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+      ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
       reqModel = modelToUse;
       return finalizeReturn(true);
     }
@@ -11760,13 +12810,59 @@ namespace
         return finalizeReturn(true);
       }
 
+      // True streaming path
+      if (requestStream && clientSock != INVALID_SOCKET)
+      {
+        while (true)
+        {
+          WinHttpStreamContext ctx;
+          int innerStatus = 0;
+          std::wstring errorBody;
+          if (!SendCodexApiRequestStreaming(authPath, modelToUse, prompt,
+                                           ctx, innerStatus, errorBody, error))
+          {
+            if (innerStatus >= 400)
+            {
+              ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
+                                   totalTokens);
+              std::lock_guard<std::mutex> lock(g_ProxyFailoverMutex);
+              if (handleRetryableProxyFailure(
+                      static_cast<DWORD>(innerStatus), errorBody, inputTokens,
+                      outputTokens, totalTokens))
+              {
+                continue;
+              }
+              statusCode = static_cast<DWORD>(innerStatus);
+              contentType = L"application/json";
+              responseBody = errorBody.empty()
+                                 ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
+                                 : WideToUtf8(errorBody);
+              reqModel = modelToUse;
+              return finalizeReturn(true);
+            }
+            return false;
+          }
+          if (alreadyStreamed != nullptr)
+          {
+            *alreadyStreamed = true;
+          }
+          statusCode = 200;
+          StreamCodexToClientAsLegacyCompletion(ctx, clientSock, modelToUse,
+                                               inputTokens, outputTokens,
+                                               totalTokens);
+          reqModel = modelToUse;
+          return finalizeReturn(true);
+        }
+      }
+
+      // Non-streaming or no client socket: buffered path
       std::wstring outputText;
       std::wstring rawResponse;
       int innerStatus = 0;
       if (!SendCodexApiRequestByAuthFile(authPath, modelToUse, prompt, outputText,
                                          rawResponse, error, innerStatus))
       {
-        ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+        ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
         while (innerStatus > 0 &&
                handleRetryableProxyFailure(static_cast<DWORD>(innerStatus),
                                            rawResponse, inputTokens, outputTokens,
@@ -11779,7 +12875,7 @@ namespace
             innerStatus = 0;
             break;
           }
-          ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
         }
         if (innerStatus > 0)
         {
@@ -11788,7 +12884,7 @@ namespace
           responseBody = rawResponse.empty()
                              ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
                              : WideToUtf8(rawResponse);
-          ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
           reqModel = modelToUse;
           return finalizeReturn(true);
         }
@@ -11813,6 +12909,8 @@ namespace
         statusCode = 200;
         contentType = L"text/event-stream; charset=utf-8";
         responseBody = WideToUtf8(sse.str());
+        ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
+        reqModel = modelToUse;
         return finalizeReturn(true);
       }
 
@@ -11825,7 +12923,7 @@ namespace
       statusCode = 200;
       contentType = L"application/json";
       responseBody = WideToUtf8(out.str());
-      ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+      ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
       reqModel = modelToUse;
       return finalizeReturn(true);
     }
@@ -11855,13 +12953,58 @@ namespace
         return finalizeReturn(true);
       }
 
+      // True streaming path
+      if (requestStream && clientSock != INVALID_SOCKET)
+      {
+        while (true)
+        {
+          WinHttpStreamContext ctx;
+          int innerStatus = 0;
+          std::wstring errorBody;
+          if (!SendCodexApiRequestStreaming(authPath, modelToUse, prompt,
+                                           ctx, innerStatus, errorBody, error))
+          {
+            if (innerStatus >= 400)
+            {
+              ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
+                                   totalTokens);
+              std::lock_guard<std::mutex> lock(g_ProxyFailoverMutex);
+              if (handleRetryableProxyFailure(
+                      static_cast<DWORD>(innerStatus), errorBody, inputTokens,
+                      outputTokens, totalTokens))
+              {
+                continue;
+              }
+              statusCode = static_cast<DWORD>(innerStatus);
+              contentType = L"application/json";
+              responseBody = errorBody.empty()
+                                 ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
+                                 : WideToUtf8(errorBody);
+              reqModel = modelToUse;
+              return finalizeReturn(true);
+            }
+            return false;
+          }
+          if (alreadyStreamed != nullptr)
+          {
+            *alreadyStreamed = true;
+          }
+          statusCode = 200;
+          StreamCodexToClientAsAnthropic(ctx, clientSock, modelToUse,
+                                        inputTokens, outputTokens, totalTokens);
+          reqModel = modelToUse;
+          return finalizeReturn(true);
+        }
+      }
+
+      // Non-streaming or no client socket: buffered path
       std::wstring outputText;
       std::wstring rawResponse;
       int innerStatus = 0;
       if (!SendCodexApiRequestByAuthFile(authPath, modelToUse, prompt, outputText,
                                          rawResponse, error, innerStatus))
       {
-        ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+        ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
         while (innerStatus > 0 &&
                handleRetryableProxyFailure(static_cast<DWORD>(innerStatus),
                                            rawResponse, inputTokens, outputTokens,
@@ -11874,7 +13017,7 @@ namespace
             innerStatus = 0;
             break;
           }
-          ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
         }
         if (innerStatus > 0)
         {
@@ -11883,7 +13026,7 @@ namespace
           responseBody = rawResponse.empty()
                              ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
                              : WideToUtf8(rawResponse);
-          ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
           reqModel = modelToUse;
           return finalizeReturn(true);
         }
@@ -11917,6 +13060,8 @@ namespace
         statusCode = 200;
         contentType = L"text/event-stream; charset=utf-8";
         responseBody = WideToUtf8(sse.str());
+        ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
+        reqModel = modelToUse;
         return finalizeReturn(true);
       }
 
@@ -11931,7 +13076,7 @@ namespace
       statusCode = 200;
       contentType = L"application/json";
       responseBody = WideToUtf8(out.str());
-      ParseTokenUsage(rawResponse, inputTokens, outputTokens, totalTokens);
+      ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
       reqModel = modelToUse;
       return finalizeReturn(true);
     }
@@ -11960,6 +13105,61 @@ namespace
       return finalizeReturn(true);
     }
 
+    // Detect if passthrough request wants streaming
+    const bool passthroughStream =
+        clientSock != INVALID_SOCKET &&
+        ExtractJsonBoolField(FromUtf8(body), L"stream", false);
+
+    if (passthroughStream)
+    {
+      // Streaming passthrough: use streaming connection with failover
+      while (true)
+      {
+        WinHttpStreamContext ctx;
+        int innerStatus = 0;
+        std::wstring upstreamCt;
+        std::string errorBodyStr;
+        if (!SendProxyUpstreamRequestStreaming(
+                authPath, methodLower, upstreamPath, headers, body, timeoutSec,
+                ctx, innerStatus, upstreamCt, errorBodyStr, error))
+        {
+          if (innerStatus >= 400)
+          {
+            const std::wstring errorWide = FromUtf8(errorBodyStr);
+            ParseTokenUsageSmart(errorWide, inputTokens, outputTokens,
+                                 totalTokens);
+            std::lock_guard<std::mutex> lock(g_ProxyFailoverMutex);
+            if (handleRetryableProxyFailure(
+                    static_cast<DWORD>(innerStatus), errorWide, inputTokens,
+                    outputTokens, totalTokens))
+            {
+              continue;
+            }
+            statusCode = static_cast<DWORD>(innerStatus);
+            contentType = L"application/json";
+            responseBody = errorBodyStr;
+            return finalizeReturn(true);
+          }
+          return false;
+        }
+        // HTTP 200 — stream directly
+        if (alreadyStreamed != nullptr)
+        {
+          *alreadyStreamed = true;
+        }
+        statusCode = 200;
+        contentType = upstreamCt;
+        StreamProxyUpstreamToClient(ctx, clientSock, upstreamCt,
+                                    inputTokens, outputTokens, totalTokens);
+        if (reqModel.empty())
+        {
+          reqModel = ExtractJsonField(FromUtf8(body), L"model");
+        }
+        return finalizeReturn(true);
+      }
+    }
+
+    // Non-streaming passthrough: buffered path
     while (true)
     {
       if (!SendProxyUpstreamRequestByAuth(authPath, methodLower, upstreamPath,
@@ -11970,7 +13170,7 @@ namespace
       }
 
       const std::wstring responseWide = FromUtf8(responseBody);
-      ParseTokenUsage(responseWide, inputTokens, outputTokens, totalTokens);
+      ParseTokenUsageSmart(responseWide, inputTokens, outputTokens, totalTokens);
       if (!handleRetryableProxyFailure(statusCode, responseWide, inputTokens,
                                        outputTokens, totalTokens))
       {
@@ -12028,9 +13228,10 @@ namespace
     std::string upstreamBody;
     std::wstring error;
     TrafficLogEntry trafficMeta;
+    bool alreadyStreamed = false;
     if (!ForwardProxyToUpstream(method, path, headers, body, timeoutSec,
                                 statusCode, contentType, upstreamBody, error,
-                                &trafficMeta))
+                                &trafficMeta, clientSock, &alreadyStreamed))
     {
       TrafficLogEntry failedMeta;
       failedMeta.calledAt =
@@ -12066,6 +13267,12 @@ namespace
     }
     AppendTrafficLog(trafficMeta);
 
+    // If data was already streamed to client, skip sending response
+    if (alreadyStreamed)
+    {
+      return;
+    }
+
     std::string reason = "OK";
     if (statusCode >= 400 && statusCode < 500)
     {
@@ -12083,6 +13290,7 @@ namespace
 
   void ProxyServiceLoop(const int timeoutSec)
   {
+    std::atomic<int> activeClients{0};
     while (g_ProxyRunning.load())
     {
       fd_set readfds;
@@ -12106,8 +13314,20 @@ namespace
       {
         continue;
       }
-      HandleProxyClient(clientSock, timeoutSec);
-      closesocket(clientSock);
+
+      ++activeClients;
+      std::thread([clientSock, timeoutSec, &activeClients]()
+      {
+        HandleProxyClient(clientSock, timeoutSec);
+        closesocket(clientSock);
+        --activeClients;
+      }).detach();
+    }
+
+    // Wait for active clients to finish (max 5 seconds)
+    for (int i = 0; i < 50 && activeClients.load() > 0; ++i)
+    {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
 
@@ -14143,23 +15363,12 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
 
   if (action == L"stop_proxy_service")
   {
-    bool configUpdated = false;
-    AppConfig cfg;
-    if (LoadConfig(cfg) && cfg.proxyAutoStart)
-    {
-      cfg.proxyAutoStart = false;
-      configUpdated = SaveConfig(cfg);
-    }
     std::wstring status;
     std::wstring code;
     StopLocalProxyService(status, code);
     SendWebStatus(status, code == L"proxy_not_running" ? L"warning" : L"success",
                   code);
     SendWebJson(BuildProxyStatusJson());
-    if (configUpdated)
-    {
-      SendConfig(false);
-    }
     return;
   }
 
