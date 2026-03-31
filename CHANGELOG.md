@@ -15,6 +15,27 @@
 
 --
 
+## v1.3.12
+
+### 新增
+
+### 优化
+- 根据上游响应返回真流式数据，不再等待全部输出完毕后返回
+- 系统没装WebView2时提示未安装
+
+### 修复
+- Token统计不统计使用Token
+
+### Added
+
+### Improve
+- Returns true streaming data based on the upstream response, no longer waiting for all output to complete before returning.
+- Prompts "WebView2 not installed" when the system does not have it installed.
+
+### Fix
+- Token usage is included in token statistics.
+--
+
 ## v1.3.11
 
 ### 新增

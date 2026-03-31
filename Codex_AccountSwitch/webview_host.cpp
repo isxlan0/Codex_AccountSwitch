@@ -749,6 +749,50 @@ namespace
     return neg ? -value : value;
   }
 
+  // Like ExtractJsonIntField but finds the LAST occurrence of the key.
+  // In nested JSON (e.g. response.completed), the top-level "usage" block
+  // appears after inner per-item usage blocks that may contain zeros.
+  int ExtractJsonIntFieldLast(const std::wstring &json, const std::wstring &key,
+                              const int fallback)
+  {
+    const std::wstring pattern = L"\"" + key + L"\"";
+    const size_t keyPos = json.rfind(pattern);
+    if (keyPos == std::wstring::npos)
+    {
+      return fallback;
+    }
+    const size_t colonPos = json.find(L':', keyPos + pattern.size());
+    if (colonPos == std::wstring::npos)
+    {
+      return fallback;
+    }
+
+    size_t p = colonPos + 1;
+    while (p < json.size() && iswspace(json[p]))
+    {
+      ++p;
+    }
+    bool neg = false;
+    if (p < json.size() && json[p] == L'-')
+    {
+      neg = true;
+      ++p;
+    }
+    int value = 0;
+    bool hasDigit = false;
+    while (p < json.size() && json[p] >= L'0' && json[p] <= L'9')
+    {
+      hasDigit = true;
+      value = value * 10 + static_cast<int>(json[p] - L'0');
+      ++p;
+    }
+    if (!hasDigit)
+    {
+      return fallback;
+    }
+    return neg ? -value : value;
+  }
+
   bool ExtractJsonBoolField(const std::wstring &json, const std::wstring &key,
                             const bool fallback)
   {
@@ -9696,6 +9740,27 @@ namespace
     return -1;
   }
 
+  // Like ParseTokenField but uses rfind to find the LAST occurrence.
+  // For response.completed events where top-level usage comes after inner zeros.
+  int ParseTokenFieldLast(const std::wstring &json, const std::wstring &primaryKey,
+                          const std::wstring &fallbackKey = L"")
+  {
+    int v = ExtractJsonIntFieldLast(json, primaryKey, -1);
+    if (v >= 0)
+    {
+      return v;
+    }
+    if (!fallbackKey.empty())
+    {
+      v = ExtractJsonIntFieldLast(json, fallbackKey, -1);
+      if (v >= 0)
+      {
+        return v;
+      }
+    }
+    return -1;
+  }
+
   void ParseTokenUsage(const std::wstring &responseBody, int &inputTokens,
                        int &outputTokens, int &totalTokens)
   {
@@ -9749,10 +9814,10 @@ namespace
           if (eventType == L"response.completed")
           {
             inputTokens =
-                ParseTokenField(data, L"input_tokens", L"prompt_tokens");
+                ParseTokenFieldLast(data, L"input_tokens", L"prompt_tokens");
             outputTokens =
-                ParseTokenField(data, L"output_tokens", L"completion_tokens");
-            totalTokens = ParseTokenField(data, L"total_tokens");
+                ParseTokenFieldLast(data, L"output_tokens", L"completion_tokens");
+            totalTokens = ParseTokenFieldLast(data, L"total_tokens");
             if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
             {
               totalTokens = inputTokens + outputTokens;
@@ -11987,10 +12052,10 @@ namespace
         else if (eventType == L"response.completed")
         {
           inputTokens =
-              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+              ParseTokenFieldLast(evt.data, L"input_tokens", L"prompt_tokens");
           outputTokens =
-              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
-          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+              ParseTokenFieldLast(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenFieldLast(evt.data, L"total_tokens");
           if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
           {
             totalTokens = inputTokens + outputTokens;
@@ -12014,10 +12079,10 @@ namespace
         if (eventType == L"response.completed")
         {
           inputTokens =
-              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+              ParseTokenFieldLast(evt.data, L"input_tokens", L"prompt_tokens");
           outputTokens =
-              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
-          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+              ParseTokenFieldLast(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenFieldLast(evt.data, L"total_tokens");
           if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
           {
             totalTokens = inputTokens + outputTokens;
@@ -12108,10 +12173,10 @@ namespace
         else if (eventType == L"response.completed")
         {
           inputTokens =
-              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+              ParseTokenFieldLast(evt.data, L"input_tokens", L"prompt_tokens");
           outputTokens =
-              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
-          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+              ParseTokenFieldLast(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenFieldLast(evt.data, L"total_tokens");
           if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
           {
             totalTokens = inputTokens + outputTokens;
@@ -12134,10 +12199,10 @@ namespace
         if (eventType == L"response.completed")
         {
           inputTokens =
-              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+              ParseTokenFieldLast(evt.data, L"input_tokens", L"prompt_tokens");
           outputTokens =
-              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
-          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+              ParseTokenFieldLast(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenFieldLast(evt.data, L"total_tokens");
           if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
           {
             totalTokens = inputTokens + outputTokens;
@@ -12244,10 +12309,10 @@ namespace
         else if (eventType == L"response.completed")
         {
           inputTokens =
-              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+              ParseTokenFieldLast(evt.data, L"input_tokens", L"prompt_tokens");
           outputTokens =
-              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
-          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+              ParseTokenFieldLast(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenFieldLast(evt.data, L"total_tokens");
           if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
           {
             totalTokens = inputTokens + outputTokens;
@@ -12270,10 +12335,10 @@ namespace
         if (eventType == L"response.completed")
         {
           inputTokens =
-              ParseTokenField(evt.data, L"input_tokens", L"prompt_tokens");
+              ParseTokenFieldLast(evt.data, L"input_tokens", L"prompt_tokens");
           outputTokens =
-              ParseTokenField(evt.data, L"output_tokens", L"completion_tokens");
-          totalTokens = ParseTokenField(evt.data, L"total_tokens");
+              ParseTokenFieldLast(evt.data, L"output_tokens", L"completion_tokens");
+          totalTokens = ParseTokenFieldLast(evt.data, L"total_tokens");
           if (totalTokens < 0 && inputTokens >= 0 && outputTokens >= 0)
           {
             totalTokens = inputTokens + outputTokens;
