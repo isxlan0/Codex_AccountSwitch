@@ -198,6 +198,9 @@
     "proxy.api_key_hint": "Use Authorization: Bearer <API_KEY> or x-api-key on each proxy request.",
     "proxy.stealth_mode_label": "Codex Client Use Local Proxy Mode",
     "proxy.stealth_mode_hint": "Start local proxy service first.",
+    "proxy.stealth_toml_label": "config.toml Template",
+    "proxy.stealth_toml_hint": "Full content of the managed block in config.toml. Use {{PROXY_URL}} for the proxy API URL (auto-replaced). Leave empty for defaults.",
+    "proxy.stealth_toml_placeholder": "disable_response_storage = true\npreferred_auth_method = \"apikey\"\nmodel_provider = \"custom\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"{{PROXY_URL}}\"\nwire_api = \"responses\"\nrequires_openai_auth = false\n\n[windows]\nsandbox = \"unelevated\"\n\nmodel = \"gpt-5.4\"\nmodel_reasoning_effort = \"xhigh\"",
     "api.subtab.proxy": "Proxy",
     "api.subtab.test": "Test",
     "proxy.dispatch_mode_label": "Account Dispatch",
@@ -788,6 +791,9 @@
     "proxy.api_key_hint": "调用代理时请在请求头传入：Authorization: Bearer <API_KEY> 或 x-api-key。",
     "proxy.stealth_mode_label": "Codex 客户端使用本地反代模式",
     "proxy.stealth_mode_hint": "⚠️ 需要先启动本地反向代理服务",
+    "proxy.stealth_toml_label": "config.toml 模板",
+    "proxy.stealth_toml_hint": "config.toml 托管块的完整内容。使用 {{PROXY_URL}} 作为代理 API 地址（自动替换）。留空使用默认值。",
+    "proxy.stealth_toml_placeholder": "disable_response_storage = true\npreferred_auth_method = \"apikey\"\nmodel_provider = \"custom\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"{{PROXY_URL}}\"\nwire_api = \"responses\"\nrequires_openai_auth = false\n\n[windows]\nsandbox = \"unelevated\"\n\nmodel = \"gpt-5.4\"\nmodel_reasoning_effort = \"xhigh\"",
     "api.subtab.proxy": "反向代理",
     "api.subtab.test": "测试",
     "proxy.dispatch_mode_label": "账号调度模式",
@@ -1044,6 +1050,10 @@
     proxyStealthModeToggle: document.getElementById("proxyStealthModeToggle"),
     proxyStealthModeLabel: document.getElementById("proxyStealthModeLabel"),
     proxyStealthModeHint: document.getElementById("proxyStealthModeHint"),
+    stealthTomlSection: document.getElementById("stealthTomlSection"),
+    stealthTomlLabel: document.getElementById("stealthTomlLabel"),
+    stealthTomlHint: document.getElementById("stealthTomlHint"),
+    stealthTomlTextarea: document.getElementById("stealthTomlTextarea"),
     selectAllCheckbox: document.getElementById("selectAllCheckbox"),
     thAccount: document.getElementById("thAccount"),
     thQuota: document.getElementById("thQuota"),
@@ -1444,6 +1454,7 @@
     proxyFixedGroup: "personal",
     proxyDefaultModel: "",
     customModels: [],
+    stealthTomlExtra: "",
     proxyApiKeyEditing: false,
     cloudAccountUrl: "",
     cloudAccountPasswordConfigured: false,
@@ -2165,6 +2176,12 @@
     dom.proxyAutoStartToggle.checked = state.proxyAutoStart;
     dom.proxyAllowLanToggle.checked = state.proxyAllowLan;
     dom.proxyStealthModeToggle.checked = state.proxyStealthMode;
+    if (dom.stealthTomlTextarea) {
+      dom.stealthTomlTextarea.value = state.stealthTomlExtra || "";
+    }
+    if (dom.stealthTomlSection) {
+      dom.stealthTomlSection.style.display = state.proxyStealthMode ? "" : "none";
+    }
     dom.proxyDispatchModeSelect.value = state.proxyDispatchMode || "round_robin";
     renderCloudAccountState();
     renderWebDavState();
@@ -2352,6 +2369,9 @@
     dom.proxyApiKeyHint.textContent = t("proxy.api_key_hint");
     dom.proxyStealthModeLabel.textContent = "🔄 " + t("proxy.stealth_mode_label");
     if (dom.proxyStealthModeHint) dom.proxyStealthModeHint.textContent = t("proxy.stealth_mode_hint");
+    if (dom.stealthTomlLabel) dom.stealthTomlLabel.textContent = t("proxy.stealth_toml_label");
+    if (dom.stealthTomlHint) dom.stealthTomlHint.textContent = t("proxy.stealth_toml_hint");
+    if (dom.stealthTomlTextarea) dom.stealthTomlTextarea.placeholder = t("proxy.stealth_toml_placeholder");
     dom.apiSubTabProxyBtn.textContent = t("api.subtab.proxy");
     dom.apiSubTabTestBtn.textContent = t("api.subtab.test");
     dom.proxyDispatchModeLabel.textContent = t("proxy.dispatch_mode_label");
@@ -3521,6 +3541,7 @@
       proxyFixedGroup: "personal",
       proxyDefaultModel: String(state.proxyDefaultModel || ""),
       customModels: Array.isArray(state.customModels) ? state.customModels : [],
+      stealthTomlExtra: String(state.stealthTomlExtra || ""),
       cloudAccountUrl: String(dom.cloudAccountUrlInput?.value || "").trim(),
       cloudAccountPassword,
       cloudAccountPasswordClear: !cloudAccountPassword && !!state.cloudAccountPasswordClear,
@@ -3958,8 +3979,17 @@
     });
     dom.proxyStealthModeToggle.addEventListener("change", () => {
       state.proxyStealthMode = dom.proxyStealthModeToggle.checked;
+      if (dom.stealthTomlSection) {
+        dom.stealthTomlSection.style.display = state.proxyStealthMode ? "" : "none";
+      }
       queueSaveConfig();
     });
+    if (dom.stealthTomlTextarea) {
+      dom.stealthTomlTextarea.addEventListener("input", () => {
+        state.stealthTomlExtra = dom.stealthTomlTextarea.value;
+        queueSaveConfig();
+      });
+    }
     dom.proxyApiKeyInput.addEventListener("focus", () => {
       state.proxyApiKeyEditing = true;
     });
@@ -4943,6 +4973,7 @@
           state.proxyFixedGroup = String(msg.proxyFixedGroup || "personal");
           state.proxyDefaultModel = String(msg.proxyDefaultModel || "");
           state.customModels = Array.isArray(msg.customModels) ? msg.customModels.map((x) => String(x || "").trim()).filter(Boolean) : [];
+          state.stealthTomlExtra = String(msg.stealthTomlExtra || "");
           state.cloudAccountUrl = String(msg.cloudAccountUrl || "");
           state.cloudAccountPasswordConfigured = msg.cloudAccountPasswordConfigured === true || msg.cloudAccountPasswordConfigured === "true";
           state.cloudAccountPasswordClear = false;
@@ -5006,6 +5037,7 @@
           state.proxyAutoStart = msg.proxyAutoStart === true || msg.proxyAutoStart === "true";
           state.proxyApiKey = typeof msg.proxyApiKey === "string" ? msg.proxyApiKey : state.proxyApiKey;
           state.proxyStealthMode = msg.proxyStealthMode === true || msg.proxyStealthMode === "true";
+          if (typeof msg.stealthTomlExtra === "string") state.stealthTomlExtra = msg.stealthTomlExtra;
           state.proxyDispatchMode = String(msg.proxyDispatchMode || state.proxyDispatchMode || "round_robin");
           state.proxyFixedAccount = String(msg.proxyFixedAccount || state.proxyFixedAccount || "");
           state.proxyFixedGroup = String(msg.proxyFixedGroup || state.proxyFixedGroup || "personal");
