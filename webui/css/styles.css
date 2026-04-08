@@ -1761,6 +1761,72 @@ body.add-account-modal-open .shell {
   letter-spacing: 0.15px;
 }
 
+.custom-models-section {
+  margin-top: 24px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  background: var(--surface-soft);
+}
+
+.custom-models-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.custom-models-add-row .proxy-input {
+  flex: 1;
+}
+
+.custom-models-add-row .tool-btn {
+  flex-shrink: 0;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 12px;
+  font-size: 1.15em;
+}
+
+.custom-models-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.custom-model-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.88em;
+  font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+  transition: all var(--motion-fast) var(--ease-standard);
+}
+
+.custom-model-tag:hover {
+  border-color: var(--accent);
+}
+
+.custom-model-tag .custom-model-remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 1.1em;
+  padding: 0 2px;
+  line-height: 1;
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+
+.custom-model-tag .custom-model-remove:hover {
+  color: var(--danger, #ef4444);
+}
+
 input,
 textarea,
 .modal-input,

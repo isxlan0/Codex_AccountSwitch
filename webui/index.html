@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-CN">
 
 <head>
@@ -301,6 +301,25 @@
                     <div class="settings-sub-note" id="proxyApiKeyHint">调用代理时请在请求头传入：Authorization: Bearer
                       &lt;API_KEY&gt; 或 x-api-key。</div>
                   </div>
+
+                  <div class="settings-group proxy-item">
+                    <div class="settings-label" id="proxyDefaultModelLabel">Default Model</div>
+                    <select class="settings-number-input proxy-input" id="proxyDefaultModelSelect">
+                      <option value="">Auto (first available)</option>
+                    </select>
+                    <div class="settings-sub-note" id="proxyDefaultModelHint">Model used when proxy requests do not specify one.</div>
+                  </div>
+                </div>
+
+                <div class="custom-models-section">
+                  <div class="settings-label" id="customModelsTitle">Custom Models</div>
+                  <div class="settings-sub-note" id="customModelsHint">Add custom model IDs to the available models list.</div>
+                  <div class="custom-models-add-row">
+                    <input class="settings-number-input proxy-input" id="customModelInput" type="text"
+                      placeholder="e.g. my-custom-model" />
+                    <button class="tool-btn primary" id="customModelAddBtn">+</button>
+                  </div>
+                  <div class="custom-models-list" id="customModelsList"></div>
                 </div>
               </div>
             </div>
@@ -308,7 +327,11 @@
             <div class="settings-pane" id="apiPaneTest">
               <div class="settings-group">
                 <div class="settings-label" id="apiModelLabel"></div>
-                <input class="settings-number-input proxy-input" id="apiModelInput" type="text" value="gpt-5.3-codex" />
+                <select class="settings-number-input proxy-input" id="apiModelSelect"></select>
+                <input class="settings-number-input proxy-input" id="apiModelInput" type="text" value="gpt-5.3-codex"
+                  list="apiModelList" />
+                <datalist id="apiModelList"></datalist>
+                <div class="settings-sub-note" id="apiModelHint"></div>
               </div>
 
               <div class="settings-group">
