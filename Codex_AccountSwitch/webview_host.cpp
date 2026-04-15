@@ -630,6 +630,8 @@ namespace
     std::wstring webdavLastSyncAt;
     std::wstring webdavLastSyncStatus;
     bool webdavPasswordConfigured = false;
+    std::wstring proxyDefaultModel;
+    std::vector<std::wstring> customModels;
   };
 
   std::wstring NormalizeCloseWindowBehavior(const std::wstring &value)
@@ -1070,6 +1072,40 @@ namespace
       }
     }
     return false;
+  }
+
+  std::vector<std::wstring> ParseJsonStringArray(const std::wstring &arrayJson)
+  {
+    std::vector<std::wstring> result;
+    const std::wregex reStr(LR"RE("([^"\\]*(?:\\.[^"\\]*)*)")RE");
+    auto it = std::wsregex_iterator(arrayJson.begin(), arrayJson.end(), reStr);
+    const auto end = std::wsregex_iterator();
+    for (; it != end; ++it)
+    {
+      std::wstring val = (*it)[1].str();
+      std::wstring unesc = UnescapeJsonString(val);
+      if (!unesc.empty())
+      {
+        result.push_back(unesc);
+      }
+    }
+    return result;
+  }
+
+  std::wstring BuildJsonStringArray(const std::vector<std::wstring> &items)
+  {
+    std::wstringstream ss;
+    ss << L"[";
+    for (size_t i = 0; i < items.size(); ++i)
+    {
+      if (i != 0)
+      {
+        ss << L",";
+      }
+      ss << L"\"" << EscapeJsonString(items[i]) << L"\"";
+    }
+    ss << L"]";
+    return ss.str();
   }
 
   struct AuthJsonCompatFields
@@ -2697,6 +2733,14 @@ namespace
                                                    L"webdavPasswordConfigured",
                                                    false)
                                              : fs::exists(GetWebDavSecretPath());
+    const std::wstring proxyDefaultModel =
+        ExtractJsonField(json, L"proxyDefaultModel");
+    std::wstring customModelsArrayJson;
+    std::vector<std::wstring> customModels;
+    if (ExtractJsonArrayField(json, L"customModels", customModelsArrayJson))
+    {
+      customModels = ParseJsonStringArray(customModelsArrayJson);
+    }
 
     out.languageIndex = languageIndex < 0 ? 0 : languageIndex;
     if (!language.empty())
@@ -2770,6 +2814,8 @@ namespace
     out.webdavLastSyncStatus = webdavLastSyncStatus;
     out.webdavPasswordConfigured =
         webdavPasswordConfigured && fs::exists(GetWebDavSecretPath());
+    out.proxyDefaultModel = proxyDefaultModel;
+    out.customModels = customModels;
     return true;
   }
 
@@ -2911,7 +2957,11 @@ namespace
     ss << L"  \"webdavLastSyncStatus\": \""
        << EscapeJsonString(cfg.webdavLastSyncStatus) << L"\",\n";
     ss << L"  \"webdavPasswordConfigured\": "
-       << (cfg.webdavPasswordConfigured ? L"true" : L"false") << L"\n";
+       << (cfg.webdavPasswordConfigured ? L"true" : L"false") << L",\n";
+    ss << L"  \"proxyDefaultModel\": \""
+       << EscapeJsonString(cfg.proxyDefaultModel) << L"\",\n";
+    ss << L"  \"customModels\": " << BuildJsonStringArray(cfg.customModels)
+       << L"\n";
     ss << L"}\n";
     const bool saved = WriteUtf8File(GetConfigPath(), ss.str());
     if (saved)
@@ -12685,6 +12735,23 @@ namespace
       {
         return false;
       }
+      {
+        AppConfig proxyCfg;
+        LoadConfig(proxyCfg);
+        std::unordered_set<std::wstring> seen;
+        for (const auto &m : models)
+        {
+          seen.insert(ToLowerCopy(m));
+        }
+        for (const auto &cm : proxyCfg.customModels)
+        {
+          if (seen.find(ToLowerCopy(cm)) == seen.end())
+          {
+            models.push_back(cm);
+            seen.insert(ToLowerCopy(cm));
+          }
+        }
+      }
       statusCode = 200;
       contentType = L"application/json";
       responseBody = WideToUtf8(BuildOpenAiModelsJson(models));
@@ -12701,11 +12768,20 @@ namespace
       std::wstring modelToUse = requestModel;
       if (modelToUse.empty())
       {
-        std::vector<std::wstring> models;
-        std::wstring modelErr;
-        if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
+        AppConfig defaultModelCfg;
+        LoadConfig(defaultModelCfg);
+        if (!defaultModelCfg.proxyDefaultModel.empty())
         {
-          modelToUse = models.front();
+          modelToUse = defaultModelCfg.proxyDefaultModel;
+        }
+        else
+        {
+          std::vector<std::wstring> models;
+          std::wstring modelErr;
+          if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
+          {
+            modelToUse = models.front();
+          }
         }
       }
       if (modelToUse.empty())
@@ -12859,11 +12935,20 @@ namespace
       std::wstring modelToUse = requestModel;
       if (modelToUse.empty())
       {
-        std::vector<std::wstring> models;
-        std::wstring modelErr;
-        if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
+        AppConfig defaultModelCfg;
+        LoadConfig(defaultModelCfg);
+        if (!defaultModelCfg.proxyDefaultModel.empty())
         {
-          modelToUse = models.front();
+          modelToUse = defaultModelCfg.proxyDefaultModel;
+        }
+        else
+        {
+          std::vector<std::wstring> models;
+          std::wstring modelErr;
+          if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
+          {
+            modelToUse = models.front();
+          }
         }
       }
       if (modelToUse.empty())
@@ -13002,11 +13087,20 @@ namespace
       std::wstring modelToUse = requestModel;
       if (modelToUse.empty())
       {
-        std::vector<std::wstring> models;
-        std::wstring modelErr;
-        if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
+        AppConfig defaultModelCfg;
+        LoadConfig(defaultModelCfg);
+        if (!defaultModelCfg.proxyDefaultModel.empty())
         {
-          modelToUse = models.front();
+          modelToUse = defaultModelCfg.proxyDefaultModel;
+        }
+        else
+        {
+          std::vector<std::wstring> models;
+          std::wstring modelErr;
+          if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
+          {
+            modelToUse = models.front();
+          }
         }
       }
       if (modelToUse.empty())
@@ -14018,6 +14112,9 @@ void WebViewHost::SendConfig(bool firstRun) const
       EscapeJsonString(cfg.webdavLastSyncStatus) +
       L"\",\"webdavPasswordConfigured\":" +
       std::wstring(cfg.webdavPasswordConfigured ? L"true" : L"false") +
+      L",\"proxyDefaultModel\":\"" +
+      EscapeJsonString(cfg.proxyDefaultModel) + L"\"" +
+      L",\"customModels\":" + BuildJsonStringArray(cfg.customModels) +
       L"}");
 }
 
@@ -15325,6 +15422,10 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     const HWND targetHwnd = hwnd_;
     std::thread([targetHwnd]()
                 {
+      AppConfig localCfg;
+      LoadConfig(localCfg);
+      const auto &customModels = localCfg.customModels;
+
       auto postModels = [targetHwnd](const std::vector<std::wstring> &models) {
         std::wstringstream ss;
         ss << L"{\"type\":\"api_models\",\"models\":[";
@@ -15342,17 +15443,25 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       std::wstring accountName;
       std::wstring groupName;
       std::wstring err;
+      std::vector<std::wstring> models;
       if (!ResolveCurrentAuthPath(authPath, accountName, groupName, err)) {
         DebugLogLine(L"api.models",
                      L"no current account, using fallback model list: " + err);
-        postModels(BuildFallbackModelIds());
-        return;
-      }
-      std::vector<std::wstring> models;
-      if (!GetCachedModelIds(authPath, models, err)) {
+        models = BuildFallbackModelIds();
+      } else if (!GetCachedModelIds(authPath, models, err)) {
         DebugLogLine(L"api.models",
                      L"cache get failed, using fallback model list: " + err);
         models = BuildFallbackModelIds();
+      }
+      std::unordered_set<std::wstring> seen;
+      for (const auto &m : models) {
+        seen.insert(ToLowerCopy(m));
+      }
+      for (const auto &cm : customModels) {
+        if (seen.find(ToLowerCopy(cm)) == seen.end()) {
+          models.push_back(cm);
+          seen.insert(ToLowerCopy(cm));
+        }
       }
       postModels(models); })
         .detach();
@@ -15613,6 +15722,10 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         rawMessage.find(L"\"webdavPassword\"") != std::wstring::npos;
     const bool hasWebdavPasswordClear =
         rawMessage.find(L"\"webdavPasswordClear\"") != std::wstring::npos;
+    const bool hasProxyDefaultModel =
+        rawMessage.find(L"\"proxyDefaultModel\"") != std::wstring::npos;
+    const bool hasCustomModels =
+        rawMessage.find(L"\"customModels\"") != std::wstring::npos;
     const int proxyPort = ExtractJsonIntField(rawMessage, L"proxyPort", -1);
     const int proxyTimeoutSec =
         ExtractJsonIntField(rawMessage, L"proxyTimeoutSec", -1);
@@ -15661,6 +15774,15 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     const std::wstring proxyFixedGroup =
         NormalizeGroup(UnescapeJsonString(
             ExtractJsonStringField(rawMessage, L"proxyFixedGroup")));
+    const std::wstring proxyDefaultModel =
+        UnescapeJsonString(ExtractJsonStringField(rawMessage, L"proxyDefaultModel"));
+    std::wstring customModelsArrayJson;
+    std::vector<std::wstring> customModels;
+    if (hasCustomModels &&
+        ExtractJsonArrayField(rawMessage, L"customModels", customModelsArrayJson))
+    {
+      customModels = ParseJsonStringArray(customModelsArrayJson);
+    }
     AppConfig cfg;
     LoadConfig(cfg);
     const bool wasProxyStealthMode = cfg.proxyStealthMode;
@@ -15740,6 +15862,14 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     if (hasProxyFixedGroup)
     {
       cfg.proxyFixedGroup = proxyFixedGroup;
+    }
+    if (hasProxyDefaultModel)
+    {
+      cfg.proxyDefaultModel = proxyDefaultModel;
+    }
+    if (hasCustomModels)
+    {
+      cfg.customModels = customModels;
     }
     if (hasCloudAccountUrl)
     {

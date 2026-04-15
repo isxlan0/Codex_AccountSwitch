@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   "use strict";
 
   const IDE_LIST = ["Code.exe", "Trae.exe", "Kiro.exe", "Antigravity.exe"];
@@ -208,6 +208,17 @@
     "proxy.fixed_account_label": "Fixed Account",
     "proxy.fixed_account_hint": "Fixed mode always follows the current account selected in Account Management.",
     "proxy.fixed_account_current": "Current selected account",
+    "proxy.default_model_label": "Default Model",
+    "proxy.default_model_hint": "Model used when proxy requests do not specify one.",
+    "proxy.default_model_auto": "Auto (first available)",
+    "proxy.custom_models_title": "Custom Models",
+    "proxy.custom_models_hint": "Add custom model IDs to the available models list. These will appear in model selectors and the proxy /v1/models endpoint.",
+    "proxy.custom_model_add": "Add",
+    "proxy.custom_model_placeholder": "e.g. my-custom-model",
+    "proxy.custom_model_empty": "No custom models added",
+    "proxy.custom_model_duplicate": "Model already exists",
+    "proxy.custom_model_invalid": "Invalid model ID",
+    "api.model_select_hint": "Choose from available models or type a custom ID below.",
     "quick.theme_title": "Switch Theme",
     "quick.language_title": "Switch Language",
     "traffic.title": "Traffic Logs",
@@ -1162,6 +1173,9 @@
     apiPaneProxy: document.getElementById("apiPaneProxy"),
     apiModelLabel: document.getElementById("apiModelLabel"),
     apiModelInput: document.getElementById("apiModelInput"),
+    apiModelSelect: document.getElementById("apiModelSelect"),
+    apiModelList: document.getElementById("apiModelList"),
+    apiModelHint: document.getElementById("apiModelHint"),
     apiPromptLabel: document.getElementById("apiPromptLabel"),
     apiPromptTextarea: document.getElementById("apiPromptTextarea"),
     apiSendBtn: document.getElementById("apiSendBtn"),
@@ -1189,6 +1203,14 @@
     proxyFixedAccountLabel: document.getElementById("proxyFixedAccountLabel"),
     proxyFixedAccountSelect: document.getElementById("proxyFixedAccountSelect"),
     proxyFixedAccountHint: document.getElementById("proxyFixedAccountHint"),
+    proxyDefaultModelLabel: document.getElementById("proxyDefaultModelLabel"),
+    proxyDefaultModelSelect: document.getElementById("proxyDefaultModelSelect"),
+    proxyDefaultModelHint: document.getElementById("proxyDefaultModelHint"),
+    customModelsTitle: document.getElementById("customModelsTitle"),
+    customModelsHint: document.getElementById("customModelsHint"),
+    customModelInput: document.getElementById("customModelInput"),
+    customModelAddBtn: document.getElementById("customModelAddBtn"),
+    customModelsList: document.getElementById("customModelsList"),
     proxyAutoStartToggle: document.getElementById("proxyAutoStartToggle"),
     proxyAllowLanToggle: document.getElementById("proxyAllowLanToggle"),
     proxyStartBtn: document.getElementById("proxyStartBtn"),
@@ -1420,6 +1442,8 @@
     proxyDispatchMode: "round_robin",
     proxyFixedAccount: "",
     proxyFixedGroup: "personal",
+    proxyDefaultModel: "",
+    customModels: [],
     proxyApiKeyEditing: false,
     cloudAccountUrl: "",
     cloudAccountPasswordConfigured: false,
@@ -2334,6 +2358,13 @@
     dom.proxyDispatchModeHint.textContent = t("proxy.dispatch_mode_hint");
     if (dom.proxyFixedAccountLabel) dom.proxyFixedAccountLabel.textContent = t("proxy.fixed_account_label");
     if (dom.proxyFixedAccountHint) dom.proxyFixedAccountHint.textContent = t("proxy.fixed_account_hint");
+    if (dom.proxyDefaultModelLabel) dom.proxyDefaultModelLabel.textContent = t("proxy.default_model_label");
+    if (dom.proxyDefaultModelHint) dom.proxyDefaultModelHint.textContent = t("proxy.default_model_hint");
+    if (dom.customModelsTitle) dom.customModelsTitle.textContent = t("proxy.custom_models_title");
+    if (dom.customModelsHint) dom.customModelsHint.textContent = t("proxy.custom_models_hint");
+    if (dom.customModelAddBtn) dom.customModelAddBtn.textContent = "+ " + t("proxy.custom_model_add");
+    if (dom.customModelInput) dom.customModelInput.placeholder = t("proxy.custom_model_placeholder");
+    if (dom.apiModelHint) dom.apiModelHint.textContent = t("api.model_select_hint");
     Array.from(dom.proxyDispatchModeSelect.options).forEach((opt) => {
       if (opt.value === "round_robin") opt.textContent = t("proxy.dispatch_mode_round_robin");
       if (opt.value === "random") opt.textContent = t("proxy.dispatch_mode_random");
@@ -2394,6 +2425,7 @@
     applyCountText();
     switchApiSubTab(state.apiSubTab);
     renderApiModelOptions();
+    renderCustomModelsList();
     renderApiState();
     renderProxyStatus();
     renderProxyFixedAccountOptions();
@@ -2714,28 +2746,127 @@
     dom.proxyFixedAccountSelect.disabled = true;
   }
 
-  function renderApiModelOptions() {
-    if (!dom.apiModelList) return;
-    const models = state.apiModels.length > 0 ? state.apiModels : FALLBACK_API_MODELS;
-    dom.apiModelList.innerHTML = "";
-    if (dom.apiModelSelect) {
-      dom.apiModelSelect.innerHTML = "";
+  function getAllModels() {
+    const fetched = state.apiModels.length > 0 ? state.apiModels : FALLBACK_API_MODELS;
+    const custom = Array.isArray(state.customModels) ? state.customModels : [];
+    const seen = new Set();
+    const merged = [];
+    for (const id of fetched) {
+      const lower = String(id).toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        merged.push(id);
+      }
     }
-    for (const id of models) {
-      const option = document.createElement("option");
-      option.value = id;
-      dom.apiModelList.appendChild(option);
-      if (dom.apiModelSelect) {
+    for (const id of custom) {
+      const lower = String(id).toLowerCase();
+      if (!seen.has(lower)) {
+        seen.add(lower);
+        merged.push(id);
+      }
+    }
+    return merged;
+  }
+
+  function renderApiModelOptions() {
+    const models = getAllModels();
+    if (dom.apiModelList) {
+      dom.apiModelList.innerHTML = "";
+      for (const id of models) {
+        const option = document.createElement("option");
+        option.value = id;
+        dom.apiModelList.appendChild(option);
+      }
+    }
+    if (dom.apiModelSelect) {
+      const prevValue = dom.apiModelSelect.value;
+      dom.apiModelSelect.innerHTML = "";
+      for (const id of models) {
         const selectOption = document.createElement("option");
         selectOption.value = id;
         selectOption.textContent = id;
         dom.apiModelSelect.appendChild(selectOption);
       }
+      if (prevValue && models.includes(prevValue)) {
+        dom.apiModelSelect.value = prevValue;
+      } else if (models.length > 0) {
+        const preferred = models.find((x) => x === "gpt-5.3-codex") || models[0];
+        dom.apiModelSelect.value = preferred;
+      }
     }
-    if (dom.apiModelSelect && models.length > 0 && !dom.apiModelSelect.value) {
-      const preferred = models.find((x) => x === "gpt-5.3-codex") || models[0];
-      dom.apiModelSelect.value = preferred;
+    renderProxyDefaultModelOptions();
+  }
+
+  function renderProxyDefaultModelOptions() {
+    if (!dom.proxyDefaultModelSelect) return;
+    const models = getAllModels();
+    const prevValue = dom.proxyDefaultModelSelect.value || state.proxyDefaultModel || "";
+    dom.proxyDefaultModelSelect.innerHTML = "";
+    const autoOpt = document.createElement("option");
+    autoOpt.value = "";
+    autoOpt.textContent = t("proxy.default_model_auto");
+    dom.proxyDefaultModelSelect.appendChild(autoOpt);
+    for (const id of models) {
+      const opt = document.createElement("option");
+      opt.value = id;
+      opt.textContent = id;
+      dom.proxyDefaultModelSelect.appendChild(opt);
     }
+    if (prevValue && models.includes(prevValue)) {
+      dom.proxyDefaultModelSelect.value = prevValue;
+    } else {
+      dom.proxyDefaultModelSelect.value = "";
+    }
+    refreshCustomSelects();
+  }
+
+  function renderCustomModelsList() {
+    if (!dom.customModelsList) return;
+    const custom = Array.isArray(state.customModels) ? state.customModels : [];
+    if (custom.length === 0) {
+      dom.customModelsList.innerHTML = `<span class="settings-sub-note">${escapeHtml(t("proxy.custom_model_empty"))}</span>`;
+      return;
+    }
+    dom.customModelsList.innerHTML = custom.map((id) =>
+      `<span class="custom-model-tag">
+        <span>${escapeHtml(id)}</span>
+        <button class="custom-model-remove" data-model="${escapeHtml(id)}" title="Remove">&times;</button>
+      </span>`
+    ).join("");
+  }
+
+  function isValidModelId(value) {
+    if (!value || value.length < 2 || value.length > 96) return false;
+    let hasAlpha = false;
+    for (const ch of value) {
+      if (/[a-zA-Z]/.test(ch)) hasAlpha = true;
+      if (!/[a-zA-Z0-9\-_.]/.test(ch)) return false;
+    }
+    return hasAlpha;
+  }
+
+  function addCustomModel(modelId) {
+    const id = String(modelId || "").trim();
+    if (!isValidModelId(id)) {
+      showToast(t("proxy.custom_model_invalid"), "warning");
+      return;
+    }
+    const allModels = getAllModels();
+    if (allModels.some((m) => m.toLowerCase() === id.toLowerCase())) {
+      showToast(t("proxy.custom_model_duplicate"), "warning");
+      return;
+    }
+    state.customModels.push(id);
+    renderCustomModelsList();
+    renderApiModelOptions();
+    queueSaveConfig();
+  }
+
+  function removeCustomModel(modelId) {
+    state.customModels = state.customModels.filter((m) => m !== modelId);
+    renderCustomModelsList();
+    renderApiModelOptions();
+    queueSaveConfig();
   }
 
   function switchApiSubTab(tab) {
@@ -3388,6 +3519,8 @@
       proxyDispatchMode: String(state.proxyDispatchMode || "round_robin"),
       proxyFixedAccount: "",
       proxyFixedGroup: "personal",
+      proxyDefaultModel: String(state.proxyDefaultModel || ""),
+      customModels: Array.isArray(state.customModels) ? state.customModels : [],
       cloudAccountUrl: String(dom.cloudAccountUrlInput?.value || "").trim(),
       cloudAccountPassword,
       cloudAccountPasswordClear: !cloudAccountPassword && !!state.cloudAccountPasswordClear,
@@ -3850,6 +3983,42 @@
       renderProxyStatus();
       queueSaveConfig();
     });
+    if (dom.proxyDefaultModelSelect) {
+      dom.proxyDefaultModelSelect.addEventListener("change", () => {
+        state.proxyDefaultModel = String(dom.proxyDefaultModelSelect.value || "");
+        queueSaveConfig();
+      });
+    }
+    if (dom.customModelAddBtn && dom.customModelInput) {
+      dom.customModelAddBtn.addEventListener("click", () => {
+        addCustomModel(dom.customModelInput.value);
+        dom.customModelInput.value = "";
+      });
+      dom.customModelInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addCustomModel(dom.customModelInput.value);
+          dom.customModelInput.value = "";
+        }
+      });
+    }
+    if (dom.customModelsList) {
+      dom.customModelsList.addEventListener("click", (e) => {
+        const btn = e.target.closest(".custom-model-remove");
+        if (btn) {
+          const modelId = btn.getAttribute("data-model");
+          if (modelId) removeCustomModel(modelId);
+        }
+      });
+    }
+    if (dom.apiModelSelect) {
+      dom.apiModelSelect.addEventListener("change", () => {
+        const val = String(dom.apiModelSelect.value || "");
+        if (val && dom.apiModelInput) {
+          dom.apiModelInput.value = val;
+        }
+      });
+    }
     [dom.cloudAccountUrlInput].forEach((el) => {
       el.addEventListener("change", queueSaveConfig);
       el.addEventListener("blur", queueSaveConfig);
@@ -4772,6 +4941,8 @@
           state.proxyDispatchMode = String(msg.proxyDispatchMode || "round_robin");
           state.proxyFixedAccount = String(msg.proxyFixedAccount || "");
           state.proxyFixedGroup = String(msg.proxyFixedGroup || "personal");
+          state.proxyDefaultModel = String(msg.proxyDefaultModel || "");
+          state.customModels = Array.isArray(msg.customModels) ? msg.customModels.map((x) => String(x || "").trim()).filter(Boolean) : [];
           state.cloudAccountUrl = String(msg.cloudAccountUrl || "");
           state.cloudAccountPasswordConfigured = msg.cloudAccountPasswordConfigured === true || msg.cloudAccountPasswordConfigured === "true";
           state.cloudAccountPasswordClear = false;
