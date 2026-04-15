@@ -1761,6 +1761,40 @@ body.add-account-modal-open .shell {
   letter-spacing: 0.15px;
 }
 
+.stealth-toml-section {
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  background: var(--surface-soft);
+}
+
+.stealth-toml-textarea {
+  width: 100%;
+  min-height: 120px;
+  max-height: 320px;
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", "Consolas", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  resize: vertical;
+  box-sizing: border-box;
+  tab-size: 4;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.stealth-toml-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 59, 130, 246), 0.15);
+}
+
 .custom-models-section {
   margin-top: 24px;
   border: 1px solid var(--line);

@@ -632,6 +632,7 @@ namespace
     bool webdavPasswordConfigured = false;
     std::wstring proxyDefaultModel;
     std::vector<std::wstring> customModels;
+    std::wstring stealthTomlExtra;
   };
 
   std::wstring NormalizeCloseWindowBehavior(const std::wstring &value)
@@ -2741,6 +2742,8 @@ namespace
     {
       customModels = ParseJsonStringArray(customModelsArrayJson);
     }
+    const std::wstring stealthTomlExtra =
+        UnescapeJsonString(ExtractJsonStringField(json, L"stealthTomlExtra"));
 
     out.languageIndex = languageIndex < 0 ? 0 : languageIndex;
     if (!language.empty())
@@ -2816,6 +2819,7 @@ namespace
         webdavPasswordConfigured && fs::exists(GetWebDavSecretPath());
     out.proxyDefaultModel = proxyDefaultModel;
     out.customModels = customModels;
+    out.stealthTomlExtra = stealthTomlExtra;
     return true;
   }
 
@@ -2961,7 +2965,9 @@ namespace
     ss << L"  \"proxyDefaultModel\": \""
        << EscapeJsonString(cfg.proxyDefaultModel) << L"\",\n";
     ss << L"  \"customModels\": " << BuildJsonStringArray(cfg.customModels)
-       << L"\n";
+       << L",\n";
+    ss << L"  \"stealthTomlExtra\": \""
+       << EscapeJsonString(cfg.stealthTomlExtra) << L"\"\n";
     ss << L"}\n";
     const bool saved = WriteUtf8File(GetConfigPath(), ss.str());
     if (saved)
@@ -3048,7 +3054,10 @@ namespace
     }
     const std::wstring key = ToLowerCopy(TrimWide(line.substr(0, eqPos)));
     return key == L"disable_response_storage" ||
-           key == L"preferred_auth_method";
+           key == L"preferred_auth_method" ||
+           key == L"model_provider" ||
+           key == L"model" ||
+           key == L"model_reasoning_effort";
   }
 
   bool IsManagedProviderSection(const std::wstring &trimmedLine)
@@ -3063,7 +3072,8 @@ namespace
     return section == L"model_providers.local_openai" ||
            section.rfind(L"model_providers.local_openai.", 0) == 0 ||
            section == L"model_providers.custom" ||
-           section.rfind(L"model_providers.custom.", 0) == 0;
+           section.rfind(L"model_providers.custom.", 0) == 0 ||
+           section == L"windows";
   }
 
   bool IsTomlSectionHeader(const std::wstring &trimmedLine)
@@ -3104,7 +3114,8 @@ namespace
 
   std::wstring BuildStealthCodexToml(const std::wstring &origin,
                                      const std::wstring &providerBaseUrl,
-                                     const std::wstring &projectBaseUrl)
+                                     const std::wstring &projectBaseUrl,
+                                     const std::wstring &extraToml = L"")
   {
     std::wstring normalized = origin;
     size_t p = 0;
@@ -3225,14 +3236,71 @@ namespace
 
     std::vector<std::wstring> managed;
     managed.push_back(L"# CAS_LOCAL_PROXY_BEGIN");
-    managed.push_back(L"disable_response_storage = true");
-    managed.push_back(L"preferred_auth_method = \"apikey\"");
-    managed.push_back(L"");
-    managed.push_back(L"[model_providers.custom]");
-    managed.push_back(L"name = \"custom\"");
-    managed.push_back(L"base_url = \"" + providerBaseUrl + L"\"");
-    managed.push_back(L"wire_api = \"responses\"");
-    managed.push_back(L"requires_openai_auth = true");
+
+    std::wstring templateContent = extraToml;
+    if (templateContent.empty())
+    {
+      templateContent =
+          L"disable_response_storage = true\n"
+          L"preferred_auth_method = \"apikey\"\n"
+          L"model_provider = \"custom\"\n"
+          L"\n"
+          L"[model_providers.custom]\n"
+          L"name = \"custom\"\n"
+          L"base_url = \"{{PROXY_URL}}\"\n"
+          L"wire_api = \"responses\"\n"
+          L"requires_openai_auth = false";
+    }
+
+    {
+      size_t pos = 0;
+      while ((pos = templateContent.find(L"{{PROXY_URL}}", pos)) !=
+             std::wstring::npos)
+      {
+        templateContent.replace(pos, 13, providerBaseUrl);
+        pos += providerBaseUrl.size();
+      }
+    }
+    {
+      size_t pos = 0;
+      while ((pos = templateContent.find(L"{{PROXY_BASE}}", pos)) !=
+             std::wstring::npos)
+      {
+        templateContent.replace(pos, 14, projectBaseUrl);
+        pos += projectBaseUrl.size();
+      }
+    }
+
+    {
+      std::wstring norm = templateContent;
+      size_t ep = 0;
+      while ((ep = norm.find(L"\r\n", ep)) != std::wstring::npos)
+      {
+        norm.replace(ep, 2, L"\n");
+      }
+      ep = 0;
+      while ((ep = norm.find(L"\r", ep)) != std::wstring::npos)
+      {
+        norm.replace(ep, 1, L"\n");
+      }
+      size_t es = 0;
+      while (es <= norm.size())
+      {
+        const size_t ee = norm.find(L'\n', es);
+        if (ee == std::wstring::npos)
+        {
+          managed.push_back(norm.substr(es));
+          break;
+        }
+        managed.push_back(norm.substr(es, ee - es));
+        es = ee + 1;
+        if (es == norm.size())
+        {
+          break;
+        }
+      }
+    }
+
     managed.push_back(L"# CAS_LOCAL_PROXY_END");
 
     std::vector<std::wstring> finalLines;
@@ -3430,7 +3498,8 @@ namespace
         L"http://127.0.0.1:" + std::to_wstring(safePort);
     const std::wstring providerBaseUrl = projectBaseUrl + L"/v1";
     const std::wstring patchedToml =
-        BuildStealthCodexToml(existingToml, providerBaseUrl, projectBaseUrl);
+        BuildStealthCodexToml(existingToml, providerBaseUrl, projectBaseUrl,
+                              cfg.stealthTomlExtra);
     if (!WriteUtf8File(tomlPath, patchedToml))
     {
       error = L"write_toml_failed";
@@ -14115,6 +14184,8 @@ void WebViewHost::SendConfig(bool firstRun) const
       L",\"proxyDefaultModel\":\"" +
       EscapeJsonString(cfg.proxyDefaultModel) + L"\"" +
       L",\"customModels\":" + BuildJsonStringArray(cfg.customModels) +
+      L",\"stealthTomlExtra\":\"" +
+      EscapeJsonString(cfg.stealthTomlExtra) + L"\"" +
       L"}");
 }
 
@@ -15726,6 +15797,8 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         rawMessage.find(L"\"proxyDefaultModel\"") != std::wstring::npos;
     const bool hasCustomModels =
         rawMessage.find(L"\"customModels\"") != std::wstring::npos;
+    const bool hasStealthTomlExtra =
+        rawMessage.find(L"\"stealthTomlExtra\"") != std::wstring::npos;
     const int proxyPort = ExtractJsonIntField(rawMessage, L"proxyPort", -1);
     const int proxyTimeoutSec =
         ExtractJsonIntField(rawMessage, L"proxyTimeoutSec", -1);
@@ -15783,6 +15856,8 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     {
       customModels = ParseJsonStringArray(customModelsArrayJson);
     }
+    const std::wstring stealthTomlExtra =
+        UnescapeJsonString(ExtractJsonStringField(rawMessage, L"stealthTomlExtra"));
     AppConfig cfg;
     LoadConfig(cfg);
     const bool wasProxyStealthMode = cfg.proxyStealthMode;
@@ -15870,6 +15945,10 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     if (hasCustomModels)
     {
       cfg.customModels = customModels;
+    }
+    if (hasStealthTomlExtra)
+    {
+      cfg.stealthTomlExtra = stealthTomlExtra;
     }
     if (hasCloudAccountUrl)
     {
