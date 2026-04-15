@@ -15,6 +15,27 @@
 
 --
 
+## v1.3.14 PR#13
+
+### 新增
+- API 反向代理支持添加自定义模型，并在模型选择器和 `/v1/models` 中返回这些模型 PR#13
+
+### 优化
+- 新增代理默认模型设置，请求未指定模型时可自动使用默认模型 PR#13
+- 无痕模式支持自定义 `config.toml` 模板内容，允许按需覆盖代理接入参数 PR#13
+
+### 修复
+
+### Added
+- API proxy now supports custom model IDs and exposes them in model selectors and `/v1/models` PR#13
+
+### Improve
+- Added proxy default model selection so requests without a model can fall back automatically PR#13
+- Stealth mode now supports a customizable `config.toml` template for proxy integration settings PR#13
+
+### Fix
+--
+
 ## v1.3.12
 
 ### 新增
