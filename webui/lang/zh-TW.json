@@ -291,7 +291,8 @@
   "proxy.custom_model_empty": "尚未新增自訂模型",
   "proxy.custom_model_duplicate": "模型已存在",
   "proxy.custom_model_invalid": "無效的模型 ID",
-  "api.model_select_hint": "從可用模型中選擇，或在下方輸入自訂 ID。",  "quick.theme_title": "切換主題",
+  "api.model_select_hint": "從可用模型中選擇，或在下方輸入自訂 ID。",
+  "quick.theme_title": "切換主題",
   "quick.language_title": "切換語言",
   "traffic.title": "流量日誌",
   "traffic.subtitle": "查看全部帳號或指定帳號的調用明細",
@@ -505,5 +506,6 @@
   "settings.current_note": "目前：{lang} / {ide}",
   "dialog.backup.group_label": "分組",
   "settings.auto_update_off": "關閉",
-  "settings.auto_update_on": "開啟"
+  "settings.auto_update_on": "開啟",
+  "status_code.oauth_cancelled": "OAuth 授權已取消"
 }

@@ -205,7 +205,8 @@
   "proxy.custom_model_empty": "Keine benutzerdefinierten Modelle hinzugefuegt",
   "proxy.custom_model_duplicate": "Modell existiert bereits",
   "proxy.custom_model_invalid": "Ungueltige Modell-ID",
-  "api.model_select_hint": "Waehle aus den verfuegbaren Modellen oder gib unten eine benutzerdefinierte ID ein.",  "quick.theme_title": "Thema wechseln",
+  "api.model_select_hint": "Waehle aus den verfuegbaren Modellen oder gib unten eine benutzerdefinierte ID ein.",
+  "quick.theme_title": "Thema wechseln",
   "quick.language_title": "Sprache wechseln",
   "traffic.title": "Verkehrsprotokolle",
   "traffic.subtitle": "Aufrufdetails fuer alle oder einzelne Konten anzeigen.",
@@ -505,5 +506,6 @@
   "settings.auto_update_off": "Aus",
   "settings.auto_update_on": "Ein",
   "settings.auto_refresh_current_on": "Ein",
-  "settings.auto_refresh_current_off": "Aus"
+  "settings.auto_refresh_current_off": "Aus",
+  "status_code.oauth_cancelled": "OAuth-Autorisierung abgebrochen"
 }

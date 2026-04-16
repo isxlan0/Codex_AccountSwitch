@@ -506,5 +506,6 @@
   "settings.auto_update_off": "Disabled",
   "settings.auto_update_on": "Enabled",
   "settings.auto_refresh_current_on": "Enabled",
-  "settings.auto_refresh_current_off": "Disabled"
+  "settings.auto_refresh_current_off": "Disabled",
+  "status_code.oauth_cancelled": "OAuth authorization cancelled"
 }

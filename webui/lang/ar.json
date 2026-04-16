@@ -205,7 +205,8 @@
   "proxy.custom_model_empty": "لا توجد نماذج مخصصة",
   "proxy.custom_model_duplicate": "النموذج موجود بالفعل",
   "proxy.custom_model_invalid": "معرف النموذج غير صالح",
-  "api.model_select_hint": "اختر من النماذج المتاحة أو أدخل معرفاً مخصصاً أدناه.",  "quick.theme_title": "تبديل السمة",
+  "api.model_select_hint": "اختر من النماذج المتاحة أو أدخل معرفاً مخصصاً أدناه.",
+  "quick.theme_title": "تبديل السمة",
   "quick.language_title": "تبديل اللغة",
   "traffic.title": "سجل حركة البيانات",
   "traffic.subtitle": "عرض تفاصيل الاستدعاءات لجميع الحسابات أو حساب محدد.",
@@ -505,5 +506,6 @@
   "settings.auto_update_off": "ايقاف",
   "settings.auto_update_on": "تشغيل",
   "settings.auto_refresh_current_on": "تشغيل",
-  "settings.auto_refresh_current_off": "إيقاف"
+  "settings.auto_refresh_current_off": "إيقاف",
+  "status_code.oauth_cancelled": "تم إلغاء تفويض OAuth"
 }

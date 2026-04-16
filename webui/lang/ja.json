@@ -205,7 +205,8 @@
   "proxy.custom_model_empty": "カスタムモデルはありません",
   "proxy.custom_model_duplicate": "モデルは既に存在します",
   "proxy.custom_model_invalid": "無効なモデル ID です",
-  "api.model_select_hint": "利用可能なモデルから選択するか、下にカスタム ID を入力してください。",  "quick.theme_title": "テーマ切替",
+  "api.model_select_hint": "利用可能なモデルから選択するか、下にカスタム ID を入力してください。",
+  "quick.theme_title": "テーマ切替",
   "quick.language_title": "言語切替",
   "traffic.title": "トラフィックログ",
   "traffic.subtitle": "全アカウントまたは特定アカウントの呼び出し詳細を表示。",
@@ -505,5 +506,6 @@
   "settings.auto_update_off": "無効",
   "settings.auto_update_on": "有効",
   "settings.auto_refresh_current_on": "オン",
-  "settings.auto_refresh_current_off": "オフ"
+  "settings.auto_refresh_current_off": "オフ",
+  "status_code.oauth_cancelled": "OAuth 認証をキャンセルしました"
 }

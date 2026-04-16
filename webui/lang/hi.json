@@ -205,7 +205,8 @@
   "proxy.custom_model_empty": "कोई कस्टम मॉडल नहीं जोड़ा गया",
   "proxy.custom_model_duplicate": "मॉडल पहले से मौजूद है",
   "proxy.custom_model_invalid": "अमान्य मॉडल ID",
-  "api.model_select_hint": "उपलब्ध मॉडलों में से चुनें या नीचे कस्टम ID दर्ज करें।",  "quick.theme_title": "थीम बदलें",
+  "api.model_select_hint": "उपलब्ध मॉडलों में से चुनें या नीचे कस्टम ID दर्ज करें।",
+  "quick.theme_title": "थीम बदलें",
   "quick.language_title": "भाषा बदलें",
   "traffic.title": "ट्रैफ़िक लॉग",
   "traffic.subtitle": "सभी खातों या किसी विशिष्ट खाते के कॉल विवरण देखें।",
@@ -505,5 +506,6 @@
   "settings.auto_update_off": "बंद",
   "settings.auto_update_on": "चालू",
   "settings.auto_refresh_current_on": "चालू",
-  "settings.auto_refresh_current_off": "बंद"
+  "settings.auto_refresh_current_off": "बंद",
+  "status_code.oauth_cancelled": "OAuth प्राधिकरण रद्द किया गया"
 }

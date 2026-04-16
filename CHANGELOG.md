@@ -15,6 +15,24 @@
 
 --
 
+## v1.3.15
+
+### 新增
+
+### 优化
+
+### 修复
+- 修复添加账号时开启 OAuth 授权后“取消”按钮被禁用，无法退出拾取流程的问题。
+
+### Added
+
+### Improve
+
+### Fix
+- Fixed an issue where the Cancel button became unavailable after starting OAuth during Add Account; the flow can now be cancelled and exited normally.
+
+--
+
 ## v1.3.14 PR#13
 
 ### 新增

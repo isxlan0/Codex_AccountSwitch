@@ -391,6 +391,7 @@
     "status_code.oauth_success": "OAuth authorization completed",
     "status_code.oauth_timeout": "OAuth authorization timed out",
     "status_code.oauth_error": "OAuth authorization failed",
+    "status_code.oauth_cancelled": "OAuth authorization cancelled",
     "status_code.browser_open_failed": "Browser failed to open automatically",
     "status_code.no_auth_code": "OAuth callback missing auth code",
     "status_code.token_request_failed": "Token exchange failed",
@@ -945,6 +946,7 @@
     "status_code.oauth_success": "OAuth 授权完成",
     "status_code.oauth_timeout": "OAuth 授权超时",
     "status_code.oauth_error": "OAuth 授权失败",
+    "status_code.oauth_cancelled": "OAuth 授权已取消",
     "status_code.browser_open_failed": "浏览器未能自动打开",
     "status_code.no_auth_code": "OAuth 回调缺少授权码",
     "status_code.token_request_failed": "令牌交换失败",
@@ -3037,6 +3039,7 @@
       "oauth_success",
       "oauth_timeout",
       "oauth_error",
+      "oauth_cancelled",
       "browser_open_failed",
       "no_auth_code",
       "token_request_failed",
@@ -3187,7 +3190,7 @@
 
     dom.addAccountManualImportBtn.disabled = disableAny;
     dom.addAccountManualImportBtn.classList.toggle("loading", isManualBusy);
-    dom.addAccountCancelBtn.disabled = isOAuthBusy;
+    dom.addAccountCancelBtn.disabled = isCurrentBusy || isManualBusy;
     dom.addTabOAuthBtn.disabled = isOAuthBusy;
     dom.addTabManualBtn.disabled = isOAuthBusy;
     dom.addTabCurrentBtn.disabled = isOAuthBusy;
@@ -4432,7 +4435,18 @@
       state.renameTargetGroup = "personal";
     });
 
-    dom.addAccountCancelBtn.addEventListener("click", () => closeAddAccountModal(true));
+    dom.addAccountCancelBtn.addEventListener("click", () => {
+      if (state.importMode === "oauth" && state.oauthFlowActive) {
+        post("cancel_oauth_login");
+        state.oauthFlowActive = false;
+        state.oauthFlowStage = "";
+        state.oauthFlowMessage = "";
+        state.oauthAuthUrl = "";
+        dom.oauthCallbackTextarea.value = "";
+        setImportBusy("");
+      }
+      closeAddAccountModal(true);
+    });
 
     dom.addAccountModal.addEventListener("click", (e) => {
       if (e.target === dom.addAccountModal) return;

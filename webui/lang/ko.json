@@ -205,7 +205,8 @@
   "proxy.custom_model_empty": "추가된 사용자 지정 모델이 없습니다",
   "proxy.custom_model_duplicate": "모델이 이미 존재합니다",
   "proxy.custom_model_invalid": "잘못된 모델 ID입니다",
-  "api.model_select_hint": "사용 가능한 모델에서 선택하거나 아래에 사용자 지정 ID를 입력하세요.",  "quick.theme_title": "테마 전환",
+  "api.model_select_hint": "사용 가능한 모델에서 선택하거나 아래에 사용자 지정 ID를 입력하세요.",
+  "quick.theme_title": "테마 전환",
   "quick.language_title": "언어 전환",
   "traffic.title": "트래픽 로그",
   "traffic.subtitle": "모든 계정 또는 특정 계정의 호출 상세 정보를 봅니다.",
@@ -505,5 +506,6 @@
   "settings.auto_update_off": "사용 안 함",
   "settings.auto_update_on": "사용",
   "settings.auto_refresh_current_on": "사용",
-  "settings.auto_refresh_current_off": "사용 안 함"
+  "settings.auto_refresh_current_off": "사용 안 함",
+  "status_code.oauth_cancelled": "OAuth 인증이 취소되었습니다"
 }

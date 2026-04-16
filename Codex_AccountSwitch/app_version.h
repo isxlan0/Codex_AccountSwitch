@@ -1,9 +1,9 @@
 ﻿#pragma once
 
-// v1.3.14
+// v1.3.15
 #define APP_VERSION_MAJOR 1
 #define APP_VERSION_MINOR 3
-#define APP_VERSION_PATCH 14
+#define APP_VERSION_PATCH 15
 #define APP_VERSION_BUILD 0
 
 #define APP_VERSION_STR_HELPER(x) #x

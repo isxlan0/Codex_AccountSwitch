@@ -205,7 +205,8 @@
   "proxy.custom_model_empty": "Пользовательские модели не добавлены",
   "proxy.custom_model_duplicate": "Модель уже существует",
   "proxy.custom_model_invalid": "Недопустимый ID модели",
-  "api.model_select_hint": "Выберите модель из списка доступных или введите ниже пользовательский ID.",  "quick.theme_title": "Сменить тему",
+  "api.model_select_hint": "Выберите модель из списка доступных или введите ниже пользовательский ID.",
+  "quick.theme_title": "Сменить тему",
   "quick.language_title": "Сменить язык",
   "traffic.title": "Журнал трафика",
   "traffic.subtitle": "Просмотр деталей вызовов для всех аккаунтов или конкретного аккаунта.",
@@ -505,5 +506,6 @@
   "settings.auto_update_off": "Выкл",
   "settings.auto_update_on": "Вкл",
   "settings.auto_refresh_current_on": "Вкл",
-  "settings.auto_refresh_current_off": "Выкл"
+  "settings.auto_refresh_current_off": "Выкл",
+  "status_code.oauth_cancelled": "Авторизация OAuth отменена"
 }

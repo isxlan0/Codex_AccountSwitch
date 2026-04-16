@@ -205,7 +205,8 @@
   "proxy.custom_model_empty": "No hay modelos personalizados",
   "proxy.custom_model_duplicate": "El modelo ya existe",
   "proxy.custom_model_invalid": "ID de modelo no valida",
-  "api.model_select_hint": "Elige entre los modelos disponibles o escribe abajo un ID personalizado.",  "quick.theme_title": "Cambiar tema",
+  "api.model_select_hint": "Elige entre los modelos disponibles o escribe abajo un ID personalizado.",
+  "quick.theme_title": "Cambiar tema",
   "quick.language_title": "Cambiar idioma",
   "traffic.title": "Registros de trafico",
   "traffic.subtitle": "Ver detalles de llamadas de todas las cuentas o una cuenta especifica.",
@@ -505,5 +506,6 @@
   "settings.auto_update_off": "Desactivado",
   "settings.auto_update_on": "Activado",
   "settings.auto_refresh_current_on": "Activado",
-  "settings.auto_refresh_current_off": "Desactivado"
+  "settings.auto_refresh_current_off": "Desactivado",
+  "status_code.oauth_cancelled": "Autorización OAuth cancelada"
 }

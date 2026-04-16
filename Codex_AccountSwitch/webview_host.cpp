@@ -1,4 +1,4 @@
-#include "webview_host.h"
+﻿#include "webview_host.h"
 
 #include "app_version.h"
 #include "file_utils.h"
@@ -8217,6 +8217,13 @@ namespace
     if (!callbackResult.error.empty())
     {
       WSACleanup();
+      if (callbackResult.error == L"cancelled_by_user")
+      {
+        status = L"已取消 OAuth 授权";
+        code = L"oauth_cancelled";
+        PostOAuthFlowEvent(notifyHwnd, L"cancelled", authUrl, status, code);
+        return false;
+      }
       status = L"OAuth 授权失败: " + callbackResult.error;
       code = L"oauth_error";
       PostOAuthFlowEvent(notifyHwnd, L"error", authUrl, status, code);
@@ -16489,6 +16496,22 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
                          L"\"account_quota_refreshed\",\"message\":\"\"}");
       } })
         .detach();
+    return;
+  }
+
+  if (action == L"cancel_oauth_login")
+  {
+    std::lock_guard<std::mutex> lock(g_OAuthCallbackMutex);
+    if (g_OAuthCallbackResult == nullptr || g_OAuthStopEvent == nullptr)
+    {
+      SendWebStatus(L"当前没有进行中的 OAuth 授权", L"warning",
+                    L"oauth_session_not_active");
+      return;
+    }
+
+    g_OAuthCallbackResult->error = L"cancelled_by_user";
+    g_OAuthCallbackResult->received = true;
+    SetEvent(g_OAuthStopEvent);
     return;
   }
 

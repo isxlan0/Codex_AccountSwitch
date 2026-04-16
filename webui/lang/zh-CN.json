@@ -506,5 +506,6 @@
   "settings.current_note": "当前：{lang} / {ide}",
   "dialog.backup.group_label": "分组",
   "settings.auto_update_off": "关闭",
-  "settings.auto_update_on": "开启"
+  "settings.auto_update_on": "开启",
+  "status_code.oauth_cancelled": "OAuth 授权已取消"
 }
