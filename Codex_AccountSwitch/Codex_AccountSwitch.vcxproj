@@ -209,6 +209,7 @@
     <ClInclude Include="app_version.h" />
     <ClInclude Include="file_utils.h" />
     <ClInclude Include="main_window.h" />
+    <ClInclude Include="preset_models.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="update_checker.h" />
     <ClInclude Include="webview_host.h" />

@@ -2,6 +2,7 @@
 
 #include "app_version.h"
 #include "file_utils.h"
+#include "preset_models.h"
 #include "main_window.h"
 #include "resource.h"
 #include "update_checker.h"
@@ -10431,19 +10432,7 @@ namespace
 
   std::vector<std::wstring> BuildFallbackModelIds()
   {
-    // Keep this list aligned with codexpost.py static model definitions.
-    return {
-        L"gpt-5.3-codex",
-        L"gpt-5.2-codex",
-        L"gpt-5.2",
-        L"gpt-5.1-codex-max",
-        L"gpt-5.1-codex-mini",
-        L"gpt-5.1-codex",
-        L"gpt-5.1",
-        L"gpt-5-codex-mini",
-        L"gpt-5-codex",
-        L"gpt-5",
-    };
+    return GetPresetModelIds();
   }
 
   bool FetchModelIdsFromUpstream(const fs::path &authPath,
@@ -10574,36 +10563,15 @@ namespace
   bool GetCachedModelIds(const fs::path &authPath, std::vector<std::wstring> &models,
                          std::wstring &error)
   {
+    (void)authPath;
+    error.clear();
     {
       std::lock_guard<std::mutex> lock(g_ModelCacheMutex);
-      const auto now = std::chrono::steady_clock::now();
-      if (!g_ModelIdCache.empty() &&
-          std::chrono::duration_cast<std::chrono::seconds>(now - g_ModelCacheAt)
-                  .count() <= kModelCacheTtlSec)
+      if (g_ModelIdCache.empty())
       {
-        models = g_ModelIdCache;
-        return true;
-      }
-    }
-
-    std::vector<std::wstring> fetched;
-    if (!FetchModelIdsFromUpstream(authPath, fetched, error))
-    {
-      models = BuildFallbackModelIds();
-      {
-        std::lock_guard<std::mutex> lock(g_ModelCacheMutex);
-        g_ModelIdCache = models;
+        g_ModelIdCache = BuildFallbackModelIds();
         g_ModelCacheAt = std::chrono::steady_clock::now();
       }
-      DebugLogLine(L"api.models",
-                   L"upstream fetch failed, using fallback list: " + error);
-      error.clear();
-      return true;
-    }
-    {
-      std::lock_guard<std::mutex> lock(g_ModelCacheMutex);
-      g_ModelIdCache = fetched;
-      g_ModelCacheAt = std::chrono::steady_clock::now();
       models = g_ModelIdCache;
     }
     return true;
@@ -15521,15 +15489,9 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       std::wstring accountName;
       std::wstring groupName;
       std::wstring err;
-      std::vector<std::wstring> models;
-      if (!ResolveCurrentAuthPath(authPath, accountName, groupName, err)) {
-        DebugLogLine(L"api.models",
-                     L"no current account, using fallback model list: " + err);
-        models = BuildFallbackModelIds();
-      } else if (!GetCachedModelIds(authPath, models, err)) {
-        DebugLogLine(L"api.models",
-                     L"cache get failed, using fallback model list: " + err);
-        models = BuildFallbackModelIds();
+      std::vector<std::wstring> models = BuildFallbackModelIds();
+      if (ResolveCurrentAuthPath(authPath, accountName, groupName, err)) {
+        GetCachedModelIds(authPath, models, err);
       }
       std::unordered_set<std::wstring> seen;
       for (const auto &m : models) {

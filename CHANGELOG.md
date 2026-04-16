@@ -15,6 +15,24 @@
 
 --
 
+## v1.3.16
+
+### 新增
+
+### 优化
+- API 反代的默认模型与测试模型列表改为软件内置预设，不再请求上游 API 获取模型列表。
+
+### 修复
+
+### Added
+
+### Improve
+- The API proxy default model and test model list now use built-in presets instead of requesting model IDs from the upstream API.
+
+### Fix
+
+--
+
 ## v1.3.15
 
 ### 新增

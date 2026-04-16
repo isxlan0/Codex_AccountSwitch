@@ -47,6 +47,9 @@
     <ClInclude Include="main_window.h">
       <Filter>头文件</Filter>
     </ClInclude>
+    <ClInclude Include="preset_models.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
     <ClInclude Include="webview_host.h">
       <Filter>头文件</Filter>
     </ClInclude>
