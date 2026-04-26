@@ -15,6 +15,30 @@
 
 --
 
+## v1.3.17
+
+### 新增
+- 内置预设模型列表新增 `gpt-5.5`，模型选择器会直接显示该模型。#17
+
+### 优化
+- 模型列表未保留旧值时，界面默认优先选中 `gpt-5.5`。
+- 网络请求读取 Codex 版本号时加入 `0.125.0` 下限，未读到或读到更低版本时都会自动改用 `0.125.0`。
+- 账号类型识别改为按名称关键词匹配，像 `prolite` 这类值也会归到对应账号类型。#16
+
+### 修复
+
+### Added
+- Added `gpt-5.5` to the built-in preset model list so it appears directly in model selectors.
+
+### Improve
+- The UI now prefers `gpt-5.5` when choosing a default model with no preserved selection.
+- Codex version detection now enforces a minimum request version of `0.125.0` whenever the local version is missing or older.
+- Account type detection now matches keywords inside plan names, so values like `prolite` map to the correct account type.
+
+### Fix
+
+--
+
 ## v1.3.16
 
 ### 新增

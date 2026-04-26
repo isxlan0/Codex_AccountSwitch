@@ -1,4 +1,5 @@
-﻿#include "webview_host.h"
+﻿#pragma execution_character_set("utf-8")
+#include "webview_host.h"
 
 #include "app_version.h"
 #include "file_utils.h"
@@ -104,7 +105,7 @@ namespace
 
   constexpr wchar_t kUsageHost[] = L"chatgpt.com";
   constexpr wchar_t kUsagePath[] = L"/backend-api/wham/usage";
-  constexpr wchar_t kUsageDefaultCodexVersion[] = L"0.98.0";
+  constexpr wchar_t kUsageDefaultCodexVersion[] = L"0.125.0";
   constexpr wchar_t kUsageVsCodeVersion[] = L"0.4.71";
   constexpr wchar_t kWebView2DownloadUrl[] =
       L"https://developer.microsoft.com/en-us/microsoft-edge/webview2/";
@@ -457,6 +458,38 @@ namespace
       return lower;
     }
     return L"personal";
+  }
+
+  std::wstring DetectPlanTypeKeyword(const std::wstring &value)
+  {
+    const std::wstring lower = ToLowerCopy(value);
+    if (lower.empty())
+    {
+      return L"";
+    }
+    if (lower.find(L"plus") != std::wstring::npos)
+    {
+      return L"plus";
+    }
+    if (lower.find(L"team") != std::wstring::npos)
+    {
+      return L"team";
+    }
+    if (lower.find(L"pro") != std::wstring::npos)
+    {
+      return L"pro";
+    }
+    if (lower.find(L"free") != std::wstring::npos)
+    {
+      return L"free";
+    }
+    return L"";
+  }
+
+  std::wstring CanonicalizePlanType(const std::wstring &planType)
+  {
+    const std::wstring normalized = DetectPlanTypeKeyword(planType);
+    return normalized.empty() ? planType : normalized;
   }
 
   bool IsPlanGroup(const std::wstring &group)
@@ -1541,6 +1574,81 @@ namespace
     return L"10.0.0";
   }
 
+  std::vector<int> ParseVersionNumbersLoose(const std::wstring &value)
+  {
+    std::vector<int> numbers;
+    int current = 0;
+    bool inNumber = false;
+    for (const wchar_t ch : value)
+    {
+      if (ch >= L'0' && ch <= L'9')
+      {
+        inNumber = true;
+        current = current * 10 + static_cast<int>(ch - L'0');
+      }
+      else if (inNumber)
+      {
+        numbers.push_back(current);
+        current = 0;
+        inNumber = false;
+      }
+    }
+    if (inNumber)
+    {
+      numbers.push_back(current);
+    }
+    return numbers;
+  }
+
+  int CompareLooseVersion(const std::wstring &left, const std::wstring &right)
+  {
+    const std::vector<int> lv = ParseVersionNumbersLoose(left);
+    const std::vector<int> rv = ParseVersionNumbersLoose(right);
+    const size_t n = (std::max)(lv.size(), rv.size());
+    for (size_t i = 0; i < n; ++i)
+    {
+      const int l = i < lv.size() ? lv[i] : 0;
+      const int r = i < rv.size() ? rv[i] : 0;
+      if (l < r)
+      {
+        return -1;
+      }
+      if (l > r)
+      {
+        return 1;
+      }
+    }
+
+    const std::wstring leftLower = ToLowerCopy(left);
+    const std::wstring rightLower = ToLowerCopy(right);
+    if (leftLower == rightLower)
+    {
+      return 0;
+    }
+    return leftLower < rightLower ? -1 : 1;
+  }
+
+  std::wstring ClampCodexVersionFloor(const std::wstring &value)
+  {
+    size_t start = 0;
+    while (start < value.size() && iswspace(value[start]))
+    {
+      ++start;
+    }
+    size_t end = value.size();
+    while (end > start && iswspace(value[end - 1]))
+    {
+      --end;
+    }
+    const std::wstring trimmed = value.substr(start, end - start);
+    if (trimmed.empty() ||
+        CompareLooseVersion(trimmed, kUsageDefaultCodexVersion) < 0)
+    {
+      return kUsageDefaultCodexVersion;
+    }
+    return trimmed;
+  }
+
   std::wstring ReadCodexLatestVersion()
   {
     wchar_t *userProfile = nullptr;
@@ -1563,7 +1671,7 @@ namespace
     }
 
     const std::wstring latest = ExtractJsonField(json, L"latest_version");
-    return latest.empty() ? std::wstring(kUsageDefaultCodexVersion) : latest;
+    return ClampCodexVersionFloor(latest);
   }
 
   std::wstring BuildUsageUserAgent()
@@ -1618,13 +1726,7 @@ namespace
 
   std::wstring NormalizePlanType(const std::wstring &planType)
   {
-    const std::wstring lower = ToLowerCopy(planType);
-    if (lower == L"free" || lower == L"plus" || lower == L"team" ||
-        lower == L"pro")
-    {
-      return lower;
-    }
-    return L"";
+    return DetectPlanTypeKeyword(planType);
   }
 
   std::wstring GroupFromPlanType(const std::wstring &planType)
@@ -4189,8 +4291,8 @@ namespace
         row.abnormalAt =
             UnescapeJsonString(ExtractJsonField(itemJson, L"abnormalAt"));
         row.quotaUsageOk = ExtractJsonBoolField(itemJson, L"usageOk", false);
-        row.quotaPlanType =
-            UnescapeJsonString(ExtractJsonField(itemJson, L"planType"));
+        row.quotaPlanType = CanonicalizePlanType(
+            UnescapeJsonString(ExtractJsonField(itemJson, L"planType")));
         row.quotaEmail = UnescapeJsonString(ExtractJsonField(itemJson, L"email"));
         row.quota5hRemainingPercent =
             ExtractJsonIntField(itemJson, L"quota5hRemainingPercent", -1);
@@ -8322,18 +8424,10 @@ namespace
     std::wstring planSuffix;
     if (!planType.empty())
     {
-      std::wstring planLower = ToLowerCopy(planType);
-      if (planLower.find(L"plus") != std::wstring::npos)
+      const std::wstring normalizedPlanType = NormalizePlanType(planType);
+      if (!normalizedPlanType.empty())
       {
-        planSuffix = L"-plus";
-      }
-      else if (planLower.find(L"team") != std::wstring::npos)
-      {
-        planSuffix = L"-team";
-      }
-      else if (planLower.find(L"pro") != std::wstring::npos)
-      {
-        planSuffix = L"-pro";
+        planSuffix = L"-" + normalizedPlanType;
       }
     }
 
@@ -8421,7 +8515,7 @@ namespace
     row.path = MakeRelativeAuthPath(detectedGroup, uniqueName);
     row.updatedAt = NowText();
     row.quotaUsageOk = false;
-    row.quotaPlanType = planType;
+    row.quotaPlanType = CanonicalizePlanType(planType);
     row.quotaEmail = email;
     idx.accounts.push_back(row);
     SaveIndex(idx);
@@ -10435,6 +10529,18 @@ namespace
     return GetPresetModelIds();
   }
 
+  std::wstring GetPreferredModelId(const std::vector<std::wstring> &models)
+  {
+    for (const auto &model : models)
+    {
+      if (EqualsIgnoreCase(model, L"gpt-5.5"))
+      {
+        return model;
+      }
+    }
+    return models.empty() ? std::wstring() : models.front();
+  }
+
   bool FetchModelIdsFromUpstream(const fs::path &authPath,
                                  std::vector<std::wstring> &models,
                                  std::wstring &error)
@@ -10835,7 +10941,7 @@ namespace
       // Unknown quota should still be considered usable and validated by real requests.
       return true;
     }
-    const std::wstring plan = ToLowerCopy(row.quotaPlanType);
+    const std::wstring plan = NormalizePlanType(row.quotaPlanType);
     const bool isFreePlan =
         plan == L"free" || NormalizeGroup(row.group) == L"free";
     if (isFreePlan)
@@ -10859,7 +10965,7 @@ namespace
   int GetProxyQuotaMetricValue(const IndexEntry &row, bool &usesWeeklyWindow)
   {
     usesWeeklyWindow = false;
-    const std::wstring plan = ToLowerCopy(row.quotaPlanType);
+    const std::wstring plan = NormalizePlanType(row.quotaPlanType);
     const bool isFreePlan =
         plan == L"free" || NormalizeGroup(row.group) == L"free";
     if (isFreePlan)
@@ -11111,12 +11217,12 @@ namespace
     }
 
     const std::wstring planInBody =
-        ToLowerCopy(UnescapeJsonString(ExtractJsonField(responseBody, L"plan_type")));
+        NormalizePlanType(UnescapeJsonString(ExtractJsonField(responseBody, L"plan_type")));
     if (!planInBody.empty())
     {
       it->quotaPlanType = planInBody;
     }
-    const std::wstring currentPlan = ToLowerCopy(it->quotaPlanType);
+    const std::wstring currentPlan = NormalizePlanType(it->quotaPlanType);
     const bool isFreePlan =
         planInBody == L"free" || currentPlan == L"free" ||
         NormalizeGroup(it->group) == L"free";
@@ -12824,7 +12930,7 @@ namespace
           std::wstring modelErr;
           if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
           {
-            modelToUse = models.front();
+            modelToUse = GetPreferredModelId(models);
           }
         }
       }
@@ -12991,7 +13097,7 @@ namespace
           std::wstring modelErr;
           if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
           {
-            modelToUse = models.front();
+            modelToUse = GetPreferredModelId(models);
           }
         }
       }
@@ -13143,7 +13249,7 @@ namespace
           std::wstring modelErr;
           if (GetCachedModelIds(authPath, models, modelErr) && !models.empty())
           {
-            modelToUse = models.front();
+            modelToUse = GetPreferredModelId(models);
           }
         }
       }

@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿#pragma execution_character_set("utf-8")
+#pragma once
 
 #include <string>
 #include <vector>
@@ -6,6 +7,7 @@
 inline const std::vector<std::wstring> &GetPresetModelIds()
 {
     static const std::vector<std::wstring> kPresetModelIds = {
+        L"gpt-5.5",
         L"gpt-5.2",
         L"gpt-5.4",
         L"gpt-5.4-mini",

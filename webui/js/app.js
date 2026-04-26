@@ -3,6 +3,7 @@
 
   const IDE_LIST = ["Code.exe", "Trae.exe", "Kiro.exe", "Antigravity.exe"];
   const FALLBACK_API_MODELS = [
+    "gpt-5.5",
     "gpt-5.2",
     "gpt-5.4",
     "gpt-5.4-mini",
@@ -2810,7 +2811,7 @@
       if (prevValue && models.includes(prevValue)) {
         dom.apiModelSelect.value = prevValue;
       } else if (models.length > 0) {
-        const preferred = models.find((x) => x === "gpt-5.3-codex") || models[0];
+        const preferred = models.find((x) => x === "gpt-5.5") || models[0];
         dom.apiModelSelect.value = preferred;
       }
     }
@@ -3200,12 +3201,18 @@
     return formatPercentValue(v);
   }
 
-  function normalizePlanType(planType) {
+  function detectPlanTypeKeyword(planType) {
     const value = String(planType || "").toLowerCase();
-    if (value === "free" || value === "plus" || value === "team" || value === "pro") {
-      return value;
-    }
+    if (!value) return "";
+    if (value.includes("plus")) return "plus";
+    if (value.includes("team")) return "team";
+    if (value.includes("pro")) return "pro";
+    if (value.includes("free")) return "free";
     return "";
+  }
+
+  function normalizePlanType(planType) {
+    return detectPlanTypeKeyword(planType);
   }
 
   function normalizeGroupValue(group) {

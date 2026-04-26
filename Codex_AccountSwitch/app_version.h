@@ -1,9 +1,10 @@
-﻿#pragma once
+﻿#pragma execution_character_set("utf-8")
+#pragma once
 
-// v1.3.16
+// v1.3.17
 #define APP_VERSION_MAJOR 1
 #define APP_VERSION_MINOR 3
-#define APP_VERSION_PATCH 16
+#define APP_VERSION_PATCH 17
 #define APP_VERSION_BUILD 0
 
 #define APP_VERSION_STR_HELPER(x) #x
