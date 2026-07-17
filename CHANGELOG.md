@@ -15,6 +15,82 @@
 
 --
 
+## v1.3.21
+
+### 新增
+
+### 优化
+- Codex 版本号读取新增 `~/.codex/models_cache.json` 的 `client_version` 作为优先回退来源，并在 `version.json`、`models_cache.json`、`codex --version` 之间取可用的较新版本号，减少新模型被误判为版本过旧的情况。#21
+
+### 修复
+- 修复部分环境下虽然 Codex CLI 已升级，但本地应用仍可能回退到旧版本号发起请求，导致 `gpt-5.6-sol` 等模型继续报需要升级 Codex 的问题。
+
+### Added
+
+### Improve
+- Codex version detection now falls back to `client_version` from `~/.codex/models_cache.json` and picks the newest usable value across `version.json`, `models_cache.json`, and `codex --version`.
+
+### Fix
+- Fixed cases where the local app could still send an outdated Codex version even after the CLI was upgraded, causing newer models such as `gpt-5.6-sol` to keep returning upgrade-required errors.
+
+--
+
+## v1.3.20
+
+### 新增
+
+### 优化
+- 参考 OpenAI 官方模型目录，界面和代理在未保留旧值时默认优先选中 `gpt-5.6-sol`，与当前 GPT-5.6 系列主模型保持一致。#20
+
+### 修复
+
+### Added
+
+### Improve
+- Following the official OpenAI model catalog, the UI and proxy now prefer `gpt-5.6-sol` when no previous selection is preserved, matching the current flagship model in the GPT-5.6 family.
+
+### Fix
+
+--
+
+## v1.3.19
+
+### 新增
+
+### 优化
+- 当 `~/.codex/version.json` 缺失或未提供版本号时，改为回退读取 `codex --version`，避免已升级的 Codex CLI 仍以旧版本号发起请求。
+
+### 修复
+- 修复部分环境下明明已升级 Codex，却仍因回退到 `0.125.0` 而无法使用 `gpt-5.6-sol` 等新模型的问题。#19
+
+### Added
+
+### Improve
+- When `~/.codex/version.json` is missing or does not expose a version, the app now falls back to `codex --version` so upgraded Codex CLI installs report the real version in upstream requests.
+
+### Fix
+- Fixed an issue where some updated Codex installations still sent the fallback version `0.125.0`, causing newer models such as `gpt-5.6-sol` to be rejected.
+
+--
+
+## v1.3.18
+
+### 新增
+- 内置预设模型列表新增 `gpt-5.6-sol`、`gpt-5.6-terra`、`gpt-5.6-luna`，模型选择器会直接显示这些模型。#18
+
+### 优化
+
+### 修复
+
+### Added
+- Added `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` to the built-in preset model list so they appear directly in model selectors.
+
+### Improve
+
+### Fix
+
+--
+
 ## v1.3.17
 
 ### 新增

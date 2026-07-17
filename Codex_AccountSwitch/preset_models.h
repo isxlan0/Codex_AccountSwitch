@@ -7,6 +7,9 @@
 inline const std::vector<std::wstring> &GetPresetModelIds()
 {
     static const std::vector<std::wstring> kPresetModelIds = {
+        L"gpt-5.6-sol",
+        L"gpt-5.6-terra",
+        L"gpt-5.6-luna",
         L"gpt-5.5",
         L"gpt-5.2",
         L"gpt-5.4",
