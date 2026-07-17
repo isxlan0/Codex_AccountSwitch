@@ -94,6 +94,7 @@ namespace
   std::wstring BuildProxyStatusJson();
   std::wstring GenerateProxyApiKey();
   bool LoadConfig(AppConfig &out);
+  bool SaveConfig(const AppConfig &in);
   bool SaveProtectedWideText(const fs::path &file, const std::wstring &text,
                              std::wstring &error);
   bool LoadProtectedWideText(const fs::path &file, std::wstring &text,
@@ -666,6 +667,8 @@ namespace
     bool webdavPasswordConfigured = false;
     std::wstring proxyDefaultModel;
     std::vector<std::wstring> customModels;
+    std::vector<std::wstring> discoveredModels =
+        GetManuallyRegisteredModelIds();
     std::wstring stealthTomlExtra;
   };
 
@@ -1649,29 +1652,285 @@ namespace
     return trimmed;
   }
 
+  std::wstring ReadEnvironmentVariable(const wchar_t *name)
+  {
+    wchar_t *value = nullptr;
+    size_t required = 0;
+    if (_wdupenv_s(&value, &required, name) != 0 || value == nullptr)
+    {
+      free(value);
+      return {};
+    }
+
+    const std::wstring result(value);
+    free(value);
+    return result;
+  }
+
+  std::wstring FindExecutableOnPath(const wchar_t *name)
+  {
+    std::vector<wchar_t> buffer(32768, L'\0');
+    const DWORD length = SearchPathW(nullptr, name, nullptr,
+                                     static_cast<DWORD>(buffer.size()),
+                                     buffer.data(), nullptr);
+    if (length == 0 || length >= buffer.size())
+    {
+      return {};
+    }
+    return std::wstring(buffer.data(), length);
+  }
+
+  bool RunProcessAndCaptureOutput(const fs::path &application,
+                                  const std::wstring &arguments,
+                                  std::string &output)
+  {
+    output.clear();
+    SECURITY_ATTRIBUTES security{};
+    security.nLength = sizeof(security);
+    security.bInheritHandle = TRUE;
+
+    HANDLE readPipe = nullptr;
+    HANDLE writePipe = nullptr;
+    if (!CreatePipe(&readPipe, &writePipe, &security, 0))
+    {
+      return false;
+    }
+    SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
+
+    std::wstring commandLine = L"\"" + application.wstring() + L"\"";
+    if (!arguments.empty())
+    {
+      commandLine += L" " + arguments;
+    }
+    std::vector<wchar_t> commandBuffer(commandLine.begin(), commandLine.end());
+    commandBuffer.push_back(L'\0');
+
+    STARTUPINFOW startup{};
+    startup.cb = sizeof(startup);
+    startup.dwFlags = STARTF_USESTDHANDLES;
+    startup.hStdOutput = writePipe;
+    startup.hStdError = writePipe;
+    startup.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    PROCESS_INFORMATION process{};
+    const BOOL started = CreateProcessW(
+        application.c_str(), commandBuffer.data(), nullptr, nullptr, TRUE,
+        CREATE_NO_WINDOW, nullptr, nullptr, &startup, &process);
+    CloseHandle(writePipe);
+    if (!started)
+    {
+      CloseHandle(readPipe);
+      return false;
+    }
+
+    const DWORD waitResult = WaitForSingleObject(process.hProcess, 5000);
+    if (waitResult == WAIT_TIMEOUT)
+    {
+      TerminateProcess(process.hProcess, 1);
+      WaitForSingleObject(process.hProcess, 1000);
+    }
+
+    char chunk[512]{};
+    DWORD bytesRead = 0;
+    while (output.size() < 4096 &&
+           ReadFile(readPipe, chunk, sizeof(chunk), &bytesRead, nullptr) &&
+           bytesRead > 0)
+    {
+      output.append(chunk, chunk + bytesRead);
+    }
+
+    DWORD exitCode = 1;
+    GetExitCodeProcess(process.hProcess, &exitCode);
+    CloseHandle(process.hThread);
+    CloseHandle(process.hProcess);
+    CloseHandle(readPipe);
+    return waitResult == WAIT_OBJECT_0 && exitCode == 0;
+  }
+
+  std::wstring ExtractCodexVersionFromOutput(const std::string &output)
+  {
+    for (size_t start = 0; start < output.size(); ++start)
+    {
+      if (output[start] < '0' || output[start] > '9')
+      {
+        continue;
+      }
+
+      size_t end = start;
+      size_t dots = 0;
+      while (end < output.size() &&
+             ((output[end] >= '0' && output[end] <= '9') ||
+              output[end] == '.'))
+      {
+        if (output[end] == '.')
+        {
+          ++dots;
+        }
+        ++end;
+      }
+      if (dots >= 2 && output[end - 1] != '.')
+      {
+        return std::wstring(output.begin() + start, output.begin() + end);
+      }
+      start = end;
+    }
+    return {};
+  }
+
+  void AppendCodexExecutable(std::vector<fs::path> &executables,
+                             std::unordered_set<std::wstring> &seen,
+                             const fs::path &candidate)
+  {
+    std::error_code ec;
+    if (candidate.empty() || !fs::is_regular_file(candidate, ec) || ec)
+    {
+      return;
+    }
+
+    const std::wstring key = ToLowerCopy(candidate.lexically_normal().wstring());
+    if (seen.insert(key).second)
+    {
+      executables.push_back(candidate);
+    }
+  }
+
+  std::vector<fs::path> FindInstalledCodexExecutables()
+  {
+    std::vector<fs::path> executables;
+    std::unordered_set<std::wstring> seen;
+    AppendCodexExecutable(executables, seen,
+                          fs::path(FindExecutableOnPath(L"codex.exe")));
+
+    const std::wstring userProfile = ReadEnvironmentVariable(L"USERPROFILE");
+    if (userProfile.empty())
+    {
+      return executables;
+    }
+
+    const std::vector<fs::path> extensionRoots = {
+        fs::path(userProfile) / L".vscode" / L"extensions",
+        fs::path(userProfile) / L".vscode-insiders" / L"extensions",
+        fs::path(userProfile) / L".cursor" / L"extensions",
+        fs::path(userProfile) / L".windsurf" / L"extensions",
+        fs::path(userProfile) / L".trae" / L"extensions"};
+    for (const fs::path &root : extensionRoots)
+    {
+      std::error_code ec;
+      for (fs::directory_iterator it(root, ec), end; !ec && it != end;
+           it.increment(ec))
+      {
+        if (!it->is_directory(ec) || ec)
+        {
+          ec.clear();
+          continue;
+        }
+        const std::wstring extensionName =
+            ToLowerCopy(it->path().filename().wstring());
+        if (extensionName.rfind(L"openai.chatgpt-", 0) != 0)
+        {
+          continue;
+        }
+
+        const fs::path binRoot = it->path() / L"bin";
+        std::error_code binEc;
+        for (fs::directory_iterator binIt(binRoot, binEc), binEnd;
+             !binEc && binIt != binEnd; binIt.increment(binEc))
+        {
+          if (binIt->is_directory(binEc) && !binEc)
+          {
+            AppendCodexExecutable(executables, seen,
+                                  binIt->path() / L"codex.exe");
+          }
+          else
+          {
+            binEc.clear();
+          }
+        }
+      }
+    }
+    return executables;
+  }
+
+  std::wstring DetectInstalledCodexVersion()
+  {
+    std::wstring best;
+    for (const fs::path &executable : FindInstalledCodexExecutables())
+    {
+      std::string output;
+      if (!RunProcessAndCaptureOutput(executable, L"--version", output))
+      {
+        continue;
+      }
+      const std::wstring version = ExtractCodexVersionFromOutput(output);
+      if (!version.empty() &&
+          (best.empty() || CompareLooseVersion(version, best) > 0))
+      {
+        best = version;
+      }
+    }
+
+    if (!best.empty())
+    {
+      return best;
+    }
+
+    const std::wstring commandProcessor =
+        ReadEnvironmentVariable(L"COMSPEC");
+    if (!commandProcessor.empty())
+    {
+      std::string output;
+      if (RunProcessAndCaptureOutput(commandProcessor,
+                                     L"/d /s /c \"codex --version\"",
+                                     output))
+      {
+        return ExtractCodexVersionFromOutput(output);
+      }
+    }
+    return {};
+  }
+
   std::wstring ReadCodexLatestVersion()
   {
-    wchar_t *userProfile = nullptr;
-    size_t required = 0;
-    if (_wdupenv_s(&userProfile, &required, L"USERPROFILE") != 0 ||
-        userProfile == nullptr || *userProfile == L'\0')
+    static std::mutex cacheMutex;
+    static std::wstring cachedVersion;
+    static std::chrono::steady_clock::time_point cachedAt{};
+    const auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(cacheMutex);
+    if (!cachedVersion.empty() && cachedAt.time_since_epoch().count() != 0 &&
+        now - cachedAt < std::chrono::minutes(5))
     {
-      free(userProfile);
-      return kUsageDefaultCodexVersion;
+      return cachedVersion;
     }
 
-    const fs::path versionPath =
-        fs::path(userProfile) / L".codex" / L"version.json";
-    free(userProfile);
-
-    std::wstring json;
-    if (!ReadUtf8File(versionPath, json))
+    std::wstring bestVersion = kUsageDefaultCodexVersion;
+    const std::wstring userProfile = ReadEnvironmentVariable(L"USERPROFILE");
+    if (!userProfile.empty())
     {
-      return kUsageDefaultCodexVersion;
+      const fs::path versionPath =
+          fs::path(userProfile) / L".codex" / L"version.json";
+      std::wstring json;
+      if (ReadUtf8File(versionPath, json))
+      {
+        const std::wstring latest =
+            ExtractJsonField(json, L"latest_version");
+        const std::wstring fileVersion = ClampCodexVersionFloor(latest);
+        if (CompareLooseVersion(fileVersion, bestVersion) > 0)
+        {
+          bestVersion = fileVersion;
+        }
+      }
     }
 
-    const std::wstring latest = ExtractJsonField(json, L"latest_version");
-    return ClampCodexVersionFloor(latest);
+    const std::wstring installedVersion = DetectInstalledCodexVersion();
+    if (!installedVersion.empty() &&
+        CompareLooseVersion(installedVersion, bestVersion) > 0)
+    {
+      bestVersion = installedVersion;
+    }
+
+    cachedVersion = ClampCodexVersionFloor(bestVersion);
+    cachedAt = now;
+    DebugLogLine(L"codex.version", L"Using Codex version " + cachedVersion);
+    return cachedVersion;
   }
 
   std::wstring BuildUsageUserAgent()
@@ -2845,6 +3104,45 @@ namespace
     {
       customModels = ParseJsonStringArray(customModelsArrayJson);
     }
+    std::wstring discoveredModelsArrayJson;
+    std::vector<std::wstring> discoveredModels =
+        GetManuallyRegisteredModelIds();
+    bool shouldPersistManualModels = false;
+    if (ExtractJsonArrayField(json, L"discoveredModels",
+                              discoveredModelsArrayJson))
+    {
+      const std::vector<std::wstring> configuredModels =
+          ParseJsonStringArray(discoveredModelsArrayJson);
+      std::unordered_set<std::wstring> seen;
+      for (const auto &model : discoveredModels)
+      {
+        seen.insert(ToLowerCopy(model));
+      }
+      std::unordered_set<std::wstring> configuredSeen;
+      for (const auto &model : configuredModels)
+      {
+        configuredSeen.insert(ToLowerCopy(model));
+      }
+      for (const auto &model : GetManuallyRegisteredModelIds())
+      {
+        if (configuredSeen.find(ToLowerCopy(model)) == configuredSeen.end())
+        {
+          shouldPersistManualModels = true;
+          break;
+        }
+      }
+      for (const auto &model : configuredModels)
+      {
+        if (seen.insert(ToLowerCopy(model)).second)
+        {
+          discoveredModels.push_back(model);
+        }
+      }
+    }
+    else
+    {
+      shouldPersistManualModels = true;
+    }
     const std::wstring stealthTomlExtra =
         UnescapeJsonString(ExtractJsonStringField(json, L"stealthTomlExtra"));
 
@@ -2922,7 +3220,12 @@ namespace
         webdavPasswordConfigured && fs::exists(GetWebDavSecretPath());
     out.proxyDefaultModel = proxyDefaultModel;
     out.customModels = customModels;
+    out.discoveredModels = discoveredModels;
     out.stealthTomlExtra = stealthTomlExtra;
+    if (shouldPersistManualModels)
+    {
+      SaveConfig(out);
+    }
     return true;
   }
 
@@ -3069,6 +3372,8 @@ namespace
        << EscapeJsonString(cfg.proxyDefaultModel) << L"\",\n";
     ss << L"  \"customModels\": " << BuildJsonStringArray(cfg.customModels)
        << L",\n";
+    ss << L"  \"discoveredModels\": "
+       << BuildJsonStringArray(cfg.discoveredModels) << L",\n";
     ss << L"  \"stealthTomlExtra\": \""
        << EscapeJsonString(cfg.stealthTomlExtra) << L"\"\n";
     ss << L"}\n";
@@ -10529,6 +10834,65 @@ namespace
     return GetPresetModelIds();
   }
 
+  std::vector<std::wstring> NormalizeModelIds(
+      const std::vector<std::wstring> &source)
+  {
+    std::vector<std::wstring> normalized;
+    std::unordered_set<std::wstring> seen;
+    normalized.reserve(source.size());
+    for (const auto &raw : source)
+    {
+      const std::wstring model = TrimWide(raw);
+      if (!IsLikelyModelId(model))
+      {
+        continue;
+      }
+      if (seen.insert(ToLowerWide(model)).second)
+      {
+        normalized.push_back(model);
+      }
+    }
+    return normalized;
+  }
+
+  void AppendUniqueModelIds(std::vector<std::wstring> &target,
+                            const std::vector<std::wstring> &source)
+  {
+    std::unordered_set<std::wstring> seen;
+    seen.reserve(target.size() + source.size());
+    for (const auto &existing : target)
+    {
+      const std::wstring model = TrimWide(existing);
+      if (IsLikelyModelId(model))
+      {
+        seen.insert(ToLowerWide(model));
+      }
+    }
+    for (const auto &raw : source)
+    {
+      const std::wstring model = TrimWide(raw);
+      if (!IsLikelyModelId(model))
+      {
+        continue;
+      }
+      if (seen.insert(ToLowerWide(model)).second)
+      {
+        target.push_back(model);
+      }
+    }
+  }
+
+  std::vector<std::wstring> BuildConfiguredFallbackModelIds()
+  {
+    std::vector<std::wstring> models = BuildFallbackModelIds();
+    AppConfig cfg;
+    if (LoadConfig(cfg))
+    {
+      AppendUniqueModelIds(models, cfg.discoveredModels);
+    }
+    return models;
+  }
+
   std::wstring GetPreferredModelId(const std::vector<std::wstring> &models)
   {
     for (const auto &model : models)
@@ -10669,15 +11033,56 @@ namespace
   bool GetCachedModelIds(const fs::path &authPath, std::vector<std::wstring> &models,
                          std::wstring &error)
   {
-    (void)authPath;
     error.clear();
+    const auto now = std::chrono::steady_clock::now();
     {
       std::lock_guard<std::mutex> lock(g_ModelCacheMutex);
-      if (g_ModelIdCache.empty())
+      if (!g_ModelIdCache.empty() &&
+          std::chrono::duration_cast<std::chrono::seconds>(now - g_ModelCacheAt)
+                  .count() < kModelCacheTtlSec)
       {
-        g_ModelIdCache = BuildFallbackModelIds();
-        g_ModelCacheAt = std::chrono::steady_clock::now();
+        models = g_ModelIdCache;
+        return true;
       }
+    }
+
+    const std::vector<std::wstring> fallbackModels =
+        BuildConfiguredFallbackModelIds();
+    std::vector<std::wstring> fetchedModels;
+    std::wstring fetchError;
+    if (FetchModelIdsFromUpstream(authPath, fetchedModels, fetchError))
+    {
+      std::vector<std::wstring> mergedModels = fallbackModels;
+      const std::vector<std::wstring> normalizedFetched =
+          NormalizeModelIds(fetchedModels);
+      AppendUniqueModelIds(mergedModels, normalizedFetched);
+      {
+        std::lock_guard<std::mutex> lock(g_ModelCacheMutex);
+        g_ModelIdCache = mergedModels;
+        g_ModelCacheAt = now;
+        models = g_ModelIdCache;
+      }
+
+      AppConfig cfg;
+      if (!LoadConfig(cfg))
+      {
+        cfg = AppConfig{};
+      }
+      std::vector<std::wstring> persistedModels =
+          NormalizeModelIds(cfg.discoveredModels);
+      AppendUniqueModelIds(persistedModels, normalizedFetched);
+      if (cfg.discoveredModels != persistedModels)
+      {
+        cfg.discoveredModels = persistedModels;
+        SaveConfig(cfg);
+      }
+      return true;
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(g_ModelCacheMutex);
+      g_ModelIdCache = fallbackModels;
+      g_ModelCacheAt = now;
       models = g_ModelIdCache;
     }
     return true;

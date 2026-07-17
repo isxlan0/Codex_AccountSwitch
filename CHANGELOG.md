@@ -15,6 +15,40 @@
 
 --
 
+## v1.3.18
+
+### 新增
+- 代理现在可从上游模型 API 自动发现模型 ID，并将结果保存到本地以供后续使用。
+- 将指定的手动模型 ID 添加到内置回退模型列表和新生成的 `config.json` 文件中。
+
+### 优化
+- 模型列表现在会合并内置预设与上游缓存结果，在保留本地回退模型的同时自动显示新模型。
+- Codex 协议请求头现在会使用 `~/.codex/version.json` 或本机 Codex CLI 中检测到的最高版本。
+- Codex 安装检测现在支持 `PATH`，以及 VS Code、VS Code Insiders、Cursor、Windsurf 和 Trae 的 OpenAI 扩展。
+- 上游模型刷新现在会与已保存的模型合并，不再删除手动添加或之前发现的模型 ID。
+
+### 修复
+- 当上游模型发现可用时，代理模型检测不再仅依赖硬编码的预设列表。
+- 当 `~/.codex/version.json` 不存在但本机安装了新版 Codex CLI 时，新模型请求不再错误回退到旧版 `0.125.0` 协议版本。
+- 即使当前电脑无法使用上游模型发现，新安装和现有安装也会在 `config.json` 中保留手动模型列表。
+
+### Added
+- The proxy now discovers model IDs from upstream model APIs and persists them locally for later reuse.
+- Added the requested manually registered model IDs to the built-in fallback catalog and generated `config.json` files.
+
+### Improve
+- Model lists now merge built-in presets with cached upstream discoveries, so new models can keep appearing without losing local fallbacks.
+- Codex protocol headers now use the highest version found in `~/.codex/version.json` or an installed Codex CLI.
+- Installed Codex detection covers `PATH` plus OpenAI extensions for VS Code, VS Code Insiders, Cursor, Windsurf, and Trae.
+- Upstream model refreshes now merge with persisted discoveries instead of removing manually registered or previously discovered IDs.
+
+### Fix
+- Proxy model detection no longer depends only on the hardcoded preset list when upstream model discovery is available.
+- New models no longer fall back to the stale `0.125.0` protocol version when `~/.codex/version.json` is missing but a newer Codex CLI is installed.
+- New and existing installations keep the manual model catalog in `config.json` even when upstream discovery is unavailable.
+
+--
+
 ## v1.3.17
 
 ### 新增
