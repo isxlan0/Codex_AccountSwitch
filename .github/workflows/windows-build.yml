@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     strategy:
       fail-fast: false
       matrix:
@@ -36,6 +36,16 @@ jobs:
         with:
           vs-version: '[17.0,18.0)'
           msbuild-architecture: x64
+
+      - name: Verify MSBuild
+        shell: powershell
+        run: |
+          $msbuild = (Get-Command msbuild -ErrorAction Stop).Source
+          Write-Host "MSBuild path: $msbuild"
+          if ($msbuild -notlike '*\Microsoft Visual Studio\2022\*') {
+            throw "Expected Visual Studio 2022 MSBuild, but found: $msbuild"
+          }
+          msbuild -version
 
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
