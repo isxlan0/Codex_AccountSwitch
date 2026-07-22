@@ -55,6 +55,7 @@ namespace
   std::wstring EscapeJsonString(const std::wstring &input);
   std::wstring UnescapeJsonString(const std::wstring &input);
   std::wstring ToLowerCopy(const std::wstring &value);
+  std::wstring TrimWide(const std::wstring &value);
   std::wstring FormatFileTime(const fs::path &path);
   bool ReadUtf8File(const fs::path &file, std::wstring &out);
   bool WriteUtf8File(const fs::path &file, const std::wstring &content);
@@ -67,6 +68,8 @@ namespace
                                      const std::wstring &targetName,
                                      const std::wstring &targetGroup);
   void DebugLogLine(const std::wstring &scope, const std::wstring &message);
+  fs::path GetCodexHomeDir();
+  std::wstring ReadCodexVersionFromCli();
   bool ApplyStealthProxyModeToCodexProfile(const AppConfig &cfg,
                                            std::wstring &error);
   bool RestoreCodexProfileFromStealthBackup(std::wstring &error);
@@ -1628,6 +1631,23 @@ namespace
     return leftLower < rightLower ? -1 : 1;
   }
 
+  std::wstring PickNewerCodexVersion(const std::wstring &currentBest,
+                                     const std::wstring &candidate)
+  {
+    const std::wstring trimmedCandidate = TrimWide(candidate);
+    if (trimmedCandidate.empty())
+    {
+      return currentBest;
+    }
+    if (currentBest.empty())
+    {
+      return trimmedCandidate;
+    }
+    return CompareLooseVersion(trimmedCandidate, currentBest) > 0
+               ? trimmedCandidate
+               : currentBest;
+  }
+
   std::wstring ClampCodexVersionFloor(const std::wstring &value)
   {
     size_t start = 0;
@@ -1651,27 +1671,46 @@ namespace
 
   std::wstring ReadCodexLatestVersion()
   {
-    wchar_t *userProfile = nullptr;
-    size_t required = 0;
-    if (_wdupenv_s(&userProfile, &required, L"USERPROFILE") != 0 ||
-        userProfile == nullptr || *userProfile == L'\0')
+    const fs::path codexHome = GetCodexHomeDir();
+    if (codexHome.empty())
     {
-      free(userProfile);
       return kUsageDefaultCodexVersion;
     }
 
-    const fs::path versionPath =
-        fs::path(userProfile) / L".codex" / L"version.json";
-    free(userProfile);
+    const fs::path versionPath = codexHome / L"version.json";
+    const fs::path modelsCachePath = codexHome / L"models_cache.json";
+    std::wstring bestVersion;
 
     std::wstring json;
-    if (!ReadUtf8File(versionPath, json))
+    if (ReadUtf8File(versionPath, json))
     {
-      return kUsageDefaultCodexVersion;
+      std::wstring latest = ExtractJsonField(json, L"latest_version");
+      if (latest.empty())
+      {
+        latest = ExtractJsonField(json, L"current_version");
+      }
+      if (latest.empty())
+      {
+        latest = ExtractJsonField(json, L"version");
+      }
+      bestVersion = PickNewerCodexVersion(bestVersion, latest);
     }
 
-    const std::wstring latest = ExtractJsonField(json, L"latest_version");
-    return ClampCodexVersionFloor(latest);
+    if (ReadUtf8File(modelsCachePath, json))
+    {
+      const std::wstring clientVersion =
+          ExtractJsonField(json, L"client_version");
+      bestVersion = PickNewerCodexVersion(bestVersion, clientVersion);
+    }
+
+    const std::wstring cliVersion = ReadCodexVersionFromCli();
+    bestVersion = PickNewerCodexVersion(bestVersion, cliVersion);
+
+    if (!bestVersion.empty())
+    {
+      return ClampCodexVersionFloor(bestVersion);
+    }
+    return kUsageDefaultCodexVersion;
   }
 
   std::wstring BuildUsageUserAgent()
@@ -3138,6 +3177,88 @@ namespace
       --end;
     }
     return value.substr(begin, end - begin);
+  }
+
+  std::wstring ReadCodexVersionFromCli()
+  {
+    wchar_t foundPath[32768]{};
+    std::wstring exePath;
+    if (SearchPathW(nullptr, L"codex.exe", nullptr,
+                    static_cast<DWORD>(_countof(foundPath)), foundPath,
+                    nullptr) > 0)
+    {
+      exePath = foundPath;
+    }
+
+    SECURITY_ATTRIBUTES sa{};
+    sa.nLength = sizeof(sa);
+    sa.bInheritHandle = TRUE;
+
+    HANDLE readPipe = nullptr;
+    HANDLE writePipe = nullptr;
+    if (!CreatePipe(&readPipe, &writePipe, &sa, 0))
+    {
+      return L"";
+    }
+    SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
+
+    const std::wstring commandLine =
+        exePath.empty() ? L"codex --version" : L"\"" + exePath + L"\" --version";
+    std::vector<wchar_t> buffer(commandLine.begin(), commandLine.end());
+    buffer.push_back(L'\0');
+
+    STARTUPINFOW si{};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = writePipe;
+    si.hStdError = writePipe;
+
+    PROCESS_INFORMATION pi{};
+    const BOOL ok = CreateProcessW(
+        exePath.empty() ? nullptr : exePath.c_str(), buffer.data(), nullptr,
+        nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
+    CloseHandle(writePipe);
+
+    if (!ok)
+    {
+      CloseHandle(readPipe);
+      return L"";
+    }
+
+    std::string output;
+    char chunk[256]{};
+    DWORD read = 0;
+    while (ReadFile(readPipe, chunk, sizeof(chunk), &read, nullptr) && read > 0)
+    {
+      output.append(chunk, chunk + read);
+    }
+    CloseHandle(readPipe);
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD exitCode = 1;
+    GetExitCodeProcess(pi.hProcess, &exitCode);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+    if (exitCode != 0)
+    {
+      return L"";
+    }
+
+    const std::wstring text = TrimWide(FromUtf8(output));
+    if (text.empty())
+    {
+      return L"";
+    }
+
+    const std::wregex versionRe(
+        LR"((\d+\.\d+\.\d+(?:[-+][0-9A-Za-z\.-]+)?))");
+    std::wsmatch match;
+    if (!std::regex_search(text, match, versionRe))
+    {
+      return L"";
+    }
+    return ClampCodexVersionFloor(match[1].str());
   }
 
   bool IsTopLevelManagedTomlKey(const std::wstring &line)
@@ -10533,7 +10654,7 @@ namespace
   {
     for (const auto &model : models)
     {
-      if (EqualsIgnoreCase(model, L"gpt-5.5"))
+      if (EqualsIgnoreCase(model, L"gpt-5.6-sol"))
       {
         return model;
       }
