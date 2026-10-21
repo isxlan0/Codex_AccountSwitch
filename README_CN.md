@@ -123,7 +123,9 @@
 
 ## 贡献者
 
-- [isxlan0](https://github.com/isxlan0)
+<a href="https://github.com/isxlan0/Codex_AccountSwitch/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=isxlan0/Codex_AccountSwitch" alt="Contributors" />
+</a>
 
 ## 许可证
 
