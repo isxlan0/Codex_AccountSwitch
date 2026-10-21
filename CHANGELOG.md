@@ -18,7 +18,7 @@
 ## v1.3.22
 
 ### 新增
-- 增加 ChatGPTApp 客户端支持，切换账号时可重启 ChatGPT 客户端。
+- 增加 ChatGPTApp 客户端支持，切换账号时可重启 ChatGPT 客户端。 #21
 - 内置预设模型列表新增 `gpt-6.1-sol`、`gpt-6-sol`、`gpt-6-astra` 和 `gpt-6-luna`。
 
 ### 优化
@@ -27,7 +27,7 @@
 ### 修复
 
 ### Added
-- Added ChatGPT App client support so the client can be restarted when switching accounts.
+- Added ChatGPT App client support so the client can be restarted when switching accounts. #21
 - Added `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-astra`, and `gpt-6-luna` to the built-in preset model list.
 
 ### Improve
