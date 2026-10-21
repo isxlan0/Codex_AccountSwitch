@@ -1,8 +1,12 @@
 (function () {
   "use strict";
 
-  const IDE_LIST = ["Code.exe", "Trae.exe", "Kiro.exe", "Antigravity.exe"];
+  const IDE_LIST = ["Code.exe", "Trae.exe", "Kiro.exe", "Antigravity.exe", "ChatGPT.exe"];
   const FALLBACK_API_MODELS = [
+    "gpt-6.1-sol",
+    "gpt-6-sol",
+    "gpt-6-astra",
+    "gpt-6-luna",
     "gpt-5.6-sol",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
@@ -516,7 +520,8 @@
     "ide.Code.exe": "VSCode",
     "ide.Trae.exe": "Trae",
     "ide.Kiro.exe": "Kiro",
-    "ide.Antigravity.exe": "Antigravity"
+    "ide.Antigravity.exe": "Antigravity",
+    "ide.ChatGPT.exe": "ChatGPTApp 客户端"
   }
     ;
 
@@ -698,6 +703,7 @@
     "ide.Trae.exe": "Trae",
     "ide.Kiro.exe": "Kiro",
     "ide.Antigravity.exe": "Antigravity",
+    "ide.ChatGPT.exe": "ChatGPTApp 客户端",
     "tab.dashboard": "仪表盘",
     "tab.api": "API 反代",
     "tab.traffic": "流量日志",
@@ -3455,9 +3461,9 @@
     dom.webdavSyncIntervalInput.placeholder = t("settings.webdav_interval_hint");
     const disableSyncFields = !state.webdavEnabled;
     [dom.webdavUrlInput, dom.webdavRemotePathInput, dom.webdavUsernameInput, dom.webdavPasswordInput,
-      dom.webdavAutoSyncToggle, dom.webdavSyncIntervalInput, dom.webdavClearPasswordBtn,
-      dom.webdavTestBtn, dom.webdavUploadBtn, dom.webdavDownloadBtn, dom.webdavResetUploadBtn,
-      dom.webdavSyncBtn].forEach((el) => {
+    dom.webdavAutoSyncToggle, dom.webdavSyncIntervalInput, dom.webdavClearPasswordBtn,
+    dom.webdavTestBtn, dom.webdavUploadBtn, dom.webdavDownloadBtn, dom.webdavResetUploadBtn,
+    dom.webdavSyncBtn].forEach((el) => {
       if (!el) return;
       if (el === dom.webdavClearPasswordBtn) {
         el.disabled = disableSyncFields || !state.webdavPasswordConfigured || state.webdavSyncRunning;
@@ -3655,7 +3661,7 @@
     state.pendingConfigAckTimer = setTimeout(() => {
       clearPendingConfigState();
     }, 5000);
-    try { localStorage.setItem('cas_theme', state.themeMode || 'auto'); } catch(e) {}
+    try { localStorage.setItem('cas_theme', state.themeMode || 'auto'); } catch (e) { }
     post("set_config", payload);
   }
 
@@ -4985,7 +4991,7 @@
           state.autoRefreshCurrentMinutes = clampRefreshMinutes(msg.autoRefreshCurrentMinutes, 5);
           state.tabVisibility = normalizeTabVisibility(msg.tabVisibility);
           state.themeMode = normalizeThemeMode(msg.theme || "auto");
-          try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) {}
+          try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) { }
           state.proxyAllowLan = msg.proxyAllowLan === true || msg.proxyAllowLan === "true";
           state.proxyAutoStart = msg.proxyAutoStart === true || msg.proxyAutoStart === "true";
           state.proxyApiKey = typeof msg.proxyApiKey === "string" ? msg.proxyApiKey : "";
@@ -5054,7 +5060,7 @@
           state.closeWindowBehavior = String(msg.closeWindowBehavior || state.closeWindowBehavior || "tray").toLowerCase() === "exit" ? "exit" : "tray";
           state.tabVisibility = normalizeTabVisibility(msg.tabVisibility);
           state.themeMode = normalizeThemeMode(msg.theme || state.themeMode || "auto");
-          try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) {}
+          try { localStorage.setItem("cas_theme", state.themeMode || "auto"); } catch (e) { }
           state.proxyAllowLan = msg.proxyAllowLan === true || msg.proxyAllowLan === "true";
           state.proxyAutoStart = msg.proxyAutoStart === true || msg.proxyAutoStart === "true";
           state.proxyApiKey = typeof msg.proxyApiKey === "string" ? msg.proxyApiKey : state.proxyApiKey;

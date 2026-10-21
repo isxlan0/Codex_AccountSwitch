@@ -14537,10 +14537,12 @@ void WebViewHost::ShowTrayContextMenu()
       Tr(L"tray.menu.quick_switch", L"快速切换账号");
   const std::wstring trayNoSwitch =
       Tr(L"tray.menu.no_switchable", L"暂无可切换账号");
+  AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(switchMenu),
+              traySwitch.c_str());
   AppendMenuW(menu, MF_STRING, kTrayCmdOpenWindow, trayOpen.c_str());
   AppendMenuW(menu, MF_STRING, kTrayCmdMinimizeToTray, trayMinimize.c_str());
-  AppendMenuW(menu, MF_STRING, kTrayCmdExitApp, trayExit.c_str());
   AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+  AppendMenuW(menu, MF_STRING, kTrayCmdExitApp, trayExit.c_str());
 
   IndexData idx;
   LoadIndex(idx);
@@ -14596,9 +14598,6 @@ void WebViewHost::ShowTrayContextMenu()
   {
     AppendMenuW(switchMenu, MF_STRING | MF_GRAYED, 0, trayNoSwitch.c_str());
   }
-
-  AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(switchMenu),
-              traySwitch.c_str());
 
   POINT pt{};
   GetCursorPos(&pt);

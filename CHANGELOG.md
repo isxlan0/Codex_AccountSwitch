@@ -15,6 +15,28 @@
 
 --
 
+## v1.3.22
+
+### 新增
+- 增加 ChatGPTApp 客户端支持，切换账号时可重启 ChatGPT 客户端。
+- 内置预设模型列表新增 `gpt-6.1-sol`、`gpt-6-sol`、`gpt-6-astra` 和 `gpt-6-luna`。
+
+### 优化
+- 调整托盘右键菜单顺序，将账号切换移至最上方、退出移至最下方，降低误触退出的可能。
+
+### 修复
+
+### Added
+- Added ChatGPT App client support so the client can be restarted when switching accounts.
+- Added `gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-astra`, and `gpt-6-luna` to the built-in preset model list.
+
+### Improve
+- Reordered the tray context menu with account switching at the top and Exit at the bottom to reduce accidental exits.
+
+### Fix
+
+--
+
 ## v1.3.21
 
 ### 新增
