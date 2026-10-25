@@ -120,6 +120,7 @@
 - 感谢所有参与测试、反馈问题和提出建议的用户与开发者。
 - 感谢 [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) 分享 Codex 请求与 OAuth 获取相关实现思路。
 - 感谢 [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) 分享 UI 与功能设计思路。
+- 感谢 [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 
 
 ## 贡献者
 

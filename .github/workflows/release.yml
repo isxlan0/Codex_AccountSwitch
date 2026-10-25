@@ -45,6 +45,9 @@ jobs:
           )
           $exact = @(
             'config.json',
+            'api-settings.json',
+            'codex-cli-settings.json',
+            'window-settings.h',
             'Codex_AccountSwitch.slnx'
           )
           $hit = $false

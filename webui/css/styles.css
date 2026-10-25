@@ -1355,13 +1355,14 @@ body.add-account-modal-open .shell {
 }
 
 .about-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 20px;
   text-align: left;
 }
 
 .about-item {
+  min-width: 0;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--card-radius);
@@ -1400,11 +1401,10 @@ body.add-account-modal-open .shell {
 }
 
 .about-check-row {
-  margin-top: 20px;
   display: inline-flex;
   gap: 10px;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   flex-wrap: wrap;
 }
 
@@ -1412,6 +1412,12 @@ body.add-account-modal-open .shell {
   color: var(--muted);
   font-size: 14px;
 }
+
+.about-update { display: flex; align-items: center; }
+.about-cli-row { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.about-cli-info { min-width: 0; text-align: left; }
+.about-cli-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+#codexCliError:empty { display: none; }
 
 .settings-wrap {
   max-width: 980px;
@@ -3116,8 +3122,7 @@ body.compact-ui .dashboard-title {
 
 /* Diagonal Flow Asymmetry */
 .dashboard-card:nth-child(even),
-.proxy-item:nth-child(even),
-.about-item:nth-child(even) {
+.proxy-item:nth-child(even) {
   margin-left: 48px;
   width: calc(100% - 48px);
   border-left: 2px solid var(--primary);
@@ -3125,8 +3130,7 @@ body.compact-ui .dashboard-title {
 }
 
 .dashboard-card:nth-child(odd),
-.proxy-item:nth-child(odd),
-.about-item:nth-child(odd) {
+.proxy-item:nth-child(odd) {
   margin-right: 48px;
   width: calc(100% - 48px);
   border-right: 2px solid var(--accent);

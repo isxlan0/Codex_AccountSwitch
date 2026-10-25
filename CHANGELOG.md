@@ -15,6 +15,40 @@
 
 --
 
+## v1.3.23
+
+### 新增
+- 新增第三方 API 账号管理，与官方账号统一展示，支持搜索、筛选、批量操作及导入当前 Codex 配置或 CC Switch 账号。
+- 新增供应商预设选择、API 配置编辑、模型列表获取与 HTTP Ping 检测，支持编辑 `auth.json` 和 `config.toml`。
+- 新增 API 余额查询与自定义用量脚本，支持脚本预览及随账号额度统一刷新。
+- 官方账号和第三方 API 账号支持手动加入代理池，请求失败且尚未输出响应时可尝试切换其他池成员。
+- 关于页面新增 Codex CLI 版本检测与一键安装入口。
+
+### 优化
+- 调整配置写入方式，仅更新相关连接字段，保留其他本地设置；移除退出时的旧配置恢复，避免覆盖已保存的连接信息。
+- 优化高 DPI 与跨显示器缩放适配，调整窗口尺寸及关于页面布局。
+
+### 修复
+- 修复 ChatGPT 客户端选择保存后可能被重置、影响账号切换后重启的问题。
+- 修复部分官方账号额度窗口识别不准确的问题，按实际窗口时长展示额度。
+
+### Added
+- Added third-party API account management alongside official accounts, including search, filtering, bulk actions, and imports from the current Codex configuration or CC Switch.
+- Added provider presets, API configuration editing, model list fetching, and HTTP Ping checks, with support for editing `auth.json` and `config.toml`.
+- Added API balance queries and custom usage scripts, including script previews and refreshes alongside account quotas.
+- Added manual proxy pool membership for official and third-party API accounts, with failover to another pool member when a request fails before any response is sent.
+- Added Codex CLI version detection and a one-click installation entry on the About page.
+
+### Improve
+- Configuration updates now modify only the relevant connection fields while preserving unrelated local settings. Removed restoration of old configurations on exit to avoid overwriting saved connection details.
+- Improved high-DPI and multi-monitor scaling, window sizing, and the About page layout.
+
+### Fix
+- Fixed ChatGPT client selections potentially being reset after saving, affecting client restarts when switching accounts.
+- Fixed incorrect quota window detection for some official accounts by displaying quotas according to the actual window duration.
+
+--
+
 ## v1.3.22
 
 ### 新增

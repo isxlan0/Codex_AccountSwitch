@@ -67,3 +67,4 @@ obj/
 __pycache__/
 AGENTS.md
 list.md
+.pb/

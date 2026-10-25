@@ -1,0 +1,42 @@
+/* Account list: switch, edit and actions stay visible on each row. */
+#tab-accounts .accounts-head { margin-bottom: 24px; }
+#tab-accounts .search-row { gap: 16px; margin-bottom: 20px; }
+#tab-accounts .table th, #tab-accounts .table td { padding-top: 20px; padding-bottom: 20px; }
+#tab-accounts .account-cell { flex-wrap: wrap; gap: 8px; }
+#tab-accounts .account-name { flex: 0 1 auto; font-family: var(--font-body); font-size: 14px; }
+#tab-accounts .account-cell .tag { margin-left: 0; font-size: 10px; padding: 2px 7px; }
+#tab-accounts .api-account-meta { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.8; }
+#tab-accounts .api-account-website { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+#tab-accounts .actions { gap: 10px; }
+#tab-accounts .btn-action { padding: 8px 14px; font-family: var(--font-body); }
+#tab-accounts .account-more { font-size: inherit; }
+#tab-accounts .table-empty-cell { padding: 64px 24px; text-align: center; line-height: 1.8; }
+#tab-accounts .account-empty-title { color: var(--text); font: 600 16px var(--font-body); margin-bottom: 8px; }
+#tab-accounts .bulk-row:not(.bulk-active) { margin-bottom: 20px; }
+#tab-accounts .bulk-row:not(.bulk-active) #bulkRefreshBtn,
+#tab-accounts .bulk-row:not(.bulk-active) #bulkDeleteBtn,
+#tab-accounts .bulk-row:not(.bulk-active) #bulkSelectedText { display: none; }
+#accountActionMenu, #accountToolsMenu { position: fixed; inset: auto; margin: 0; padding: 6px; min-width: 210px; max-width: calc(100vw - 24px); border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 12px 36px #0002; }
+#accountActionMenu:popover-open, #accountToolsMenu:popover-open { display: flex; flex-direction: column; gap: 2px; }
+.account-menu-option, #accountToolsMenu .tool-btn { display: block; border: 0; border-radius: 6px; background: transparent; padding: 10px 12px; margin: 0; font: 400 13px var(--font-body); color: var(--text); text-align: left; box-shadow: none; cursor: pointer; }
+.account-menu-option:hover, #accountToolsMenu .tool-btn:hover { background: var(--surface-soft); }
+.account-menu-option.danger { color: var(--danger); }
+.account-menu-divider { height: 1px; background: var(--line); margin: 4px 6px; }
+.account-menu-pool { display: flex; gap: 10px; align-items: center; padding: 10px 12px; font: 400 13px var(--font-body); cursor: pointer; }
+body.api-account-page-open .toolbar-actions, body.api-account-page-open .toolbar-break-actions { display: none; }
+body.api-account-page-open .content { padding: 0; }
+body.api-account-page-open .footer { visibility: hidden; }
+.api-provider-page .api-page-content { width: min(1280px, 100%); }
+.api-provider-page .api-preset-grid { grid-template-columns: repeat(auto-fill, minmax(185px, 1fr)); gap: 12px; }
+.api-provider-page .api-preset-card { min-height: 68px; padding: 13px 15px; gap: 10px; }
+.api-provider-page .api-preset-glyph { width: 26px; height: 26px; font-size: 16px; background: transparent; }
+.api-provider-page .api-preset-glyph svg, .api-provider-page .api-preset-glyph img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.api-provider-page .api-preset-info small { display: none; }
+.api-provider-page .api-preset-info strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 800px) {
+  #tab-accounts .search-row { align-items: stretch; }
+  #tab-accounts .search { min-width: 0; width: 100%; }
+  #tab-accounts .group-filter { flex-wrap: wrap; }
+  #tab-accounts .api-account-meta { max-width: 180px; }
+  #tab-accounts .table td { padding-left: 10px; padding-right: 10px; }
+}

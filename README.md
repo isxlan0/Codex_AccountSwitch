@@ -120,6 +120,7 @@ Output folder: `dist/`
 - Thanks to all users and contributors for testing, bug reports, and feedback.
 - Thanks to [router-for-me/CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) for shared implementation ideas around Codex requests and OAuth retrieval.
 - Thanks to [lbjlaq/Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) for shared UI and interaction design ideas.
+- Thanks to [farion1231/cc-switch](https://github.com/farion1231/cc-switch) 
 
 ## Contributors
 

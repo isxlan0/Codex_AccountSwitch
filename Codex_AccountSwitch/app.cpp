@@ -31,6 +31,7 @@ void ActivateExistingInstanceWindow()
 
 int RunApplication(HINSTANCE instance, int nCmdShow)
 {
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     HANDLE singleInstanceMutex = CreateMutexW(nullptr, FALSE, kSingleInstanceMutexName);
     if (singleInstanceMutex == nullptr)
     {

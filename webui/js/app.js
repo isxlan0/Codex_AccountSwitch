@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const IDE_LIST = ["Code.exe", "Trae.exe", "Kiro.exe", "Antigravity.exe", "ChatGPT.exe"];
+  const IDE_LIST = ["none", "Code.exe", "Trae.exe", "Kiro.exe", "Antigravity.exe", "ChatGPT.exe"];
   const FALLBACK_API_MODELS = [
     "gpt-6.1-sol",
     "gpt-6-sol",
@@ -60,6 +60,12 @@
     "about.repo_link": "View Code",
     "about.check_update": "Check Update",
     "about.version_prefix": "Current Version: {version}",
+    "about.cli_installing": "Installing…",
+    "about.cli_checking": "Checking…",
+    "about.cli_unavailable": "Not detected or unavailable",
+    "about.cli_refresh": "Check version",
+    "about.cli_installed": "Installed",
+    "about.cli_install": "Install Codex CLI",
     "about.version_checking": "Current Version: {version}, checking...",
     "about.version_check_failed": "Current Version: {version} (check failed)",
     "about.version_new": "Current Version: {version}, Latest: {latest}",
@@ -94,7 +100,7 @@
     "settings.auto_delete_abnormal_accounts_label": "Auto Delete Abnormal Accounts",
     "settings.auto_delete_abnormal_accounts_hint": "When enabled, abnormal accounts are automatically deleted.",
     "settings.auto_refresh_all_label": "Auto Refresh All Accounts",
-    "settings.auto_refresh_all_hint": "Refresh all accounts every {minutes} minutes in background.",
+    "settings.auto_refresh_all_hint": "Refresh all account quotas and configured API balances every {minutes} minutes in background.",
     "settings.auto_refresh_current_label": "Auto Refresh Current Account",
     "settings.auto_refresh_current_hint": "Refresh current active account quota every {minutes} minutes.",
     "settings.low_quota_prompt_label": "Low Quota Auto Switch Prompt",
@@ -204,9 +210,9 @@
     "proxy.api_key_hint": "Use Authorization: Bearer <API_KEY> or x-api-key on each proxy request.",
     "proxy.stealth_mode_label": "Codex Client Use Local Proxy Mode",
     "proxy.stealth_mode_hint": "Start local proxy service first.",
-    "proxy.stealth_toml_label": "config.toml Template",
-    "proxy.stealth_toml_hint": "Full content of the managed block in config.toml. Use {{PROXY_URL}} for the proxy API URL (auto-replaced). Leave empty for defaults.",
-    "proxy.stealth_toml_placeholder": "disable_response_storage = true\npreferred_auth_method = \"apikey\"\nmodel_provider = \"custom\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"{{PROXY_URL}}\"\nwire_api = \"responses\"\nrequires_openai_auth = false\n\n[windows]\nsandbox = \"unelevated\"\n\nmodel = \"gpt-5.4\"\nmodel_reasoning_effort = \"xhigh\"",
+    "proxy.stealth_toml_label": "Legacy config.toml template (read-only)",
+    "proxy.stealth_toml_hint": "The legacy template is view-only; full-block injection is disabled. This tool only updates API connection fields for its dedicated providers and preserves all other settings.",
+    "proxy.stealth_toml_placeholder": "model_provider = \"custom\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"{{PROXY_URL}}\"\nwire_api = \"responses\"\nrequires_openai_auth = false",
     "api.subtab.proxy": "Proxy",
     "api.subtab.test": "Test",
     "proxy.dispatch_mode_label": "Account Dispatch",
@@ -346,6 +352,8 @@
     "quota.placeholder": "No quota data",
     "quota.format": "5H {q5} | 7D {q7} | Reset {r5}/{r7}",
     "quota.format_free": "7D {q7} | Reset {r7}",
+    "quota.format_window": "{window} {remaining} | Reset {reset}",
+    "quota.window_unknown": "Unknown window",
     "action.switch_title": "Switch to this account",
     "action.switch": "Switch",
     "action.rename_title": "Rename account",
@@ -517,6 +525,10 @@
     "tray.menu.no_switchable": "No switchable account",
     "tray.quota_format": "5H {q5} | 7D {q7}",
     "tray.quota_na": "--",
+    "ide.none": "Switch account only, no restart",
+    "confirm.switch_no_restart": "Switch to {name} without restarting the client?",
+    "status_code.switch_success_no_restart": "Switched successfully without restarting the client",
+    "status_code.login_new_success_no_restart": "Login files cleared without restarting the client",
     "ide.Code.exe": "VSCode",
     "ide.Trae.exe": "Trae",
     "ide.Kiro.exe": "Kiro",
@@ -550,6 +562,12 @@
     "about.repo_link": "查看代码",
     "about.check_update": "检查更新",
     "about.version_prefix": "当前版本: {version}",
+    "about.cli_installing": "正在安装…",
+    "about.cli_checking": "正在检测…",
+    "about.cli_unavailable": "未检测到或不可用",
+    "about.cli_refresh": "检测版本",
+    "about.cli_installed": "已安装",
+    "about.cli_install": "一键安装 Codex CLI",
     "about.version_checking": "当前版本: {version}，检查中...",
     "about.version_check_failed": "当前版本: {version}（检查失败）",
     "about.version_new": "当前版本: {version}，最新: {latest}",
@@ -699,6 +717,10 @@
     "update.dialog.message": "当前版本: {current}\n最新版本: {latest}\n\n更新内容:\n{notes}\n\n是否立即下载并安装最新版本？",
     "debug.title": "调试工具",
     "debug.notify": "测试：低额度通知",
+    "ide.none": "仅切换账号无需重启",
+    "confirm.switch_no_restart": "确认切换到 {name}？不会关闭或重启客户端。",
+    "status_code.switch_success_no_restart": "切换成功，未重启客户端",
+    "status_code.login_new_success_no_restart": "已清理登录文件，未重启客户端",
     "ide.Code.exe": "VSCode",
     "ide.Trae.exe": "Trae",
     "ide.Kiro.exe": "Kiro",
@@ -725,7 +747,7 @@
     "settings.auto_mark_abnormal_accounts_hint": "开启后，遇到 token 失效或鉴权失败的账号会被标记为异常，并在自动重试时跳过。",
     "settings.auto_refresh_all_label": "后台自动刷新全部账号额度",
     "settings.auto_refresh_current_label": "自动刷新当前活动账号额度",
-    "settings.auto_refresh_all_hint": "每 {minutes} 分钟自动刷新一次全部账号额度。",
+    "settings.auto_refresh_all_hint": "每 {minutes} 分钟自动刷新全部账号额度和已配置启用的 API 账号余额。",
     "settings.auto_refresh_current_hint": "每 {minutes} 分钟自动刷新一次当前账号额度。",
     "settings.low_quota_prompt_label": "低额度自动提示切换账号",
     "settings.low_quota_prompt_hint": "开启后，额度过低时会自动弹出切换账号确认与提示信息窗口。",
@@ -800,9 +822,9 @@
     "proxy.api_key_hint": "调用代理时请在请求头传入：Authorization: Bearer <API_KEY> 或 x-api-key。",
     "proxy.stealth_mode_label": "Codex 客户端使用本地反代模式",
     "proxy.stealth_mode_hint": "⚠️ 需要先启动本地反向代理服务",
-    "proxy.stealth_toml_label": "config.toml 模板",
-    "proxy.stealth_toml_hint": "config.toml 托管块的完整内容。使用 {{PROXY_URL}} 作为代理 API 地址（自动替换）。留空使用默认值。",
-    "proxy.stealth_toml_placeholder": "disable_response_storage = true\npreferred_auth_method = \"apikey\"\nmodel_provider = \"custom\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"{{PROXY_URL}}\"\nwire_api = \"responses\"\nrequires_openai_auth = false\n\n[windows]\nsandbox = \"unelevated\"\n\nmodel = \"gpt-5.4\"\nmodel_reasoning_effort = \"xhigh\"",
+    "proxy.stealth_toml_label": "旧版 config.toml 模板（只读）",
+    "proxy.stealth_toml_hint": "旧模板仅供查看，已停用整段注入；本工具只更新专用供应商的 API 连接字段，保留其他配置。",
+    "proxy.stealth_toml_placeholder": "model_provider = \"custom\"\n\n[model_providers.custom]\nname = \"custom\"\nbase_url = \"{{PROXY_URL}}\"\nwire_api = \"responses\"\nrequires_openai_auth = false",
     "api.subtab.proxy": "反向代理",
     "api.subtab.test": "测试",
     "proxy.dispatch_mode_label": "账号调度模式",
@@ -1022,7 +1044,9 @@
     "tag.plan_team": "Team",
     "tag.plan_pro": "Pro",
     "tag.plan_unknown": "未知类型",
-    "quota.format_free": "7D {q7} | 重置 {r7}"
+    "quota.format_free": "7D {q7} | 重置 {r7}",
+    "quota.format_window": "{window} {remaining} | 重置 {reset}",
+    "quota.window_unknown": "未知窗口"
   };
 
   const dom = {
@@ -1077,6 +1101,10 @@
     aboutRepoLink: document.getElementById("aboutRepoLink"),
     checkUpdateBtn: document.getElementById("checkUpdateBtn"),
     versionText: document.getElementById("versionText"),
+    codexCliVersion: document.getElementById("codexCliVersion"),
+    codexCliRefreshBtn: document.getElementById("codexCliRefreshBtn"),
+    codexCliInstallBtn: document.getElementById("codexCliInstallBtn"),
+    codexCliError: document.getElementById("codexCliError"),
     settingsTitle: document.getElementById("settingsTitle"),
     settingsSub: document.getElementById("settingsSub"),
     settingsTabGeneralBtn: document.getElementById("settingsTabGeneralBtn"),
@@ -1395,6 +1423,10 @@
 
   const state = {
     appVersion: "v1.0.0",
+    codexCliVersion: "",
+    codexCliChecking: false,
+    codexCliInstalling: false,
+    codexCliError: "",
     repoUrl: "https://github.com/isxlan0/Codex_AccountSwitch",
     debug: new URLSearchParams(location.search).get("debug") === "1",
     accounts: [],
@@ -1665,6 +1697,25 @@
     post("check_update");
   }
 
+  function renderCodexCliInfo() {
+    const busy = state.codexCliChecking || state.codexCliInstalling;
+    dom.codexCliVersion.textContent = state.codexCliInstalling ? t("about.cli_installing")
+      : state.codexCliChecking ? t("about.cli_checking")
+      : state.codexCliVersion || t("about.cli_unavailable");
+    dom.codexCliRefreshBtn.textContent = t("about.cli_refresh");
+    dom.codexCliInstallBtn.textContent = t(state.codexCliVersion ? "about.cli_installed" : "about.cli_install");
+    dom.codexCliRefreshBtn.disabled = busy;
+    dom.codexCliInstallBtn.disabled = busy || !!state.codexCliVersion;
+    dom.codexCliError.textContent = state.codexCliError;
+  }
+
+  function requestCodexCliInfo() {
+    if (state.codexCliChecking || state.codexCliInstalling) return;
+    state.codexCliChecking = true;
+    renderCodexCliInfo();
+    post("get_codex_cli_info");
+  }
+
   function promptUpdateDialog(info) {
     const notes = normalizeMultilineText(info?.notes).trim() || "-";
     const message = [
@@ -1793,6 +1844,7 @@
 
   function switchTab(tab) {
     const nextTab = resolveVisibleTab(tab || state.currentTab || "dashboard");
+    if (nextTab !== state.currentTab) window.dispatchEvent(new Event("account-workspace-leave"));
     state.currentTab = nextTab;
     TOP_LEVEL_TABS.forEach((item) => {
       if (item.button) {
@@ -1811,6 +1863,8 @@
       requestTrafficLogs(true);
     } else if (nextTab === "token") {
       requestTokenStats(true);
+    } else if (nextTab === "about") {
+      requestCodexCliInfo();
     }
   }
 
@@ -1823,6 +1877,7 @@
     if (dom.importBtn) dom.importBtn.classList.toggle("is-hidden", !showOnAccounts);
     if (dom.exportBtn) dom.exportBtn.classList.toggle("is-hidden", !showOnAccounts);
     if (dom.cleanAbnormalBtn) dom.cleanAbnormalBtn.classList.toggle("is-hidden", !(showOnDashboard || showOnAccounts));
+    document.getElementById("accountToolsBtn").classList.toggle("is-hidden", !(showOnDashboard || showOnAccounts));
     if (dom.toolbarActions) {
       const anyVisible = !dom.addCurrentBtn?.classList.contains("is-hidden")
         || !dom.refreshBtn?.classList.contains("is-hidden")
@@ -2216,6 +2271,9 @@
     dom.groupPlusBtn.textContent = t("group.plus");
     dom.groupTeamBtn.textContent = t("group.team");
     dom.groupProBtn.textContent = t("group.pro");
+    document.getElementById("accountToolsBtn").textContent = accountUiText("更多 ⋯", "More ⋯");
+    document.getElementById("importCCSAccountsBtn").textContent = accountUiText("导入 CC Switch 账号", "Import CC Switch accounts");
+    document.getElementById("importCurrentCodexBtn").textContent = accountUiText("导入当前 Codex 配置", "Import current Codex config");
     dom.thAccount.textContent = t("table.account");
     dom.thQuota.textContent = t("table.quota");
     dom.thRecent.textContent = t("table.recent");
@@ -2448,6 +2506,7 @@
     dom.tokenModelThTotal.textContent = t("token.model_stats.th.total");
     dom.apiPromptTextarea.placeholder = t("api.prompt_placeholder");
     dom.versionText.textContent = t("about.version_prefix", { version: state.appVersion });
+    renderCodexCliInfo();
     renderRefreshCountdowns();
     renderIdeOptions();
     switchSettingsSubTab(state.settingsSubTab);
@@ -2830,7 +2889,8 @@
   function renderProxyDefaultModelOptions() {
     if (!dom.proxyDefaultModelSelect) return;
     const models = getAllModels();
-    const prevValue = dom.proxyDefaultModelSelect.value || state.proxyDefaultModel || "";
+    const prevValue = state.proxyDefaultModel || "";
+    if (prevValue && !models.includes(prevValue)) models.push(prevValue);
     dom.proxyDefaultModelSelect.innerHTML = "";
     const autoOpt = document.createElement("option");
     autoOpt.value = "";
@@ -3105,13 +3165,13 @@
   }
 
   function normalizeSelectedKeys() {
-    const validSet = new Set(state.accounts.map((x) => makeAccountKey(x.name, x.group)));
+    const validSet = new Set(getManagedAccounts().map((x) => makeAccountKey(x.name, x.group)));
     state.selectedAccountKeys = state.selectedAccountKeys.filter((key) => validSet.has(key));
   }
 
   function getSelectedItems() {
     const selectedSet = new Set(state.selectedAccountKeys);
-    return state.accounts.filter((item) => selectedSet.has(makeAccountKey(item.name, item.group)));
+    return getManagedAccounts().filter((item) => selectedSet.has(makeAccountKey(item.name, item.group)));
   }
 
   function getAbnormalAccounts() {
@@ -3157,6 +3217,7 @@
     dom.selectAllCheckbox.title = t("bulk.select_all");
     dom.selectAllCheckbox.style.visibility = state.multiSelectMode ? "visible" : "hidden";
     dom.bulkRow.classList.toggle("disabled", !state.multiSelectMode);
+    dom.bulkRow.classList.toggle("bulk-active", state.multiSelectMode);
     renderCleanAbnormalButton();
   }
 
@@ -3283,16 +3344,15 @@
   function getPlanMetrics(item) {
     const plan = normalizePlanType(item?.planType);
     const q5 = toPercentNumber(item?.quota5hRemainingPercent);
-    const q7Raw = toPercentNumber(item?.quota7dRemainingPercent);
-    const q7 = plan === "free" ? (q7Raw ?? q5) : q7Raw;
+    const q7 = toPercentNumber(item?.quota7dRemainingPercent);
     return { plan, q5, q7 };
   }
 
   function renderDashboard() {
-    const accounts = Array.isArray(state.accounts) ? state.accounts : [];
+    const accounts = getManagedAccounts();
     const usable = accounts.filter((x) => x && x.usageOk);
     const metrics = usable.map((x) => ({ name: String(x.name || ""), ...getPlanMetrics(x) }));
-    const fiveHourMetrics = metrics.filter((x) => x.plan !== "free" && x.q5 !== null);
+    const fiveHourMetrics = metrics.filter((x) => x.q5 !== null);
     const sevenDayMetrics = metrics.filter((x) => x.q7 !== null);
     const sum5 = fiveHourMetrics.reduce((acc, x) => acc + x.q5, 0);
     const sum7 = sevenDayMetrics.reduce((acc, x) => acc + x.q7, 0);
@@ -3300,13 +3360,13 @@
     const avg7 = sevenDayMetrics.length > 0 ? sum7 / sevenDayMetrics.length : null;
     const lowCount = usable.filter((x) => {
       const m = getPlanMetrics(x);
-      const value = m.plan === "free" ? m.q7 : m.q5;
+      const value = m.q5 ?? m.q7;
       return value !== null && value < 20;
     }).length;
     const lowAccounts = usable
       .map((x) => {
         const m = getPlanMetrics(x);
-        return { name: String(x.name || ""), lowValue: m.plan === "free" ? m.q7 : m.q5 };
+        return { name: String(x.name || ""), lowValue: m.q5 ?? m.q7 };
       })
       .filter((x) => x.lowValue !== null && x.lowValue < 20)
       .sort((a, b) => a.lowValue - b.lowValue);
@@ -3326,7 +3386,9 @@
       dom.dashLowList.innerHTML = `<div class="dashboard-low-empty">${escapeHtml(t("dashboard.low_list_empty"))}</div>`;
     }
 
-    const current = accounts.find((x) => x && x.isCurrent);
+    const current = accounts.find((x) => x.kind === "api" && x.isCurrent) || accounts.find((x) => x && x.isCurrent);
+    dom.dashCurrent7Label.textContent = current?.kind === "api" ? accountUiText("余额", "Balance") : t("dashboard.current_7d");
+    dom.dashCurrent7Bar.parentElement.style.display = current?.kind === "api" ? "none" : "";
     if (!current) {
       dom.dashCurrentName.textContent = t("dashboard.current_name_empty");
       dom.dashCurrent5Value.textContent = "-";
@@ -3338,22 +3400,66 @@
       return;
     }
 
+    if (current.kind === "api") {
+      dom.dashCurrentName.textContent = current.name;
+      dom.dashCurrent5Row.style.display = "none";
+      dom.dashCurrent5Progress.style.display = "none";
+      dom.dashCurrent7Value.textContent = window.apiAccountsUi.renderBalance(current.id);
+      dom.dashCurrent7Bar.style.width = "0%";
+      return;
+    }
     const currentMetrics = getPlanMetrics(current);
     const q5 = currentMetrics.q5;
     const q7 = currentMetrics.q7;
-    const isCurrentFree = currentMetrics.plan === "free";
+    const hasFiveHourQuota = q5 !== null;
     dom.dashCurrentName.textContent = current.name || t("dashboard.current_name_empty");
-    dom.dashCurrent5Row.style.display = isCurrentFree ? "none" : "";
-    dom.dashCurrent5Progress.style.display = isCurrentFree ? "none" : "";
-    dom.dashCurrent5Value.textContent = isCurrentFree ? "-" : formatPercentValue(q5);
+    dom.dashCurrent5Row.style.display = hasFiveHourQuota ? "" : "none";
+    dom.dashCurrent5Progress.style.display = hasFiveHourQuota ? "" : "none";
+    dom.dashCurrent5Value.textContent = formatPercentValue(q5);
     dom.dashCurrent7Value.textContent = formatPercentValue(q7);
-    dom.dashCurrent5Bar.style.width = `${isCurrentFree || q5 === null ? 0 : q5}%`;
+    dom.dashCurrent5Bar.style.width = `${q5 === null ? 0 : q5}%`;
     dom.dashCurrent7Bar.style.width = `${q7 === null ? 0 : q7}%`;
   }
 
   function formatHoursFromSeconds(v) {
     if (!Number.isFinite(Number(v)) || Number(v) < 0) return "-";
     return `${(Number(v) / 3600).toFixed(1)}h`;
+  }
+
+  function formatAccountQuota(item) {
+    const { q5, q7 } = getPlanMetrics(item);
+    const windows = [];
+    if (q5 !== null && q7 !== null) {
+      windows.push(t("quota.format", {
+        q5: formatRemain(item.quota5hRemainingPercent),
+        q7: formatRemain(item.quota7dRemainingPercent),
+        r5: formatHoursFromSeconds(item.quota5hResetAfterSeconds),
+        r7: formatHoursFromSeconds(item.quota7dResetAfterSeconds)
+      }));
+    } else if (q7 !== null) {
+      windows.push(t("quota.format_free", {
+        q7: formatRemain(item.quota7dRemainingPercent),
+        r7: formatHoursFromSeconds(item.quota7dResetAfterSeconds)
+      }));
+    } else if (q5 !== null) {
+      windows.push(t("quota.format_window", {
+        window: "5H",
+        remaining: formatRemain(item.quota5hRemainingPercent),
+        reset: formatHoursFromSeconds(item.quota5hResetAfterSeconds)
+      }));
+    }
+    for (const quota of item.quotaOtherWindows || []) {
+      const seconds = Number(quota.windowSeconds);
+      const label = seconds > 0
+        ? (seconds % 86400 === 0 ? `${seconds / 86400}D` : `${seconds / 3600}H`)
+        : t("quota.window_unknown");
+      windows.push(t("quota.format_window", {
+        window: label,
+        remaining: formatRemain(quota.remainingPercent),
+        reset: formatHoursFromSeconds(quota.resetAfterSeconds)
+      }));
+    }
+    return windows.length > 0 ? windows.join(" | ") : t("quota.placeholder");
   }
 
   function formatCountdown(sec) {
@@ -3699,11 +3805,63 @@
       : `${t("settings.countdown_prefix")}${t("refresh.disabled")}`;
   }
 
+  function getManagedAccounts() {
+    const api = window.apiAccountsUi?.getItems() || [];
+    return [...state.accounts, ...api.map(item => ({ ...item, kind: "api", group: `api:${item.id}`, planType: "api", usageOk: false }))];
+  }
+
+  function accountUiText(zh, en) {
+    return /^en/i.test(state.currentLanguage) ? en : zh;
+  }
+
+  const accountActionMenu = document.createElement("div");
+  accountActionMenu.id = "accountActionMenu";
+  accountActionMenu.setAttribute("popover", "auto");
+  accountActionMenu.setAttribute("role", "menu");
+  document.body.append(accountActionMenu);
+
+  function openAccountActionMenu(anchor) {
+    const item = getManagedAccounts().find(x => x.kind === "api"
+      ? x.id === anchor.dataset.apiId
+      : x.name === anchor.dataset.name && x.group === anchor.dataset.group);
+    if (!item) return;
+    const isApi = item.kind === "api";
+    const attributes = isApi ? `data-api-id="${escapeHtml(item.id)}"` : `data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group)}"`;
+    const option = (key, text, danger = false) => `<button type="button" role="menuitem" ${isApi ? "data-api-action" : "data-action"}="${key}" ${attributes} class="account-menu-option${danger ? " danger" : ""}">${escapeHtml(text)}</button>`;
+    const pool = isApi ? item.inPool : window.apiAccountsUi.getOfficialPool().some(x => x.name === item.name && x.group === item.group && x.inPool);
+    accountActionMenu.innerHTML = isApi
+      ? option("check", accountUiText("连通性 Ping", "Connectivity Ping")) + option("queryBalance", accountUiText("刷新用量", "Refresh usage")) + option("openBalance", accountUiText("用量查询设置", "Usage settings"))
+      : option("refresh", t("action.refresh"));
+    accountActionMenu.innerHTML += `<div class="account-menu-divider"></div><label class="account-menu-pool"><input type="checkbox" ${isApi ? `data-api-pool="${escapeHtml(item.id)}"` : `data-official-pool="1" ${attributes}`} ${pool ? "checked" : ""} />${accountUiText("加入代理池", "Include in proxy pool")}</label><div class="account-menu-divider"></div>` + option(isApi ? "remove" : "delete", t("action.delete"), true);
+    if (accountActionMenu.matches(":popover-open")) accountActionMenu.hidePopover();
+    accountActionMenu.showPopover();
+    const rect = anchor.getBoundingClientRect();
+    accountActionMenu.style.left = `${Math.max(12, Math.min(rect.right - accountActionMenu.offsetWidth, window.innerWidth - accountActionMenu.offsetWidth - 12))}px`;
+    accountActionMenu.style.top = `${Math.max(12, Math.min(rect.bottom + 8, window.innerHeight - accountActionMenu.offsetHeight - 12))}px`;
+  }
+
+  function renderApiAccountRow(item, bulkBusy) {
+    const checked = state.selectedAccountKeys.includes(makeAccountKey(item.name, item.group));
+    const status = window.apiAccountsUi.getStatus(item.id);
+    const websiteUrl = String(item.metadata?.websiteUrl || "").trim();
+    const address = websiteUrl
+      ? `<a class="api-account-website" href="${escapeHtml(websiteUrl)}" title="${escapeHtml(websiteUrl)}" data-account-website>${escapeHtml(item.baseUrl)}</a>`
+      : escapeHtml(item.baseUrl);
+    const action = (key, label) => `<button class="btn-action ${key === "remove" ? "delete" : "rename"}" data-api-action="${key}" data-api-id="${escapeHtml(item.id)}" ${bulkBusy ? "disabled" : ""}>${escapeHtml(label)}</button>`;
+    return `<tr>
+      <td class="select-col"><input class="row-select ${state.multiSelectMode ? "is-visible" : "is-hidden"}" type="checkbox" data-select-account="1" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group)}" ${checked ? "checked" : ""} ${!state.multiSelectMode || bulkBusy ? "disabled" : ""} /></td>
+      <td><div class="account-cell"><span class="account-name">${escapeHtml(item.name)}</span><span class="tag plan">API</span>${item.isCurrent ? `<span class="tag current">${escapeHtml(t("tag.current"))}</span>` : ""}</div><div class="api-account-meta" title="${escapeHtml(item.baseUrl)} · ${escapeHtml(item.model)}">${address} · ${escapeHtml(item.model)}</div></td>
+      <td><div class="quota-box" style="white-space:pre-line">${escapeHtml(window.apiAccountsUi.renderBalance(item.id))}</div>${status?.text ? `<div class="api-account-result${status.error ? " error" : ""}">${escapeHtml(status.text)}</div>` : ""}${item.lastError ? `<div class="api-account-result error">${escapeHtml(item.lastError)}</div>` : ""}</td>
+      <td>${escapeHtml(item.updatedAt || "-")}</td>
+      <td class="actions-col"><div class="actions">${action("switchAccount", t("action.switch"))}${action("openEditor", accountUiText("编辑", "Edit"))}<button class="btn-action account-more" type="button" data-account-more="1" data-api-id="${escapeHtml(item.id)}" aria-haspopup="menu" ${bulkBusy ? "disabled" : ""}>${accountUiText("操作", "Actions")}</button></div></td>
+    </tr>`;
+  }
+
   function renderAccounts() {
     normalizeSelectedKeys();
 
     if (!state.filteredAccounts.length) {
-      dom.accountsBody.innerHTML = `<tr><td colspan="5" class="table-empty-cell">${escapeHtml(t("accounts.empty"))}</td></tr>`;
+      dom.accountsBody.innerHTML = `<tr><td colspan="5" class="table-empty-cell"><div class="account-empty-title">${accountUiText("暂无匹配的账号", "No matching accounts")}</div>${accountUiText("添加官方账号或 API 账号，或调整搜索与筛选条件。", "Add an official or API account, or adjust your search and filters.")}</td></tr>`;
       renderBulkControls();
       return;
     }
@@ -3717,9 +3875,9 @@
     const cloudQuotaRefreshBusy = isCloudQuotaRefreshRunning();
 
     dom.accountsBody.innerHTML = state.filteredAccounts.map((item) => {
+      if (item.kind === "api") return renderApiAccountRow(item, bulkBusy);
       const accountKey = makeAccountKey(item.name, item.group);
       const isThisRefreshing = state.refreshMode === "account" && state.refreshTargetKey === accountKey;
-      const disableRefreshAction = state.refreshMode === "all" || isThisRefreshing || !!state.importMode || bulkBusy || cloudQuotaRefreshBusy;
       const disableRowAction = bulkBusy;
       const normalizedPlanType = normalizePlanType(item.planType);
       const normalizedGroup = normalizeGroupValue(item.group);
@@ -3732,13 +3890,6 @@
         || normalizedGroup !== normalizedPlanType;
       const groupTagLabel = item.abnormal ? t("tag.abnormal") : formatGroupLabel(normalizedGroup);
       const groupTagClass = item.abnormal ? "abnormal" : `group ${normalizedGroup}`;
-      const isFreePlan = normalizedPlanType === "free";
-      const freeQ7Value = Number(item.quota7dRemainingPercent) >= 0
-        ? item.quota7dRemainingPercent
-        : item.quota5hRemainingPercent;
-      const freeR7Value = Number(item.quota7dResetAfterSeconds) >= 0
-        ? item.quota7dResetAfterSeconds
-        : item.quota5hResetAfterSeconds;
       const usageErrorText = formatUsageErrorMessage(item.usageError);
       const quotaErrorText = usageErrorText
         ? usageErrorText
@@ -3761,19 +3912,7 @@
           <div class="quota-box">
             <span class="quota-name">Codex</span>
             ${item.usageOk
-          ? escapeHtml(
-            isFreePlan
-              ? t("quota.format_free", {
-                q7: formatRemain(freeQ7Value),
-                r7: formatHoursFromSeconds(freeR7Value)
-              })
-              : t("quota.format", {
-                q5: formatRemain(item.quota5hRemainingPercent),
-                q7: formatRemain(item.quota7dRemainingPercent),
-                r5: formatHoursFromSeconds(item.quota5hResetAfterSeconds),
-                r7: formatHoursFromSeconds(item.quota7dResetAfterSeconds)
-              })
-          )
+          ? escapeHtml(formatAccountQuota(item))
           : escapeHtml(quotaErrorText)}
           </div>
         </td>
@@ -3781,9 +3920,8 @@
         <td class="actions-col">
           <div class="actions">
             <button class="btn-action switch" data-action="switch" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.switch_title"))}" ${disableRowAction ? "disabled" : ""}>${escapeHtml(t("action.switch"))}</button>
-            <button class="btn-action rename" data-action="rename" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.rename_title"))}" ${disableRowAction ? "disabled" : ""}>${escapeHtml(t("action.rename"))}</button>
-            <button class="btn-action refresh ${isThisRefreshing ? "loading" : ""}" data-action="refresh" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.refresh_title"))}" ${disableRefreshAction ? "disabled" : ""}>${escapeHtml(t("action.refresh"))}</button>
-            <button class="btn-action delete" data-action="delete" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.delete_title"))}" ${disableRowAction ? "disabled" : ""}>${escapeHtml(t("action.delete"))}</button>
+            <button class="btn-action rename" data-action="rename" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" title="${escapeHtml(t("action.rename"))}" ${disableRowAction ? "disabled" : ""}>${accountUiText("编辑", "Edit")}</button>
+            <button class="btn-action account-more" type="button" data-account-more="1" data-name="${escapeHtml(item.name)}" data-group="${escapeHtml(item.group || "personal")}" aria-haspopup="menu" ${disableRowAction ? "disabled" : ""}>${accountUiText("操作", "Actions")}</button>
           </div>
         </td>
       </tr>
@@ -3799,14 +3937,27 @@
 
   function applySearch() {
     const q = dom.searchInput.value.trim().toLowerCase();
-    let list = [...state.accounts];
-    if (state.groupFilter !== "all") list = list.filter((x) => normalizePlanType(x.planType) === state.groupFilter);
-    state.filteredAccounts = !q ? list : list.filter((x) => String(x.name || "").toLowerCase().includes(q));
+    let list = getManagedAccounts();
+    if (state.groupFilter !== "all") list = list.filter((x) => (x.kind === "api" ? "api" : normalizePlanType(x.planType)) === state.groupFilter);
+    state.filteredAccounts = !q ? list : list.filter((x) => `${x.name || ""} ${x.baseUrl || ""} ${x.model || ""}`.toLowerCase().includes(q));
     applyCountText();
     renderAccounts();
   }
 
   function bindEvents() {
+    window.addEventListener("api-accounts-updated", () => { applySearch(); renderDashboard(); });
+    window.addEventListener("request-official-account", () => { switchAddAccountTab("oauth"); openAddAccountModal(); });
+    const toolsMenu = document.getElementById("accountToolsMenu");
+    document.getElementById("accountToolsBtn").addEventListener("click", (event) => {
+      if (toolsMenu.matches(":popover-open")) { toolsMenu.hidePopover(); return; }
+      toolsMenu.showPopover();
+      const rect = event.currentTarget.getBoundingClientRect();
+      toolsMenu.style.top = `${rect.bottom + 8}px`;
+      toolsMenu.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - toolsMenu.offsetWidth - 12))}px`;
+    });
+    toolsMenu.addEventListener("click", (event) => { if (event.target.closest("button")) toolsMenu.hidePopover(); });
+    document.getElementById("importCCSAccountsBtn").addEventListener("click", () => window.apiAccountsUi.openCCSImport());
+    document.getElementById("importCurrentCodexBtn").addEventListener("click", () => window.apiAccountsUi.importCurrent());
     document.addEventListener("contextmenu", (e) => e.preventDefault());
     document.addEventListener("dragstart", (e) => e.preventDefault());
     document.addEventListener("selectstart", (e) => {
@@ -4173,7 +4324,8 @@
       }
     });
     dom.addCurrentBtn.addEventListener("click", () => {
-      openAddAccountModal();
+      if (state.oauthFlowActive) openAddAccountModal();
+      else window.apiAccountsUi.openEditor();
     });
 
     dom.multiSelectToggleBtn.addEventListener("click", () => {
@@ -4200,11 +4352,14 @@
 
     dom.bulkRefreshBtn.addEventListener("click", () => {
       if (state.bulkMode || state.importMode || state.refreshMode) return;
-      const items = getSelectedItems().map((x) => ({ account: x.name, group: x.group || "personal" }));
-      if (!items.length) {
+      const selected = getSelectedItems();
+      const items = selected.filter(x => x.kind !== "api").map((x) => ({ account: x.name, group: x.group || "personal" }));
+      if (!selected.length) {
         showToast(t("status_code.batch_empty"), "warning");
         return;
       }
+      selected.filter(x => x.kind === "api").forEach(x => window.apiAccountsUi.queryBalance(x.id));
+      if (!items.length) return;
       setRefreshBusy("all");
       setBulkBusy("refresh");
       post("refresh_accounts_batch", { items });
@@ -4212,15 +4367,18 @@
 
     dom.bulkDeleteBtn.addEventListener("click", () => {
       if (state.bulkMode || state.importMode) return;
-      const items = getSelectedItems().map((x) => ({ account: x.name, group: x.group || "personal" }));
-      if (!items.length) {
+      const selected = getSelectedItems();
+      const items = selected.filter(x => x.kind !== "api").map((x) => ({ account: x.name, group: x.group || "personal" }));
+      if (!selected.length) {
         showToast(t("status_code.batch_empty"), "warning");
         return;
       }
       openConfirm({
         title: t("bulk.delete_confirm_title"),
-        message: t("bulk.delete_confirm_message", { count: items.length }),
+        message: t("bulk.delete_confirm_message", { count: selected.length }),
         onConfirm: () => {
+          selected.filter(x => x.kind === "api").forEach(x => post("delete_api_account", { id: x.id }));
+          if (!items.length) return;
           setBulkBusy("delete");
           post("delete_accounts_batch", { items });
         }
@@ -4236,7 +4394,33 @@
       });
     });
 
-    dom.accountsBody.addEventListener("click", (e) => {
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#accountsBody, #accountActionMenu")) return;
+      const website = e.target.closest("a[data-account-website]");
+      if (website) {
+        e.preventDefault();
+        post("open_external_url", { url: website.getAttribute("href") });
+        return;
+      }
+      const more = e.target.closest("button[data-account-more]");
+      if (more && !more.disabled) { openAccountActionMenu(more); return; }
+      if (e.target.closest("#accountActionMenu button") && accountActionMenu.matches(":popover-open")) accountActionMenu.hidePopover();
+      const apiAction = e.target.closest("button[data-api-action]");
+      if (apiAction && !apiAction.disabled) {
+        const { apiAction: action, apiId: id } = apiAction.dataset;
+        if (action === "remove") {
+          const account = window.apiAccountsUi.getItems().find(item => item.id === id);
+          openConfirm({
+            title: t("dialog.delete.title"),
+            message: t("dialog.delete.message", { name: account.name }),
+            onConfirm: () => window.apiAccountsUi.remove(id)
+          });
+        } else {
+          if (action === "switchAccount") flushPendingConfigWrite();
+          window.apiAccountsUi[action](id);
+        }
+        return;
+      }
       const target = e.target.closest("button[data-action]");
       if (!target) return;
       if (target.disabled) return;
@@ -4248,7 +4432,7 @@
         const ide = getIdeDisplayName(state.currentIdeExe);
         const message = state.proxyStealthMode
           ? t("confirm.switch_proxy_mode", { name, ide })
-          : t("confirm.switch_restart_ide", { name, ide });
+          : t(state.currentIdeExe === "none" ? "confirm.switch_no_restart" : "confirm.switch_restart_ide", { name, ide });
         openConfirm({
           title: t("dialog.confirm.title"),
           message,
@@ -4283,9 +4467,18 @@
       }
     });
 
-    dom.accountsBody.addEventListener("change", (e) => {
+    document.addEventListener("change", (e) => {
       const target = e.target;
       if (!(target instanceof HTMLInputElement)) return;
+      if (!target.closest("#accountsBody, #accountActionMenu")) return;
+      if (target.hasAttribute("data-api-pool")) {
+        window.apiAccountsUi.setPool(target.dataset.apiPool, target.checked);
+        return;
+      }
+      if (target.hasAttribute("data-official-pool")) {
+        post("set_official_pool", { account: target.dataset.name, group: target.dataset.group, enabled: target.checked });
+        return;
+      }
       if (target.getAttribute("data-select-account") !== "1") return;
       if (!state.multiSelectMode || state.bulkMode) return;
       const name = target.getAttribute("data-name") || "";
@@ -4562,6 +4755,13 @@
       });
     });
     dom.checkUpdateBtn.addEventListener("click", () => requestUpdateCheck("manual"));
+    dom.codexCliRefreshBtn.addEventListener("click", requestCodexCliInfo);
+    dom.codexCliInstallBtn.addEventListener("click", () => {
+      state.codexCliInstalling = true;
+      state.codexCliError = "";
+      renderCodexCliInfo();
+      post("install_codex_cli");
+    });
     dom.aboutRepoLink.addEventListener("click", (e) => {
       e.preventDefault();
       const url = state.repoUrl || "https://github.com/isxlan0/Codex_AccountSwitch";
@@ -4840,7 +5040,7 @@
           renderApiState();
         }
         const switchCode = String(msg.code || "");
-        const isManualSwitchSuccess = switchCode === "switch_success" || switchCode === "switch_success_proxy_mode";
+        const isManualSwitchSuccess = switchCode === "switch_success" || switchCode === "switch_success_no_restart" || switchCode === "switch_success_proxy_mode";
         const isAutoSwitch = switchCode === "proxy_auto_switched" || switchCode === "proxy_fixed_auto_switched" || switchCode === "proxy_abnormal_auto_switched";
         if (isManualSwitchSuccess || isAutoSwitch) {
           requestAccountsList(true);
@@ -4973,6 +5173,15 @@
         return;
       }
 
+      if (msg && typeof msg === "object" && msg.type === "codex_cli_info") {
+        state.codexCliVersion = msg.version;
+        state.codexCliError = msg.error;
+        state.codexCliInstalling = msg.installing;
+        state.codexCliChecking = false;
+        renderCodexCliInfo();
+        return;
+      }
+
       if (msg && typeof msg === "object" && msg.type === "config") {
         if (!state.configLoaded) {
           state.currentLanguage = msg.language || "zh-CN";
@@ -5066,6 +5275,9 @@
           state.proxyApiKey = typeof msg.proxyApiKey === "string" ? msg.proxyApiKey : state.proxyApiKey;
           state.proxyStealthMode = msg.proxyStealthMode === true || msg.proxyStealthMode === "true";
           if (typeof msg.stealthTomlExtra === "string") state.stealthTomlExtra = msg.stealthTomlExtra;
+          if (typeof msg.proxyDefaultModel === "string") state.proxyDefaultModel = msg.proxyDefaultModel;
+          if (Array.isArray(msg.customModels)) state.customModels = msg.customModels;
+          renderProxyDefaultModelOptions();
           state.proxyDispatchMode = String(msg.proxyDispatchMode || state.proxyDispatchMode || "round_robin");
           state.proxyFixedAccount = String(msg.proxyFixedAccount || state.proxyFixedAccount || "");
           state.proxyFixedGroup = String(msg.proxyFixedGroup || state.proxyFixedGroup || "personal");

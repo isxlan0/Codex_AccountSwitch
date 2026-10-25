@@ -22,6 +22,8 @@
     }
   </style>
   <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/api-accounts.css" />
+  <link rel="stylesheet" href="./css/account-management.css" />
   <script>
     (function () {
       try {
@@ -63,9 +65,14 @@
       <div class="toolbar-actions">
         <button class="tool-btn primary" id="addCurrentBtn"></button>
         <button class="tool-btn" id="refreshBtn"></button>
-        <button class="tool-btn" id="importBtn"></button>
-        <button class="tool-btn" id="exportBtn"></button>
-        <button class="tool-btn" id="cleanAbnormalBtn"></button>
+        <button class="tool-btn" id="accountToolsBtn" aria-haspopup="menu">更多 ⋯</button>
+        <div id="accountToolsMenu" popover="auto" role="menu">
+          <button class="tool-btn" id="importCCSAccountsBtn">导入 CC Switch 账号</button>
+          <button class="tool-btn" id="importCurrentCodexBtn">导入当前 Codex 配置</button>
+          <button class="tool-btn" id="importBtn"></button>
+          <button class="tool-btn" id="exportBtn"></button>
+          <button class="tool-btn" id="cleanAbnormalBtn"></button>
+        </div>
       </div>
     </div>
 
@@ -141,6 +148,7 @@
               <button class="group-btn" data-group-filter="plus" id="groupPlusBtn"></button>
               <button class="group-btn" data-group-filter="team" id="groupTeamBtn"></button>
               <button class="group-btn" data-group-filter="pro" id="groupProBtn"></button>
+              <button class="group-btn" data-group-filter="api">API</button>
             </div>
           </div>
 
@@ -199,10 +207,25 @@
                   rel="noopener noreferrer" id="aboutRepoLink"></a>
               </div>
             </div>
-          </div>
-          <div class="about-check-row">
-            <button class="tool-btn primary" id="checkUpdateBtn"></button>
-            <span class="about-version" id="versionText">v1.0.0</span>
+            <div class="about-item about-cli">
+              <div class="about-cli-row">
+                <div class="about-cli-info">
+                  <div class="about-label">Codex CLI</div>
+                  <div class="about-value" id="codexCliVersion" role="status"></div>
+                </div>
+                <div class="about-cli-actions">
+                  <button class="tool-btn" id="codexCliRefreshBtn"></button>
+                  <button class="tool-btn primary" id="codexCliInstallBtn"></button>
+                </div>
+              </div>
+              <p class="api-account-result error" id="codexCliError" role="status"></p>
+            </div>
+            <div class="about-item about-update">
+              <div class="about-check-row">
+                <button class="tool-btn primary" id="checkUpdateBtn"></button>
+                <span class="about-version" id="versionText">v1.0.0</span>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -246,9 +269,9 @@
                   </div>
 
                   <div class="stealth-toml-section" id="stealthTomlSection">
-                    <div class="settings-label" id="stealthTomlLabel">config.toml Template</div>
-                    <div class="settings-sub-note" id="stealthTomlHint">Extra TOML content injected into config.toml when Stealth Mode is active.</div>
-                    <textarea class="stealth-toml-textarea" id="stealthTomlTextarea" spellcheck="false"></textarea>
+                    <div class="settings-label" id="stealthTomlLabel">Legacy config.toml template (read-only)</div>
+                    <div class="settings-sub-note" id="stealthTomlHint">The legacy template is view-only; full-block injection is disabled. This tool only updates API connection fields for its dedicated providers and preserves all other settings.</div>
+                    <textarea class="stealth-toml-textarea" id="stealthTomlTextarea" spellcheck="false" readonly></textarea>
                   </div>
                 </div>
 
@@ -891,6 +914,10 @@
   </div>
 
   <script src="./js/app.js"></script>
+  <script src="./js/ccs-provider-presets.js"></script>
+  <script src="./js/ccs-provider-icons.js"></script>
+  <script src="./js/ccs-usage-templates.js"></script>
+  <script src="./js/api-accounts.js"></script>
 </body>
 
 </html>

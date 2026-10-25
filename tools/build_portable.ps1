@@ -62,7 +62,9 @@ $zipPath = Join-Path $distDir "$portableName.zip"
 $requiredFiles = @(
   (Join-Path $binDir "Codex_AccountSwitch.exe"),
   (Join-Path $binDir "WebView2Loader.dll"),
-  (Join-Path $rootDir "webui\index.html")
+  (Join-Path $rootDir "webui\index.html"),
+  (Join-Path $rootDir "api-settings.json"),
+  (Join-Path $rootDir "codex-cli-settings.json")
 )
 foreach ($file in $requiredFiles) {
   if (-not (Test-Path $file)) {
@@ -84,6 +86,8 @@ try {
   Copy-Item -Path (Join-Path $binDir "Codex_AccountSwitch.exe") -Destination (Join-Path $portableDir "Codex_AccountSwitch.exe") -Force
   Copy-Item -Path (Join-Path $binDir "WebView2Loader.dll") -Destination (Join-Path $portableDir "WebView2Loader.dll") -Force
   Copy-Item -Path (Join-Path $rootDir "webui") -Destination (Join-Path $portableDir "webui") -Recurse -Force
+  Copy-Item -LiteralPath (Join-Path $rootDir "api-settings.json") -Destination (Join-Path $portableDir "api-settings.json") -Force
+  Copy-Item -LiteralPath (Join-Path $rootDir "codex-cli-settings.json") -Destination (Join-Path $portableDir "codex-cli-settings.json") -Force
   Set-Content -Path (Join-Path $portableDir "portable.mode") -Value "portable=1" -Encoding ASCII
 
   if (-not (Test-Path $distDir)) {

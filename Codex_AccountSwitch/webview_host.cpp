@@ -1,5 +1,6 @@
 ﻿#pragma execution_character_set("utf-8")
 #include "webview_host.h"
+#include "../window-settings.h"
 
 #include "app_version.h"
 #include "file_utils.h"
@@ -9,6 +10,7 @@
 #include "update_checker.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cderr.h>
 #include <cstdint>
@@ -28,6 +30,7 @@
 #include <regex>
 #include <set>
 #include <shellapi.h>
+#include <shlobj.h>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -37,6 +40,9 @@
 #include <vector>
 #include <wincrypt.h>
 #include <winhttp.h>
+#include <winsqlite/winsqlite3.h>
+#include <condition_variable>
+#include <memory>
 #include <wrl.h>
 
 using namespace Microsoft::WRL;
@@ -72,7 +78,6 @@ namespace
   std::wstring ReadCodexVersionFromCli();
   bool ApplyStealthProxyModeToCodexProfile(const AppConfig &cfg,
                                            std::wstring &error);
-  bool RestoreCodexProfileFromStealthBackup(std::wstring &error);
   bool SyncStealthProxyEnvironment(const AppConfig &cfg, std::wstring &error);
   std::wstring ParseJwtPayload(const std::wstring &token);
   bool IsLikelyValidAuthJson(const std::wstring &json);
@@ -96,6 +101,7 @@ namespace
   void StopLocalProxyService(std::wstring &status, std::wstring &code);
   std::wstring BuildProxyStatusJson();
   std::wstring GenerateProxyApiKey();
+  std::wstring GenerateRandomBase64Url(size_t byteCount);
   bool LoadConfig(AppConfig &out);
   bool SaveProtectedWideText(const fs::path &file, const std::wstring &text,
                              std::wstring &error);
@@ -141,6 +147,8 @@ namespace
   bool g_AutoDeleteAbnormalAccounts = false;
   constexpr size_t kTrafficLogMaxEntries = 5000;
   std::recursive_mutex g_IndexDataMutex;
+  std::recursive_mutex g_CodexProfileMutex;
+  bool g_CodexProfileClosing = false;
 
   DWORD ComputeThrottleDelayMs(const DWORD baseMs)
   {
@@ -624,6 +632,13 @@ namespace
     bool settings = true;
   };
 
+  struct ApiRuntimeDefaults
+  {
+    int timeoutSec = 0;
+    std::wstring checkInput;
+  };
+  const ApiRuntimeDefaults &GetApiRuntimeDefaults();
+
   struct AppConfig
   {
     std::wstring language = L"zh-CN";
@@ -642,6 +657,10 @@ namespace
     int autoRefreshCurrentMinutes = kDefaultCurrentRefreshMinutes;
     int proxyPort = kDefaultProxyPort;
     int proxyTimeoutSec = kDefaultProxyTimeoutSec;
+    int apiTimeoutSec = GetApiRuntimeDefaults().timeoutSec;
+    std::wstring apiCheckInput = GetApiRuntimeDefaults().checkInput;
+    std::wstring activeApiAccount;
+    std::wstring proxyFixedApiAccount;
     bool proxyAllowLan = false;
     bool proxyAutoStart = false;
     bool proxyStealthMode = false;
@@ -1752,6 +1771,7 @@ namespace
     long long secondaryResetAfterSeconds = -1;
     long long primaryResetAt = -1;
     long long secondaryResetAt = -1;
+    std::wstring otherWindowsJson = L"[]";
   };
 
   int RemainingPercentFromUsed(const int usedPercent)
@@ -1800,24 +1820,36 @@ namespace
       return false;
     }
 
-    std::wstring primaryObj;
-    if (ExtractJsonObjectField(rateLimitObj, L"primary_window", primaryObj))
+    for (const auto *windowName : {L"primary_window", L"secondary_window"})
     {
-      out.primaryUsedPercent =
-          ExtractJsonIntField(primaryObj, L"used_percent", -1);
-      out.primaryResetAfterSeconds =
-          ExtractJsonInt64Field(primaryObj, L"reset_after_seconds", -1);
-      out.primaryResetAt = ExtractJsonInt64Field(primaryObj, L"reset_at", -1);
-    }
-
-    std::wstring secondaryObj;
-    if (ExtractJsonObjectField(rateLimitObj, L"secondary_window", secondaryObj))
-    {
-      out.secondaryUsedPercent =
-          ExtractJsonIntField(secondaryObj, L"used_percent", -1);
-      out.secondaryResetAfterSeconds =
-          ExtractJsonInt64Field(secondaryObj, L"reset_after_seconds", -1);
-      out.secondaryResetAt = ExtractJsonInt64Field(secondaryObj, L"reset_at", -1);
+      std::wstring window;
+      if (!ExtractJsonObjectField(rateLimitObj, windowName, window)) continue;
+      const auto seconds = ExtractJsonInt64Field(window, L"limit_window_seconds", -1);
+      const auto used = ExtractJsonIntField(window, L"used_percent", -1);
+      const auto resetAfter = ExtractJsonInt64Field(window, L"reset_after_seconds", -1);
+      const auto resetAt = ExtractJsonInt64Field(window, L"reset_at", -1);
+      if (seconds == 5 * 60 * 60)
+      {
+        out.primaryUsedPercent = used;
+        out.primaryResetAfterSeconds = resetAfter;
+        out.primaryResetAt = resetAt;
+      }
+      else if (seconds == 7 * 24 * 60 * 60)
+      {
+        out.secondaryUsedPercent = used;
+        out.secondaryResetAfterSeconds = resetAfter;
+        out.secondaryResetAt = resetAt;
+      }
+      else
+      {
+        if (out.otherWindowsJson.size() > 2)
+          out.otherWindowsJson.insert(out.otherWindowsJson.size() - 1, L",");
+        const auto entry = L"{\"windowSeconds\":" + std::to_wstring(seconds) +
+            L",\"remainingPercent\":" + std::to_wstring(RemainingPercentFromUsed(used)) +
+            L",\"resetAfterSeconds\":" + std::to_wstring(resetAfter) +
+            L",\"resetAt\":" + std::to_wstring(resetAt) + L"}";
+        out.otherWindowsJson.insert(out.otherWindowsJson.size() - 1, entry);
+      }
     }
 
     out.ok = true;
@@ -2432,7 +2464,7 @@ namespace
   const std::vector<std::wstring> &GetSupportedIdeList()
   {
     static const std::vector<std::wstring> kList = {
-        L"Code.exe", L"Trae.exe", L"Kiro.exe", L"Antigravity.exe"};
+        L"none", L"Code.exe", L"Trae.exe", L"Kiro.exe", L"Antigravity.exe", L"ChatGPT.exe"};
     return kList;
   }
 
@@ -2636,6 +2668,7 @@ namespace
 
     const std::string bytes = WideToUtf8(content);
     out.write(bytes.data(), static_cast<std::streamsize>(bytes.size()));
+    out.close();
     return out.good();
   }
 
@@ -2770,6 +2803,21 @@ namespace
     PostMessageW(hwnd, WM_CLOSE, 0, 0);
   }
 
+  const ApiRuntimeDefaults &GetApiRuntimeDefaults()
+  {
+    static const ApiRuntimeDefaults defaults = []() {
+      ApiRuntimeDefaults values;
+      std::wstring json;
+      if (ReadUtf8File(GetWorkspaceRoot() / L"api-settings.json", json))
+      {
+        values.timeoutSec = ExtractJsonIntField(json, L"apiTimeoutSec", 0);
+        values.checkInput = UnescapeJsonString(ExtractJsonField(json, L"apiCheckInput"));
+      }
+      return values;
+    }();
+    return defaults;
+  }
+
   bool LoadConfig(AppConfig &out)
   {
     out = AppConfig{};
@@ -2782,6 +2830,11 @@ namespace
       }
     }
 
+    out.apiTimeoutSec = ExtractJsonIntField(json, L"apiTimeoutSec", out.apiTimeoutSec);
+    out.activeApiAccount = UnescapeJsonString(ExtractJsonField(json, L"activeApiAccount"));
+    out.proxyFixedApiAccount = UnescapeJsonString(ExtractJsonField(json, L"proxyFixedApiAccount"));
+    if (json.find(L"\"apiCheckInput\"") != std::wstring::npos)
+      out.apiCheckInput = UnescapeJsonString(ExtractJsonField(json, L"apiCheckInput"));
     const std::wstring language = ExtractJsonField(json, L"language");
     const int languageIndex = ExtractJsonIntField(json, L"languageIndex", 0);
     const std::wstring ide = ExtractJsonField(json, L"ideExe");
@@ -3066,6 +3119,10 @@ namespace
        << EscapeJsonString(cfg.proxyDispatchMode) << L"\",\n";
     ss << L"  \"proxyFixedAccount\": \""
        << EscapeJsonString(cfg.proxyFixedAccount) << L"\",\n";
+    ss << L"  \"activeApiAccount\": \"" << EscapeJsonString(cfg.activeApiAccount) << L"\",\n";
+    ss << L"  \"proxyFixedApiAccount\": \"" << EscapeJsonString(cfg.proxyFixedApiAccount) << L"\",\n";
+    ss << L"  \"apiTimeoutSec\": " << cfg.apiTimeoutSec << L",\n";
+    ss << L"  \"apiCheckInput\": \"" << EscapeJsonString(cfg.apiCheckInput) << L"\",\n";
     ss << L"  \"proxyFixedGroup\": \"" << EscapeJsonString(cfg.proxyFixedGroup)
        << L"\",\n";
     ss << L"  \"lastSwitchedAccount\": \""
@@ -3189,6 +3246,14 @@ namespace
     {
       exePath = foundPath;
     }
+    bool commandShim = false;
+    if (exePath.empty() && SearchPathW(nullptr, L"codex.cmd", nullptr,
+                                      static_cast<DWORD>(_countof(foundPath)), foundPath, nullptr) > 0)
+    {
+      exePath = foundPath;
+      commandShim = true;
+    }
+    if (exePath.empty()) return L"";
 
     SECURITY_ATTRIBUTES sa{};
     sa.nLength = sizeof(sa);
@@ -3202,8 +3267,15 @@ namespace
     }
     SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0);
 
-    const std::wstring commandLine =
-        exePath.empty() ? L"codex --version" : L"\"" + exePath + L"\" --version";
+    std::wstring application = exePath;
+    std::wstring commandLine = L"\"" + exePath + L"\" --version";
+    if (commandShim)
+    {
+      wchar_t systemDir[MAX_PATH]{};
+      GetSystemDirectoryW(systemDir, MAX_PATH);
+      application = (fs::path(systemDir) / L"cmd.exe").wstring();
+      commandLine = L"\"" + application + L"\" /d /s /c \"\"" + exePath + L"\" --version\"";
+    }
     std::vector<wchar_t> buffer(commandLine.begin(), commandLine.end());
     buffer.push_back(L'\0');
 
@@ -3216,7 +3288,7 @@ namespace
 
     PROCESS_INFORMATION pi{};
     const BOOL ok = CreateProcessW(
-        exePath.empty() ? nullptr : exePath.c_str(), buffer.data(), nullptr,
+        application.c_str(), buffer.data(), nullptr,
         nullptr, TRUE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi);
     CloseHandle(writePipe);
 
@@ -3258,392 +3330,39 @@ namespace
     {
       return L"";
     }
-    return ClampCodexVersionFloor(match[1].str());
+    return match[1].str();
   }
 
-  bool IsTopLevelManagedTomlKey(const std::wstring &line)
-  {
-    if (line.empty())
-    {
-      return false;
-    }
-    if (line.front() == L' ' || line.front() == L'\t')
-    {
-      return false;
-    }
-    const size_t eqPos = line.find(L'=');
-    if (eqPos == std::wstring::npos)
-    {
-      return false;
-    }
-    const std::wstring key = ToLowerCopy(TrimWide(line.substr(0, eqPos)));
-    return key == L"disable_response_storage" ||
-           key == L"preferred_auth_method" ||
-           key == L"model_provider" ||
-           key == L"model" ||
-           key == L"model_reasoning_effort";
-  }
+  #include "profile_field_patch.h"
 
-  bool IsManagedProviderSection(const std::wstring &trimmedLine)
-  {
-    if (trimmedLine.size() < 3 || trimmedLine.front() != L'[' ||
-        trimmedLine.back() != L']')
-    {
-      return false;
-    }
-    const std::wstring section =
-        ToLowerCopy(trimmedLine.substr(1, trimmedLine.size() - 2));
-    return section == L"model_providers.local_openai" ||
-           section.rfind(L"model_providers.local_openai.", 0) == 0 ||
-           section == L"model_providers.custom" ||
-           section.rfind(L"model_providers.custom.", 0) == 0 ||
-           section == L"windows";
-  }
-
-  bool IsTomlSectionHeader(const std::wstring &trimmedLine)
-  {
-    return trimmedLine.size() >= 3 && trimmedLine.front() == L'[' &&
-           trimmedLine.back() == L']';
-  }
-
-  bool IsProjectsSectionHeader(const std::wstring &trimmedLine)
-  {
-    if (trimmedLine.size() < 3 || trimmedLine.front() != L'[' ||
-        trimmedLine.back() != L']')
-    {
-      return false;
-    }
-    const std::wstring section =
-        ToLowerCopy(trimmedLine.substr(1, trimmedLine.size() - 2));
-    return section.rfind(L"projects.", 0) == 0;
-  }
-
-  std::wstring ExtractTomlKeyName(const std::wstring &line)
-  {
-    if (line.empty())
-    {
-      return L"";
-    }
-    if (line.front() == L' ' || line.front() == L'\t')
-    {
-      return L"";
-    }
-    const size_t eqPos = line.find(L'=');
-    if (eqPos == std::wstring::npos)
-    {
-      return L"";
-    }
-    return ToLowerCopy(TrimWide(line.substr(0, eqPos)));
-  }
+  std::wstring ApiTomlValue(const std::wstring &toml, const std::wstring &sectionName, const std::wstring &key);
+  std::wstring ApiTomlRawValue(const std::wstring &toml, const std::wstring &sectionName, const std::wstring &key);
+  std::wstring PatchProfileApiKey(std::wstring json, const std::wstring &rawValue);
+  #include "profile_session.h"
 
   std::wstring BuildStealthCodexToml(const std::wstring &origin,
                                      const std::wstring &providerBaseUrl,
                                      const std::wstring &projectBaseUrl,
                                      const std::wstring &extraToml = L"")
   {
-    std::wstring normalized = origin;
-    size_t p = 0;
-    while ((p = normalized.find(L"\r\n", p)) != std::wstring::npos)
-    {
-      normalized.replace(p, 2, L"\n");
-    }
-    p = 0;
-    while ((p = normalized.find(L"\r", p)) != std::wstring::npos)
-    {
-      normalized.replace(p, 1, L"\n");
-    }
-
-    std::vector<std::wstring> lines;
-    size_t start = 0;
-    while (start <= normalized.size())
-    {
-      const size_t end = normalized.find(L'\n', start);
-      if (end == std::wstring::npos)
-      {
-        lines.push_back(normalized.substr(start));
-        break;
-      }
-      lines.push_back(normalized.substr(start, end - start));
-      start = end + 1;
-      if (start == normalized.size())
-      {
-        lines.push_back(L"");
-        break;
-      }
-    }
-
-    std::vector<std::wstring> out;
-    out.reserve(lines.size() + 16);
-    bool inManagedProviderSection = false;
-    bool inManagedBlock = false;
-    bool inProjectSection = false;
-    bool projectBaseUrlInjected = false;
-    for (const auto &rawLine : lines)
-    {
-      const std::wstring trimmed = TrimWide(rawLine);
-      if (inProjectSection && IsTomlSectionHeader(trimmed))
-      {
-        if (!projectBaseUrlInjected)
-        {
-          out.push_back(L"base_url = \"" + projectBaseUrl + L"\"");
-        }
-        inProjectSection = false;
-        projectBaseUrlInjected = false;
-      }
-      if (trimmed == L"# CAS_LOCAL_PROXY_BEGIN")
-      {
-        inManagedBlock = true;
-        continue;
-      }
-      if (trimmed == L"# CAS_LOCAL_PROXY_END")
-      {
-        inManagedBlock = false;
-        continue;
-      }
-      if (inManagedBlock)
-      {
-        continue;
-      }
-
-      if (inManagedProviderSection)
-      {
-        if (IsTomlSectionHeader(trimmed) && !IsManagedProviderSection(trimmed))
-        {
-          inManagedProviderSection = false;
-        }
-        else
-        {
-          continue;
-        }
-      }
-
-      if (IsManagedProviderSection(trimmed))
-      {
-        inManagedProviderSection = true;
-        continue;
-      }
-      if (IsProjectsSectionHeader(trimmed))
-      {
-        inProjectSection = true;
-        projectBaseUrlInjected = false;
-        out.push_back(rawLine);
-        continue;
-      }
-      if (inProjectSection)
-      {
-        const std::wstring key = ExtractTomlKeyName(rawLine);
-        if (key == L"base_url")
-        {
-          if (!projectBaseUrlInjected)
-          {
-            out.push_back(L"base_url = \"" + projectBaseUrl + L"\"");
-            projectBaseUrlInjected = true;
-          }
-          continue;
-        }
-      }
-      if (IsTopLevelManagedTomlKey(rawLine))
-      {
-        continue;
-      }
-      out.push_back(rawLine);
-    }
-    if (inProjectSection && !projectBaseUrlInjected)
-    {
-      out.push_back(L"base_url = \"" + projectBaseUrl + L"\"");
-    }
-
-    while (!out.empty() && TrimWide(out.back()).empty())
-    {
-      out.pop_back();
-    }
-
-    std::vector<std::wstring> managed;
-    managed.push_back(L"# CAS_LOCAL_PROXY_BEGIN");
-
-    std::wstring templateContent = extraToml;
-    if (templateContent.empty())
-    {
-      templateContent =
-          L"disable_response_storage = true\n"
-          L"preferred_auth_method = \"apikey\"\n"
-          L"model_provider = \"custom\"\n"
-          L"\n"
-          L"[model_providers.custom]\n"
-          L"name = \"custom\"\n"
-          L"base_url = \"{{PROXY_URL}}\"\n"
-          L"wire_api = \"responses\"\n"
-          L"requires_openai_auth = false";
-    }
-
-    {
-      size_t pos = 0;
-      while ((pos = templateContent.find(L"{{PROXY_URL}}", pos)) !=
-             std::wstring::npos)
-      {
-        templateContent.replace(pos, 13, providerBaseUrl);
-        pos += providerBaseUrl.size();
-      }
-    }
-    {
-      size_t pos = 0;
-      while ((pos = templateContent.find(L"{{PROXY_BASE}}", pos)) !=
-             std::wstring::npos)
-      {
-        templateContent.replace(pos, 14, projectBaseUrl);
-        pos += projectBaseUrl.size();
-      }
-    }
-
-    {
-      std::wstring norm = templateContent;
-      size_t ep = 0;
-      while ((ep = norm.find(L"\r\n", ep)) != std::wstring::npos)
-      {
-        norm.replace(ep, 2, L"\n");
-      }
-      ep = 0;
-      while ((ep = norm.find(L"\r", ep)) != std::wstring::npos)
-      {
-        norm.replace(ep, 1, L"\n");
-      }
-      size_t es = 0;
-      while (es <= norm.size())
-      {
-        const size_t ee = norm.find(L'\n', es);
-        if (ee == std::wstring::npos)
-        {
-          managed.push_back(norm.substr(es));
-          break;
-        }
-        managed.push_back(norm.substr(es, ee - es));
-        es = ee + 1;
-        if (es == norm.size())
-        {
-          break;
-        }
-      }
-    }
-
-    managed.push_back(L"# CAS_LOCAL_PROXY_END");
-
-    std::vector<std::wstring> finalLines;
-    finalLines.reserve(managed.size() + out.size() + 2);
-    finalLines.insert(finalLines.end(), managed.begin(), managed.end());
-    if (!out.empty())
-    {
-      finalLines.push_back(L"");
-      finalLines.insert(finalLines.end(), out.begin(), out.end());
-    }
-
-    std::wstring merged;
-    for (size_t i = 0; i < finalLines.size(); ++i)
-    {
-      if (i != 0)
-      {
-        merged += L"\n";
-      }
-      merged += finalLines[i];
-    }
-    return merged;
-  }
-
-  std::wstring BuildStealthBackupStamp()
-  {
-    SYSTEMTIME st{};
-    GetLocalTime(&st);
-    wchar_t buf[64]{};
-    swprintf_s(buf, L"%04u%02u%02u-%02u%02u%02u", st.wYear, st.wMonth, st.wDay,
-               st.wHour, st.wMinute, st.wSecond);
-    return buf;
-  }
-
-  bool SaveStealthOriginalSnapshot(const fs::path &codexHome,
-                                   const fs::path &authPath,
-                                   const fs::path &tomlPath,
-                                   std::wstring &error)
-  {
-    error.clear();
-    const fs::path originalDir = codexHome / L"bak" / L"cas_stealth_original";
-    const fs::path authFlagPath = originalDir / L"auth.exists";
-    const fs::path tomlFlagPath = originalDir / L"config.exists";
-    const fs::path authBackupPath = originalDir / L"auth.json";
-    const fs::path tomlBackupPath = originalDir / L"config.toml";
-
-    std::error_code ec;
-    fs::create_directories(originalDir, ec);
-    if (ec)
-    {
-      error = L"create_original_backup_dir_failed";
-      return false;
-    }
-
-    bool authExists = false;
-    ec.clear();
-    authExists = fs::exists(authPath, ec) && !ec;
-    bool tomlExists = false;
-    ec.clear();
-    tomlExists = fs::exists(tomlPath, ec) && !ec;
-
-    if (!fs::exists(authFlagPath))
-    {
-      if (!WriteUtf8File(authFlagPath, authExists ? L"1\n" : L"0\n"))
-      {
-        error = L"write_original_auth_flag_failed";
-        return false;
-      }
-      if (authExists)
-      {
-        ec.clear();
-        fs::copy_file(authPath, authBackupPath, fs::copy_options::overwrite_existing,
-                      ec);
-        if (ec)
-        {
-          error = L"save_original_auth_failed";
-          return false;
-        }
-      }
-    }
-
-    if (!fs::exists(tomlFlagPath))
-    {
-      if (!WriteUtf8File(tomlFlagPath, tomlExists ? L"1\n" : L"0\n"))
-      {
-        error = L"write_original_toml_flag_failed";
-        return false;
-      }
-      if (tomlExists)
-      {
-        ec.clear();
-        fs::copy_file(tomlPath, tomlBackupPath, fs::copy_options::overwrite_existing,
-                      ec);
-        if (ec)
-        {
-          error = L"save_original_toml_failed";
-          return false;
-        }
-      }
-    }
-    return true;
-  }
-
-  bool ReadExistsFlag(const fs::path &flagPath, bool &existsOut)
-  {
-    existsOut = false;
-    std::wstring text;
-    if (!ReadUtf8File(flagPath, text))
-    {
-      return false;
-    }
-    const std::wstring trimmed = TrimWide(text);
-    existsOut = (trimmed == L"1" || ToLowerCopy(trimmed) == L"true");
-    return true;
+    (void)projectBaseUrl;
+    (void)extraToml;
+    const std::wstring section = L"model_providers.cas_local_proxy";
+    auto result = PatchProfileTomlField(origin, L"", L"model_provider", L"\"cas_local_proxy\"");
+    result = PatchProfileTomlField(result, L"", L"preferred_auth_method", L"\"apikey\"");
+    if (ApiTomlRawValue(origin, section, L"name").empty())
+      result = PatchProfileTomlField(result, section, L"name", L"\"Codex AccountSwitch Proxy\"");
+    result = PatchProfileTomlField(result, section, L"base_url", L"\"" + EscapeJsonString(providerBaseUrl) + L"\"");
+    result = PatchProfileTomlField(result, section, L"wire_api", L"\"responses\"");
+    return PatchProfileTomlField(result, section, L"requires_openai_auth", L"false");
   }
 
   bool ApplyStealthProxyModeToCodexProfile(const AppConfig &cfg,
                                            std::wstring &error)
   {
+    std::lock_guard<std::recursive_mutex> profileLock(g_CodexProfileMutex);
     error.clear();
+    if (g_CodexProfileClosing) { error = L"软件正在退出，已停止更新 Codex 配置"; return false; }
     if (cfg.proxyApiKey.empty())
     {
       error = L"proxy_api_key_empty";
@@ -3659,8 +3378,6 @@ namespace
 
     const fs::path authPath = codexHome / L"auth.json";
     const fs::path tomlPath = codexHome / L"config.toml";
-    const fs::path backupDir = codexHome / L"bak" / BuildStealthBackupStamp();
-
     std::error_code ec;
     fs::create_directories(codexHome, ec);
     if (ec)
@@ -3668,51 +3385,22 @@ namespace
       error = L"create_codex_dir_failed";
       return false;
     }
-    ec.clear();
-    fs::create_directories(backupDir, ec);
-    if (ec)
-    {
-      error = L"create_backup_dir_failed";
-      return false;
-    }
-    if (!SaveStealthOriginalSnapshot(codexHome, authPath, tomlPath, error))
-    {
-      return false;
-    }
-
-    ec.clear();
-    if (fs::exists(authPath, ec) && !ec)
-    {
-      fs::copy_file(authPath, backupDir / L"auth.json",
-                    fs::copy_options::overwrite_existing, ec);
-      if (ec)
-      {
-        error = L"backup_auth_failed";
-        return false;
-      }
-    }
-    ec.clear();
-    if (fs::exists(tomlPath, ec) && !ec)
-    {
-      fs::copy_file(tomlPath, backupDir / L"config.toml",
-                    fs::copy_options::overwrite_existing, ec);
-      if (ec)
-      {
-        error = L"backup_config_failed";
-        return false;
-      }
-    }
-
-    const std::wstring authJson =
-        L"{\"OPENAI_API_KEY\":\"" + EscapeJsonString(cfg.proxyApiKey) + L"\"}\n";
+    std::wstring existingAuth, existingToml;
+    if (fs::exists(authPath) && !ReadUtf8File(authPath, existingAuth))
+    { error = L"read_auth_failed"; return false; }
+    if (fs::exists(tomlPath) && !ReadUtf8File(tomlPath, existingToml))
+    { error = L"read_toml_failed"; return false; }
+    const auto authJson = PatchProfileApiKey(existingAuth,
+        L"\"" + EscapeJsonString(cfg.proxyApiKey) + L"\"");
+    TrackProfileApiKey(g_ProxyProfileChanges, existingAuth, authJson);
     if (!WriteUtf8File(authPath, authJson))
     {
       error = L"write_auth_failed";
       return false;
     }
 
-    std::wstring existingToml;
-    ReadUtf8File(tomlPath, existingToml);
+    g_LastWrittenCodexAuth = authJson;
+    g_LastWrittenCodexToml = existingToml;
     int safePort = cfg.proxyPort;
     if (safePort < 1 || safePort > 65535)
     {
@@ -3724,92 +3412,13 @@ namespace
     const std::wstring patchedToml =
         BuildStealthCodexToml(existingToml, providerBaseUrl, projectBaseUrl,
                               cfg.stealthTomlExtra);
+    TrackProfileToml(g_ProxyProfileChanges, existingToml, patchedToml, L"cas_local_proxy", false, true);
     if (!WriteUtf8File(tomlPath, patchedToml))
     {
       error = L"write_toml_failed";
       return false;
     }
-    return true;
-  }
-
-  bool RestoreCodexProfileFromStealthBackup(std::wstring &error)
-  {
-    error.clear();
-    const fs::path codexHome = GetCodexHomeDir();
-    if (codexHome.empty())
-    {
-      error = L"userprofile_missing";
-      return false;
-    }
-    const fs::path originalDir = codexHome / L"bak" / L"cas_stealth_original";
-    const fs::path authFlagPath = originalDir / L"auth.exists";
-    const fs::path tomlFlagPath = originalDir / L"config.exists";
-    const fs::path authBackupPath = originalDir / L"auth.json";
-    const fs::path tomlBackupPath = originalDir / L"config.toml";
-    const fs::path authPath = codexHome / L"auth.json";
-    const fs::path tomlPath = codexHome / L"config.toml";
-
-    if (!fs::exists(authFlagPath) && !fs::exists(tomlFlagPath))
-    {
-      return true;
-    }
-
-    std::error_code ec;
-    bool authExisted = false;
-    if (fs::exists(authFlagPath) && !ReadExistsFlag(authFlagPath, authExisted))
-    {
-      error = L"read_original_auth_flag_failed";
-      return false;
-    }
-    if (authExisted)
-    {
-      if (!fs::exists(authBackupPath))
-      {
-        error = L"original_auth_backup_missing";
-        return false;
-      }
-      ec.clear();
-      fs::copy_file(authBackupPath, authPath, fs::copy_options::overwrite_existing,
-                    ec);
-      if (ec)
-      {
-        error = L"restore_auth_failed";
-        return false;
-      }
-    }
-    else
-    {
-      ec.clear();
-      fs::remove(authPath, ec);
-    }
-
-    bool tomlExisted = false;
-    if (fs::exists(tomlFlagPath) && !ReadExistsFlag(tomlFlagPath, tomlExisted))
-    {
-      error = L"read_original_toml_flag_failed";
-      return false;
-    }
-    if (tomlExisted)
-    {
-      if (!fs::exists(tomlBackupPath))
-      {
-        error = L"original_toml_backup_missing";
-        return false;
-      }
-      ec.clear();
-      fs::copy_file(tomlBackupPath, tomlPath, fs::copy_options::overwrite_existing,
-                    ec);
-      if (ec)
-      {
-        error = L"restore_toml_failed";
-        return false;
-      }
-    }
-    else
-    {
-      ec.clear();
-      fs::remove(tomlPath, ec);
-    }
+    g_LastWrittenCodexToml = patchedToml;
     return true;
   }
 
@@ -3992,7 +3601,7 @@ namespace
     return L"";
   }
 
-  bool StopProcessByName(const std::wstring &processName)
+  bool StopProcessByName(const std::wstring &processName, const DWORD timeoutMs)
   {
     HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshot == INVALID_HANDLE_VALUE)
@@ -4002,27 +3611,46 @@ namespace
 
     PROCESSENTRY32W entry{};
     entry.dwSize = sizeof(entry);
-    bool found = false;
+    bool stopped = true;
+    std::vector<HANDLE> processes;
+    const ULONGLONG deadline = GetTickCount64() + timeoutMs;
     if (Process32FirstW(snapshot, &entry))
     {
       do
       {
         if (_wcsicmp(entry.szExeFile, processName.c_str()) == 0)
         {
-          found = true;
           HANDLE process =
-              OpenProcess(PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
+              OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, entry.th32ProcessID);
           if (process != nullptr)
           {
-            TerminateProcess(process, 0);
-            CloseHandle(process);
+            if (!TerminateProcess(process, 0) &&
+                WaitForSingleObject(process, 0) != WAIT_OBJECT_0)
+            {
+              stopped = false;
+            }
+            processes.push_back(process);
+          }
+          else if (GetLastError() != ERROR_INVALID_PARAMETER)
+          {
+            stopped = false;
           }
         }
       } while (Process32NextW(snapshot, &entry));
     }
 
     CloseHandle(snapshot);
-    return found;
+    for (HANDLE process : processes)
+    {
+      const ULONGLONG now = GetTickCount64();
+      const DWORD remainingMs = now < deadline ? static_cast<DWORD>(deadline - now) : 0;
+      if (WaitForSingleObject(process, remainingMs) != WAIT_OBJECT_0)
+      {
+        stopped = false;
+      }
+      CloseHandle(process);
+    }
+    return stopped;
   }
 
   bool LaunchDetachedExe(const std::wstring &exePath)
@@ -4076,12 +3704,116 @@ namespace
       return L"Kiro";
     if (_wcsicmp(ideExe.c_str(), L"Antigravity.exe") == 0)
       return L"Antigravity";
+    if (_wcsicmp(ideExe.c_str(), L"ChatGPT.exe") == 0)
+      return L"ChatGPT";
     return L"VSCode";
+  }
+
+  std::wstring FindRunningIdePath(const std::wstring &ideExe)
+  {
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshot == INVALID_HANDLE_VALUE)
+    {
+      return L"";
+    }
+    std::wstring path;
+    PROCESSENTRY32W entry{};
+    entry.dwSize = sizeof(entry);
+    if (Process32FirstW(snapshot, &entry))
+    {
+      do
+      {
+        if (_wcsicmp(entry.szExeFile, ideExe.c_str()) != 0)
+        {
+          continue;
+        }
+        HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE,
+                                     entry.th32ProcessID);
+        if (process != nullptr)
+        {
+          std::vector<wchar_t> buffer(32768);
+          DWORD length = static_cast<DWORD>(buffer.size());
+          if (QueryFullProcessImageNameW(process, 0, buffer.data(), &length))
+          {
+            path.assign(buffer.data(), length);
+          }
+          CloseHandle(process);
+        }
+        if (!path.empty())
+        {
+          break;
+        }
+      } while (Process32NextW(snapshot, &entry));
+    }
+    CloseHandle(snapshot);
+    return path;
+  }
+
+  std::wstring FindChatGptAppsFolderTarget()
+  {
+    const HRESULT initialized = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    if (FAILED(initialized) && initialized != RPC_E_CHANGED_MODE)
+    {
+      return L"";
+    }
+    std::wstring target;
+    {
+      ComPtr<IShellItem> appsItem;
+      ComPtr<IShellFolder> appsFolder;
+      ComPtr<IEnumIDList> entries;
+      if (SUCCEEDED(SHGetKnownFolderItem(FOLDERID_AppsFolder, KF_FLAG_DEFAULT, nullptr,
+                                         IID_PPV_ARGS(&appsItem))) &&
+          SUCCEEDED(appsItem->BindToHandler(nullptr, BHID_SFObject,
+                                            IID_PPV_ARGS(&appsFolder))) &&
+          appsFolder->EnumObjects(nullptr, SHCONTF_FOLDERS | SHCONTF_NONFOLDERS,
+                                   &entries) == S_OK)
+      {
+        PITEMID_CHILD child = nullptr;
+        while (entries->Next(1, &child, nullptr) == S_OK)
+        {
+          ComPtr<IShellItem> item;
+          if (SUCCEEDED(SHCreateItemWithParent(nullptr, appsFolder.Get(), child,
+                                               IID_PPV_ARGS(&item))))
+          {
+            PWSTR displayName = nullptr;
+            if (SUCCEEDED(item->GetDisplayName(SIGDN_NORMALDISPLAY, &displayName)))
+            {
+              if (_wcsicmp(displayName, L"ChatGPT") == 0)
+              {
+                PWSTR parsingName = nullptr;
+                if (SUCCEEDED(item->GetDisplayName(SIGDN_PARENTRELATIVEPARSING,
+                                                   &parsingName)))
+                {
+                  target = L"shell:AppsFolder\\" + std::wstring(parsingName);
+                  CoTaskMemFree(parsingName);
+                }
+              }
+              CoTaskMemFree(displayName);
+            }
+          }
+          CoTaskMemFree(child);
+          if (!target.empty())
+          {
+            break;
+          }
+        }
+      }
+    }
+    if (SUCCEEDED(initialized))
+    {
+      CoUninitialize();
+    }
+    return target;
   }
 
   std::wstring FindConfiguredIdePath(const std::wstring &ideExe)
   {
-    std::wstring path = FindIdeExePath(ideExe);
+    std::wstring path = FindRunningIdePath(ideExe);
+    if (!path.empty())
+    {
+      return path;
+    }
+    path = FindIdeExePath(ideExe);
     if (!path.empty())
     {
       return path;
@@ -4124,15 +3856,55 @@ namespace
     AppConfig cfg;
     LoadConfig(cfg);
     const std::wstring ideExe = NormalizeIdeExe(cfg.ideExe);
+    if (ideExe == L"none")
+    {
+      ideDisplay.clear();
+      return true;
+    }
     ideDisplay = GetIdeDisplayName(ideExe);
     const std::wstring exePath = FindConfiguredIdePath(ideExe);
+    const bool isChatGpt = _wcsicmp(ideExe.c_str(), L"ChatGPT.exe") == 0;
+    const std::wstring appsFolderTarget = isChatGpt ? FindChatGptAppsFolderTarget() : L"";
+    if (isChatGpt && exePath.empty() && appsFolderTarget.empty())
+    {
+      return false;
+    }
 
-    StopProcessByName(GetFileNameOnly(ideExe));
-    Sleep(450);
+    if (!StopProcessByName(GetFileNameOnly(ideExe),
+                           static_cast<DWORD>(cfg.proxyTimeoutSec) * 1000))
+    {
+      return false;
+    }
+
+    if (!appsFolderTarget.empty())
+    {
+      const HRESULT initialized = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+      if (FAILED(initialized) && initialized != RPC_E_CHANGED_MODE)
+      {
+        return false;
+      }
+      SHELLEXECUTEINFOW launch{};
+      launch.cbSize = sizeof(launch);
+      launch.fMask = SEE_MASK_NOASYNC;
+      launch.lpVerb = L"open";
+      launch.lpFile = appsFolderTarget.c_str();
+      launch.nShow = SW_SHOWNORMAL;
+      const bool launched = ShellExecuteExW(&launch) != FALSE;
+      if (SUCCEEDED(initialized))
+      {
+        CoUninitialize();
+      }
+      return launched;
+    }
 
     if (!exePath.empty() && LaunchDetachedExe(exePath))
     {
       return true;
+    }
+
+    if (isChatGpt)
+    {
+      return false;
     }
 
     // Fallback: let system resolve executable name from PATH / App Paths.
@@ -4193,6 +3965,8 @@ namespace
 
   struct IndexEntry
   {
+    bool inPool = false;
+    std::wstring lastProxyError;
     std::wstring name;
     std::wstring group;
     std::wstring path;
@@ -4201,6 +3975,7 @@ namespace
     std::wstring abnormalReason;
     std::wstring abnormalAt;
     bool quotaUsageOk = false;
+    int quotaWindowVersion = 0;
     std::wstring quotaPlanType;
     std::wstring quotaEmail;
     int quota5hRemainingPercent = -1;
@@ -4209,6 +3984,7 @@ namespace
     long long quota7dResetAfterSeconds = -1;
     long long quota5hResetAt = -1;
     long long quota7dResetAt = -1;
+    std::wstring quotaOtherWindowsJson = L"[]";
   };
 
   struct IndexData
@@ -4269,10 +4045,13 @@ namespace
 
   void CopyIndexEntryRuntimeState(IndexEntry &target, const IndexEntry &source)
   {
+    target.inPool = source.inPool;
+    target.lastProxyError = source.lastProxyError;
     target.abnormal = source.abnormal;
     target.abnormalReason = source.abnormalReason;
     target.abnormalAt = source.abnormalAt;
     target.quotaUsageOk = source.quotaUsageOk;
+    target.quotaWindowVersion = source.quotaWindowVersion;
     target.quotaPlanType = source.quotaPlanType;
     target.quotaEmail = source.quotaEmail;
     target.quota5hRemainingPercent = source.quota5hRemainingPercent;
@@ -4281,6 +4060,7 @@ namespace
     target.quota7dResetAfterSeconds = source.quota7dResetAfterSeconds;
     target.quota5hResetAt = source.quota5hResetAt;
     target.quota7dResetAt = source.quota7dResetAt;
+    target.quotaOtherWindowsJson = source.quotaOtherWindowsJson;
   }
 
   std::wstring MakeRelativeAuthPath(const std::wstring &group,
@@ -4400,6 +4180,8 @@ namespace
       for (const auto &itemJson : objects)
       {
         IndexEntry row;
+        row.inPool = ExtractJsonBoolField(itemJson, L"inPool", false);
+        row.lastProxyError = UnescapeJsonString(ExtractJsonField(itemJson, L"lastProxyError"));
         row.name = UnescapeJsonString(ExtractJsonField(itemJson, L"name"));
         row.group = NormalizeGroup(
             UnescapeJsonString(ExtractJsonField(itemJson, L"group")));
@@ -4427,6 +4209,23 @@ namespace
             ExtractJsonInt64Field(itemJson, L"quota5hResetAt", -1);
         row.quota7dResetAt =
             ExtractJsonInt64Field(itemJson, L"quota7dResetAt", -1);
+        std::wstring otherWindows;
+        if (ExtractJsonArrayField(itemJson, L"quotaOtherWindows", otherWindows))
+        {
+          row.quotaOtherWindowsJson = otherWindows;
+        }
+        row.quotaWindowVersion = ExtractJsonIntField(itemJson, L"quotaWindowVersion", 0);
+        if (row.quotaWindowVersion != 2)
+        {
+          row.quotaUsageOk = false;
+          row.quota5hRemainingPercent = -1;
+          row.quota7dRemainingPercent = -1;
+          row.quota5hResetAfterSeconds = -1;
+          row.quota7dResetAfterSeconds = -1;
+          row.quota5hResetAt = -1;
+          row.quota7dResetAt = -1;
+          row.quotaOtherWindowsJson = L"[]";
+        }
         if (!row.name.empty() && !row.path.empty())
         {
           out.accounts.push_back(row);
@@ -4458,13 +4257,16 @@ namespace
     {
       const auto &row = data.accounts[i];
       ss << L"    {\"name\":\"" << EscapeJsonString(row.name)
-         << L"\",\"group\":\"" << EscapeJsonString(NormalizeGroup(row.group))
+         << L"\",\"inPool\":" << (row.inPool ? L"true" : L"false")
+         << L",\"lastProxyError\":\"" << EscapeJsonString(row.lastProxyError) << L"\""
+         << L",\"group\":\"" << EscapeJsonString(NormalizeGroup(row.group))
          << L"\",\"path\":\"" << EscapeJsonString(row.path)
          << L"\",\"updatedAt\":\"" << EscapeJsonString(row.updatedAt)
          << L"\",\"abnormal\":" << (row.abnormal ? L"true" : L"false")
          << L",\"abnormalReason\":\"" << EscapeJsonString(row.abnormalReason)
          << L"\",\"abnormalAt\":\"" << EscapeJsonString(row.abnormalAt)
          << L"\",\"usageOk\":" << (row.quotaUsageOk ? L"true" : L"false")
+         << L",\"quotaWindowVersion\":" << row.quotaWindowVersion
          << L",\"planType\":\"" << EscapeJsonString(row.quotaPlanType)
          << L"\",\"email\":\"" << EscapeJsonString(row.quotaEmail)
          << L"\",\"quota5hRemainingPercent\":" << row.quota5hRemainingPercent
@@ -4472,7 +4274,8 @@ namespace
          << L",\"quota5hResetAfterSeconds\":" << row.quota5hResetAfterSeconds
          << L",\"quota7dResetAfterSeconds\":" << row.quota7dResetAfterSeconds
          << L",\"quota5hResetAt\":" << row.quota5hResetAt
-         << L",\"quota7dResetAt\":" << row.quota7dResetAt << L"}";
+         << L",\"quota7dResetAt\":" << row.quota7dResetAt
+         << L",\"quotaOtherWindows\":" << row.quotaOtherWindowsJson << L"}";
       if (i + 1 < data.accounts.size())
       {
         ss << L",";
@@ -6880,6 +6683,7 @@ namespace
     if (currentUsage.ok)
     {
       row.quotaUsageOk = true;
+      row.quotaWindowVersion = 2;
       row.quotaPlanType = currentUsage.planType;
       row.quotaEmail = currentUsage.email;
       row.quota5hRemainingPercent =
@@ -6890,6 +6694,7 @@ namespace
       row.quota7dResetAfterSeconds = currentUsage.secondaryResetAfterSeconds;
       row.quota5hResetAt = currentUsage.primaryResetAt;
       row.quota7dResetAt = currentUsage.secondaryResetAt;
+      row.quotaOtherWindowsJson = currentUsage.otherWindowsJson;
     }
     idx.accounts.push_back(row);
     idx.currentName = safeName;
@@ -6901,9 +6706,20 @@ namespace
     return true;
   }
 
+  #include "api_accounts.h"
+  #include "api_profile_mode.h"
+  #include "codex_config_sync.h"
+
   bool SwitchToAccount(const std::wstring &account, const std::wstring &group,
                        std::wstring &status, std::wstring &code)
   {
+    std::lock_guard<std::recursive_mutex> profileLock(g_CodexProfileMutex);
+    if (g_CodexProfileClosing)
+    {
+      status = L"软件正在退出，已停止切换账号";
+      code = L"app_closing";
+      return false;
+    }
     EnsureIndexExists();
     std::wstring resolvedGroup = NormalizeGroup(group);
     const std::wstring safeName = SanitizeAccountName(account);
@@ -6966,6 +6782,7 @@ namespace
     }
     std::wstring normalizedSourceAuthJson = sourceAuthJson;
     NormalizeAuthJsonForCompatibility(sourceAuthJson, normalizedSourceAuthJson);
+    std::wstring apiRestoreError;
     if (!WriteUtf8File(userAuth, normalizedSourceAuthJson))
     {
       status = L"切换失败：无法写入当前账号文件";
@@ -6984,6 +6801,13 @@ namespace
     AppConfig cfg;
     LoadConfig(cfg);
     cfg.lastSwitchedAccount = safeName;
+    cfg.activeApiAccount.clear();
+    cfg.proxyFixedApiAccount.clear();
+    if (cfg.proxyDispatchMode == L"fixed")
+    {
+      cfg.proxyFixedAccount = safeName;
+      cfg.proxyFixedGroup = resolvedGroup;
+    }
     cfg.lastSwitchedGroup = resolvedGroup;
     cfg.lastSwitchedAt = NowText();
     if (cfg.proxyApiKey.empty())
@@ -7036,12 +6860,12 @@ namespace
       return false;
     }
 
-    status = L"切换成功，正在重启 " + ideDisplay;
+    status = ideDisplay.empty() ? L"切换成功，未重启客户端" : L"切换成功，正在重启 " + ideDisplay;
     if (!stealthError.empty())
     {
       status += L"；无痕换号配置失败: " + stealthError;
     }
-    code = L"switch_success";
+    code = ideDisplay.empty() ? L"switch_success_no_restart" : L"switch_success";
     return true;
   }
 
@@ -7273,8 +7097,8 @@ namespace
       return false;
     }
 
-    status = L"已清理登录文件，正在重启 " + ideDisplay;
-    code = L"login_new_success";
+    status = ideDisplay.empty() ? L"已清理登录文件，未重启客户端" : L"已清理登录文件，正在重启 " + ideDisplay;
+    code = ideDisplay.empty() ? L"login_new_success_no_restart" : L"login_new_success";
     return true;
   }
 
@@ -7445,6 +7269,7 @@ namespace
     if (usage.ok)
     {
       row.quotaUsageOk = true;
+      row.quotaWindowVersion = 2;
       row.quotaPlanType = usage.planType;
       row.quotaEmail = usage.email;
       row.quota5hRemainingPercent =
@@ -7455,6 +7280,7 @@ namespace
       row.quota7dResetAfterSeconds = usage.secondaryResetAfterSeconds;
       row.quota5hResetAt = usage.primaryResetAt;
       row.quota7dResetAt = usage.secondaryResetAt;
+      row.quotaOtherWindowsJson = usage.otherWindowsJson;
     }
     if (!abnormalReason.empty())
     {
@@ -9033,6 +8859,7 @@ namespace
 
   struct AccountEntry
   {
+    bool inPool = false;
     std::wstring name;
     std::wstring group;
     std::wstring updatedAt;
@@ -9050,6 +8877,7 @@ namespace
     long long quota7dResetAfterSeconds = -1;
     long long quota5hResetAt = -1;
     long long quota7dResetAt = -1;
+    std::wstring quotaOtherWindowsJson = L"[]";
   };
 
   void ClearIndexEntryQuotaState(IndexEntry &row)
@@ -9063,6 +8891,7 @@ namespace
     row.quota7dResetAfterSeconds = -1;
     row.quota5hResetAt = -1;
     row.quota7dResetAt = -1;
+    row.quotaOtherWindowsJson = L"[]";
   }
 
   void ClearAccountEntryQuotaState(AccountEntry &item)
@@ -9076,6 +8905,7 @@ namespace
     item.quota7dResetAfterSeconds = -1;
     item.quota5hResetAt = -1;
     item.quota7dResetAt = -1;
+    item.quotaOtherWindowsJson = L"[]";
   }
 
   bool ApplyUsageRefreshFailureAsAbnormal(const UsageSnapshot &usage,
@@ -9137,6 +8967,7 @@ namespace
       item.abnormal = row.abnormal;
       item.abnormalReason = row.abnormalReason;
       item.abnormalAt = row.abnormalAt;
+      item.inPool = row.inPool;
       item.usageOk = row.quotaUsageOk;
       item.planType = row.quotaPlanType;
       item.email = row.quotaEmail;
@@ -9146,12 +8977,13 @@ namespace
       item.quota7dResetAfterSeconds = row.quota7dResetAfterSeconds;
       item.quota5hResetAt = row.quota5hResetAt;
       item.quota7dResetAt = row.quota7dResetAt;
+      item.quotaOtherWindowsJson = row.quotaOtherWindowsJson;
 
       const bool shouldRefresh =
-          refreshUsage &&
+          row.quotaWindowVersion != 2 || (refreshUsage &&
           (!hasTarget || (EqualsIgnoreCase(row.name, safeTargetName) &&
                           (safeTargetGroup.empty() ||
-                           NormalizeGroup(row.group) == safeTargetGroup)));
+                           NormalizeGroup(row.group) == safeTargetGroup))));
       if (shouldRefresh)
       {
         UsageSnapshot usage;
@@ -9168,7 +9000,9 @@ namespace
           item.quota7dResetAfterSeconds = usage.secondaryResetAfterSeconds;
           item.quota5hResetAt = usage.primaryResetAt;
           item.quota7dResetAt = usage.secondaryResetAt;
+          item.quotaOtherWindowsJson = usage.otherWindowsJson;
           row.quotaUsageOk = true;
+          row.quotaWindowVersion = 2;
           row.quotaPlanType = item.planType;
           row.quotaEmail = item.email;
           row.quota5hRemainingPercent = item.quota5hRemainingPercent;
@@ -9177,6 +9011,7 @@ namespace
           row.quota7dResetAfterSeconds = item.quota7dResetAfterSeconds;
           row.quota5hResetAt = item.quota5hResetAt;
           row.quota7dResetAt = item.quota7dResetAt;
+          row.quotaOtherWindowsJson = item.quotaOtherWindowsJson;
           if (row.abnormal)
           {
             row.abnormal = false;
@@ -9289,6 +9124,7 @@ namespace
       item.abnormal = row.abnormal;
       item.abnormalReason = row.abnormalReason;
       item.abnormalAt = row.abnormalAt;
+      item.inPool = row.inPool;
       item.usageOk = row.quotaUsageOk;
       item.planType = row.quotaPlanType;
       item.email = row.quotaEmail;
@@ -9298,6 +9134,7 @@ namespace
       item.quota7dResetAfterSeconds = row.quota7dResetAfterSeconds;
       item.quota5hResetAt = row.quota5hResetAt;
       item.quota7dResetAt = row.quota7dResetAt;
+      item.quotaOtherWindowsJson = row.quotaOtherWindowsJson;
 
       UsageSnapshot usage;
       if (QueryUsageFromAuthFile(backupAuth, usage))
@@ -9314,7 +9151,9 @@ namespace
         item.quota7dResetAfterSeconds = usage.secondaryResetAfterSeconds;
         item.quota5hResetAt = usage.primaryResetAt;
         item.quota7dResetAt = usage.secondaryResetAt;
+        item.quotaOtherWindowsJson = usage.otherWindowsJson;
         row.quotaUsageOk = true;
+        row.quotaWindowVersion = 2;
         row.quotaPlanType = item.planType;
         row.quotaEmail = item.email;
         row.quota5hRemainingPercent = item.quota5hRemainingPercent;
@@ -9323,6 +9162,7 @@ namespace
         row.quota7dResetAfterSeconds = item.quota7dResetAfterSeconds;
         row.quota5hResetAt = item.quota5hResetAt;
         row.quota7dResetAt = item.quota7dResetAt;
+        row.quotaOtherWindowsJson = item.quotaOtherWindowsJson;
         if (row.abnormal)
         {
           row.abnormal = false;
@@ -9401,7 +9241,10 @@ namespace
     const AccountEntry *best = nullptr;
     for (const auto &item : accounts)
     {
-      if (!item.usageOk || item.quota5hRemainingPercent < 0)
+      const int quota = item.quota5hRemainingPercent >= 0
+                            ? item.quota5hRemainingPercent
+                            : item.quota7dRemainingPercent;
+      if (!item.inPool || !item.usageOk || quota < 0)
       {
         continue;
       }
@@ -9410,8 +9253,10 @@ namespace
       {
         continue;
       }
-      if (best == nullptr ||
-          item.quota5hRemainingPercent > best->quota5hRemainingPercent)
+      const int bestQuota = best == nullptr ? -1
+          : (best->quota5hRemainingPercent >= 0 ? best->quota5hRemainingPercent
+                                               : best->quota7dRemainingPercent);
+      if (best == nullptr || quota > bestQuota)
       {
         best = &item;
       }
@@ -9422,8 +9267,7 @@ namespace
   int GetLowQuotaMetricValue(const AccountEntry &item, bool &usesWeeklyWindow)
   {
     usesWeeklyWindow = false;
-    const std::wstring plan = NormalizePlanType(item.planType);
-    if (plan == L"free")
+    if (item.quota5hRemainingPercent < 0 && item.quota7dRemainingPercent >= 0)
     {
       usesWeeklyWindow = true;
       return item.quota7dRemainingPercent;
@@ -9439,7 +9283,7 @@ namespace
     const AccountEntry *best = nullptr;
     for (const auto &item : accounts)
     {
-      if (!item.usageOk)
+      if (!item.inPool || !item.usageOk)
       {
         continue;
       }
@@ -9453,14 +9297,14 @@ namespace
       int candidateMetric = GetLowQuotaMetricValue(item, candidateUsesWeekly);
       if (useWeeklyWindow)
       {
-        if (!candidateUsesWeekly || candidateMetric < 0)
+        candidateMetric = item.quota7dRemainingPercent;
+        if (candidateMetric < 0)
         {
           continue;
         }
       }
       else
       {
-        candidateMetric = item.quota5hRemainingPercent;
         if (candidateMetric < 0)
         {
           continue;
@@ -11003,54 +10847,6 @@ namespace
     return true;
   }
 
-  bool AutoSelectProxyFixedAccountIfNeeded(std::wstring &selectedName,
-                                           std::wstring &selectedGroup)
-  {
-    selectedName.clear();
-    selectedGroup.clear();
-
-    if (!g_ProxyRunning.load())
-    {
-      return false;
-    }
-    if (ToLowerCopy(g_ProxyDispatchMode) != L"fixed")
-    {
-      return false;
-    }
-
-    const std::lock_guard<std::recursive_mutex> lock(g_IndexDataMutex);
-    EnsureIndexExists();
-    IndexData idx;
-    if (!LoadIndex(idx))
-    {
-      return false;
-    }
-    if (!idx.currentName.empty())
-    {
-      return false;
-    }
-
-    for (const auto &row : idx.accounts)
-    {
-      if (row.abnormal)
-      {
-        continue;
-      }
-      const fs::path candidate = ResolveAuthPathFromIndex(row);
-      if (candidate.empty() || !fs::exists(candidate))
-      {
-        continue;
-      }
-      idx.currentName = row.name;
-      idx.currentGroup = NormalizeGroup(row.group);
-      SaveIndex(idx);
-      selectedName = idx.currentName;
-      selectedGroup = idx.currentGroup;
-      return true;
-    }
-    return false;
-  }
-
   bool HasUsableProxyQuota(const IndexEntry &row)
   {
     if (g_ProxyAutoMarkAbnormalAccounts && row.abnormal)
@@ -11061,16 +10857,6 @@ namespace
     {
       // Unknown quota should still be considered usable and validated by real requests.
       return true;
-    }
-    const std::wstring plan = NormalizePlanType(row.quotaPlanType);
-    const bool isFreePlan =
-        plan == L"free" || NormalizeGroup(row.group) == L"free";
-    if (isFreePlan)
-    {
-      const int freeQuota =
-          row.quota7dRemainingPercent >= 0 ? row.quota7dRemainingPercent
-                                           : row.quota5hRemainingPercent;
-      return freeQuota > 0;
     }
     if (row.quota5hRemainingPercent >= 0)
     {
@@ -11086,14 +10872,10 @@ namespace
   int GetProxyQuotaMetricValue(const IndexEntry &row, bool &usesWeeklyWindow)
   {
     usesWeeklyWindow = false;
-    const std::wstring plan = NormalizePlanType(row.quotaPlanType);
-    const bool isFreePlan =
-        plan == L"free" || NormalizeGroup(row.group) == L"free";
-    if (isFreePlan)
+    if (row.quota5hRemainingPercent < 0 && row.quota7dRemainingPercent >= 0)
     {
       usesWeeklyWindow = true;
-      return row.quota7dRemainingPercent >= 0 ? row.quota7dRemainingPercent
-                                              : row.quota5hRemainingPercent;
+      return row.quota7dRemainingPercent;
     }
     return row.quota5hRemainingPercent;
   }
@@ -11114,13 +10896,9 @@ namespace
   {
     bool candidateWeekly = false;
     int metric = GetProxyQuotaMetricValue(row, candidateWeekly);
-    if (useWeeklyWindow && !candidateWeekly)
+    if (useWeeklyWindow)
     {
-      return -1;
-    }
-    if (!useWeeklyWindow)
-    {
-      metric = row.quota5hRemainingPercent;
+      return row.quota7dRemainingPercent;
     }
     return metric;
   }
@@ -11347,18 +11125,16 @@ namespace
     const bool isFreePlan =
         planInBody == L"free" || currentPlan == L"free" ||
         NormalizeGroup(it->group) == L"free";
+    const bool usesWeeklyWindow = isFreePlan ||
+        (it->quota5hRemainingPercent < 0 && it->quota7dRemainingPercent >= 0);
     const long long resetsAt = ExtractJsonInt64Field(responseBody, L"resets_at", -1);
     const long long resetsInSeconds =
         ExtractJsonInt64Field(responseBody, L"resets_in_seconds", -1);
 
     it->quotaUsageOk = true;
-    if (isFreePlan)
+    if (usesWeeklyWindow)
     {
       it->quota7dRemainingPercent = 0;
-      if (it->quota5hRemainingPercent < 0)
-      {
-        it->quota5hRemainingPercent = 0;
-      }
       if (resetsInSeconds >= 0)
       {
         it->quota7dResetAfterSeconds = resetsInSeconds;
@@ -11371,10 +11147,6 @@ namespace
     else
     {
       it->quota5hRemainingPercent = 0;
-      if (it->quota7dRemainingPercent < 0)
-      {
-        it->quota7dRemainingPercent = 0;
-      }
       if (resetsInSeconds >= 0)
       {
         it->quota5hResetAfterSeconds = resetsInSeconds;
@@ -11460,265 +11232,6 @@ namespace
                                 L"account_abnormal_auto_deleted");
       }
     }
-    return true;
-  }
-
-  bool ResolveBestUsableProxyCandidateExcluding(
-      const std::set<std::wstring> &excludedKeys, fs::path &authPath,
-      std::wstring &accountName, std::wstring &groupName, std::wstring &error)
-  {
-    authPath.clear();
-    accountName.clear();
-    groupName.clear();
-    error.clear();
-
-    EnsureIndexExists();
-    IndexData idx;
-    if (!LoadIndex(idx))
-    {
-      error = L"index_load_failed";
-      return false;
-    }
-
-    const IndexEntry *best = nullptr;
-    const IndexEntry *unknownQuotaCandidate = nullptr;
-    int bestQuota = -1;
-    for (const auto &row : idx.accounts)
-    {
-      if (excludedKeys.find(BuildProxyAccountKey(row.name, row.group)) !=
-          excludedKeys.end())
-      {
-        continue;
-      }
-      const fs::path path = ResolveAuthPathFromIndex(row);
-      if (!fs::exists(path) || !HasUsableProxyQuota(row))
-      {
-        continue;
-      }
-      bool usesWeeklyWindow = false;
-      const int quota = GetProxyQuotaMetricValue(row, usesWeeklyWindow);
-      if (quota < 0)
-      {
-        if (unknownQuotaCandidate == nullptr)
-        {
-          unknownQuotaCandidate = &row;
-        }
-        continue;
-      }
-      if (best == nullptr || quota > bestQuota)
-      {
-        best = &row;
-        bestQuota = quota;
-      }
-    }
-    if (best == nullptr)
-    {
-      best = unknownQuotaCandidate;
-    }
-    if (best == nullptr)
-    {
-      error = L"no_quota_available_accounts";
-      return false;
-    }
-
-    authPath = ResolveAuthPathFromIndex(*best);
-    accountName = best->name;
-    groupName = NormalizeGroup(best->group);
-    return true;
-  }
-
-  bool ResolveBestUsableProxyCandidate(const std::wstring &excludeName,
-                                       const std::wstring &excludeGroup,
-                                       fs::path &authPath,
-                                       std::wstring &accountName,
-                                       std::wstring &groupName,
-                                       std::wstring &error)
-  {
-    std::set<std::wstring> excluded;
-    excluded.insert(BuildProxyAccountKey(excludeName, excludeGroup));
-    return ResolveBestUsableProxyCandidateExcluding(excluded, authPath, accountName,
-                                                    groupName, error);
-  }
-
-  bool ResolveProxyDispatchAuthPath(fs::path &authPath, std::wstring &accountName,
-                                    std::wstring &groupName,
-                                    std::wstring &error)
-  {
-    authPath.clear();
-    accountName.clear();
-    groupName.clear();
-    error.clear();
-
-    EnsureIndexExists();
-    IndexData idx;
-    if (!LoadIndex(idx))
-    {
-      error = L"index_load_failed";
-      return false;
-    }
-
-    std::vector<IndexEntry> candidates;
-    candidates.reserve(idx.accounts.size());
-    for (const auto &row : idx.accounts)
-    {
-      const fs::path p = ResolveAuthPathFromIndex(row);
-      if (fs::exists(p))
-      {
-        candidates.push_back(row);
-      }
-    }
-    if (candidates.empty())
-    {
-      error = L"no_available_accounts";
-      return false;
-    }
-    std::vector<IndexEntry> usableCandidates;
-    usableCandidates.reserve(candidates.size());
-    for (const auto &row : candidates)
-    {
-      if (HasUsableProxyQuota(row))
-      {
-        usableCandidates.push_back(row);
-      }
-    }
-
-    const std::wstring mode = ToLowerCopy(g_ProxyDispatchMode);
-    if (mode == L"fixed")
-    {
-      if (idx.currentName.empty())
-      {
-        // Auto-select the first normal account when fixed mode is enabled
-        // but no current account is chosen.
-        for (const auto &row : idx.accounts)
-        {
-          if (row.abnormal)
-          {
-            continue;
-          }
-          const fs::path candidate = ResolveAuthPathFromIndex(row);
-          if (candidate.empty() || !fs::exists(candidate))
-          {
-            continue;
-          }
-          idx.currentName = row.name;
-          idx.currentGroup = NormalizeGroup(row.group);
-          SaveIndex(idx);
-          break;
-        }
-      }
-
-      const std::wstring targetName = idx.currentName;
-      const std::wstring targetGroup = NormalizeGroup(idx.currentGroup);
-      if (targetName.empty())
-      {
-        error = L"no_selected_account";
-        return false;
-      }
-      for (const auto &row : candidates)
-      {
-        if (EqualsIgnoreCase(row.name, targetName) &&
-            NormalizeGroup(row.group) == targetGroup)
-        {
-          if (HasPositiveProxyQuota(row))
-          {
-            MaybeSendProxyLowQuotaHint(row, candidates);
-            authPath = ResolveAuthPathFromIndex(row);
-            accountName = row.name;
-            groupName = NormalizeGroup(row.group);
-            return true;
-          }
-          fs::path fallbackAuthPath;
-          std::wstring fallbackName;
-          std::wstring fallbackGroup;
-          std::wstring fallbackError;
-          if (!ResolveBestUsableProxyCandidate(targetName, targetGroup,
-                                               fallbackAuthPath, fallbackName,
-                                               fallbackGroup, fallbackError))
-          {
-            if (HasUsableProxyQuota(row))
-            {
-              // Keep fixed-account behavior as fallback when quota is unknown.
-              authPath = ResolveAuthPathFromIndex(row);
-              accountName = row.name;
-              groupName = NormalizeGroup(row.group);
-              return true;
-            }
-            error = fallbackError.empty() ? L"no_quota_available_accounts"
-                                          : fallbackError;
-            return false;
-          }
-          std::wstring switchStatus;
-          std::wstring switchCode;
-          const bool switched = SwitchToAccount(fallbackName, fallbackGroup,
-                                                switchStatus, switchCode);
-          if (switched)
-          {
-            const std::wstring trayTitle =
-                Tr(L"tray.notify_title", L"Codex额度提醒");
-            const std::wstring trayMessage = TrFormat(
-                L"tray.proxy_fixed_auto_switched",
-                L"固定账号额度不可用，已自动切换到 {account}",
-                {{L"account", fallbackName}});
-            ShowProxyTrayBalloon(trayTitle, trayMessage);
-            if (g_DebugWebHwnd != nullptr && IsWindow(g_DebugWebHwnd))
-            {
-              SendWebStatusThreadSafe(g_DebugWebHwnd,
-                                      TrFormat(
-                                          L"status_text.proxy_fixed_auto_switched",
-                                          L"固定账号额度不可用，已自动切换到 {account} 并继续请求",
-                                          {{L"account", fallbackName}}),
-                                      L"warning", L"proxy_fixed_auto_switched");
-              PostAsyncWebJson(g_DebugWebHwnd,
-                               BuildAccountsListJson(false, L"", L""));
-            }
-            authPath = fallbackAuthPath;
-            accountName = fallbackName;
-            groupName = NormalizeGroup(fallbackGroup);
-            return true;
-          }
-          error = switchStatus.empty() ? L"proxy_fixed_switch_failed"
-                                       : L"proxy_fixed_switch_failed:" +
-                                             switchStatus;
-          return false;
-        }
-      }
-      error = L"fixed_account_not_found";
-      return false;
-    }
-
-    if (usableCandidates.empty())
-    {
-      error = L"no_quota_available_accounts";
-      return false;
-    }
-    // For round_robin/random, include both known-quota and unknown-quota usable accounts.
-    const std::vector<IndexEntry> &activeCandidates = usableCandidates;
-
-    size_t pick = 0;
-    if (mode == L"random")
-    {
-      const std::wstring rnd = GenerateRandomBase64Url(4);
-      size_t seed = 0;
-      for (wchar_t ch : rnd)
-      {
-        seed = seed * 131 + static_cast<size_t>(ch);
-      }
-      pick = activeCandidates.empty() ? 0 : (seed % activeCandidates.size());
-    }
-    else
-    {
-      // round_robin by default
-      pick = activeCandidates.empty()
-                 ? 0
-                 : (g_ProxyRoundRobinCursor % activeCandidates.size());
-      ++g_ProxyRoundRobinCursor;
-    }
-
-    const auto &row = activeCandidates[pick];
-    MaybeSendProxyLowQuotaHint(row, activeCandidates);
-    authPath = ResolveAuthPathFromIndex(row);
-    accountName = row.name;
-    groupName = NormalizeGroup(row.group);
     return true;
   }
 
@@ -12300,7 +11813,8 @@ namespace
                                        const std::wstring &model,
                                        int &inputTokens,
                                        int &outputTokens,
-                                       int &totalTokens)
+                                       int &totalTokens,
+                                       bool *alreadyStreamed = nullptr)
   {
     inputTokens = -1;
     outputTokens = -1;
@@ -12310,6 +11824,10 @@ namespace
                                   "text/event-stream; charset=utf-8"))
     {
       return false;
+    }
+    if (alreadyStreamed != nullptr)
+    {
+      *alreadyStreamed = true;
     }
 
     const long long created = static_cast<long long>(time(nullptr));
@@ -12337,8 +11855,12 @@ namespace
     {
       char readBuf[4096]{};
       DWORD read = 0;
-      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
-          read == 0)
+      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read))
+      {
+        ok = false;
+        break;
+      }
+      if (read == 0)
       {
         break;
       }
@@ -12435,7 +11957,8 @@ namespace
                                              const std::wstring &model,
                                              int &inputTokens,
                                              int &outputTokens,
-                                             int &totalTokens)
+                                             int &totalTokens,
+                                       bool *alreadyStreamed = nullptr)
   {
     inputTokens = -1;
     outputTokens = -1;
@@ -12445,6 +11968,10 @@ namespace
                                   "text/event-stream; charset=utf-8"))
     {
       return false;
+    }
+    if (alreadyStreamed != nullptr)
+    {
+      *alreadyStreamed = true;
     }
 
     const long long created = static_cast<long long>(time(nullptr));
@@ -12458,8 +11985,12 @@ namespace
     {
       char readBuf[4096]{};
       DWORD read = 0;
-      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
-          read == 0)
+      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read))
+      {
+        ok = false;
+        break;
+      }
+      if (read == 0)
       {
         break;
       }
@@ -12554,7 +12085,8 @@ namespace
                                       const std::wstring &model,
                                       int &inputTokens,
                                       int &outputTokens,
-                                      int &totalTokens)
+                                      int &totalTokens,
+                                       bool *alreadyStreamed = nullptr)
   {
     inputTokens = -1;
     outputTokens = -1;
@@ -12564,6 +12096,10 @@ namespace
                                   "text/event-stream; charset=utf-8"))
     {
       return false;
+    }
+    if (alreadyStreamed != nullptr)
+    {
+      *alreadyStreamed = true;
     }
 
     const std::wstring msgId = L"msg_local_" + NewSessionId();
@@ -12595,8 +12131,12 @@ namespace
     {
       char readBuf[4096]{};
       DWORD read = 0;
-      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
-          read == 0)
+      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read))
+      {
+        ok = false;
+        break;
+      }
+      if (read == 0)
       {
         break;
       }
@@ -12695,7 +12235,8 @@ namespace
                                    const std::wstring &upstreamContentType,
                                    int &inputTokens,
                                    int &outputTokens,
-                                   int &totalTokens)
+                                   int &totalTokens,
+                                       bool *alreadyStreamed = nullptr)
   {
     inputTokens = -1;
     outputTokens = -1;
@@ -12708,6 +12249,10 @@ namespace
     {
       return false;
     }
+    if (alreadyStreamed != nullptr)
+    {
+      *alreadyStreamed = true;
+    }
 
     std::string accumulated;
     bool ok = true;
@@ -12715,8 +12260,12 @@ namespace
     {
       char readBuf[4096]{};
       DWORD read = 0;
-      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read) ||
-          read == 0)
+      if (!WinHttpReadData(ctx.hRequest, readBuf, sizeof(readBuf), &read))
+      {
+        ok = false;
+        break;
+      }
+      if (read == 0)
       {
         break;
       }
@@ -12739,14 +12288,17 @@ namespace
     return ok;
   }
 
-  bool ForwardProxyToUpstream(const std::string &method, const std::string &path,
-                              const std::map<std::string, std::string> &headers,
-                              const std::string &body, const int timeoutSec,
-                              DWORD &statusCode, std::wstring &contentType,
-                              std::string &responseBody, std::wstring &error,
-                              TrafficLogEntry *trafficMeta = nullptr,
-                              SOCKET clientSock = INVALID_SOCKET,
-                              bool *alreadyStreamed = nullptr)
+  bool ForwardOfficialProxyToUpstream(
+      const fs::path &selectedAuthPath, const std::wstring &selectedAccountName,
+      const std::wstring &selectedGroupName,
+      const std::string &method, const std::string &path,
+      const std::map<std::string, std::string> &headers,
+      const std::string &body, const int timeoutSec,
+      DWORD &statusCode, std::wstring &contentType,
+      std::string &responseBody, std::wstring &error,
+      TrafficLogEntry *trafficMeta = nullptr,
+      SOCKET clientSock = INVALID_SOCKET,
+      bool *alreadyStreamed = nullptr)
   {
     statusCode = 0;
     contentType.clear();
@@ -12757,13 +12309,9 @@ namespace
       *alreadyStreamed = false;
     }
 
-    fs::path authPath;
-    std::wstring accountName;
-    std::wstring groupName;
-    if (!ResolveProxyDispatchAuthPath(authPath, accountName, groupName, error))
-    {
-      return false;
-    }
+    const fs::path authPath = selectedAuthPath;
+    const std::wstring accountName = selectedAccountName;
+    const std::wstring groupName = selectedGroupName;
 
     const std::string methodLower = ToLowerAscii(method);
     const std::string lowerPath = ToLowerAscii(path);
@@ -12819,192 +12367,12 @@ namespace
       }
       return result;
     };
-    const bool silentAutoSwitchInRoundRobin =
-        ToLowerCopy(g_ProxyDispatchMode) == L"round_robin";
-    std::set<std::wstring> triedAccountKeys;
-    triedAccountKeys.insert(BuildProxyAccountKey(accountName, groupName));
-    auto appendFailoverFailureLog = [&](const std::wstring &failedAccount,
-                                        const std::wstring &failedBody,
-                                        const DWORD failedStatus,
-                                        const int inTokens,
-                                        const int outTokens,
-                                        const int totalUsed)
-    {
-      TrafficLogEntry retryFailedEntry;
-      retryFailedEntry.calledAt =
-          std::chrono::duration_cast<std::chrono::seconds>(
-              std::chrono::system_clock::now().time_since_epoch())
-              .count();
-      retryFailedEntry.statusCode = static_cast<int>(failedStatus);
-      retryFailedEntry.method = ToLowerWide(FromUtf8(method));
-      retryFailedEntry.model = reqModel;
-      retryFailedEntry.protocol = protocol;
-      retryFailedEntry.account = failedAccount;
-      retryFailedEntry.path = FromUtf8(path);
-      retryFailedEntry.inputTokens = inTokens;
-      retryFailedEntry.outputTokens = outTokens;
-      retryFailedEntry.totalTokens = totalUsed;
-      retryFailedEntry.elapsedMs =
-          std::chrono::duration_cast<std::chrono::milliseconds>(
-              std::chrono::steady_clock::now() - startedAt)
-              .count();
-      AppendTrafficLog(retryFailedEntry);
-    };
-    auto handleRetryableProxyFailure =
-        [&](const DWORD failedStatus, const std::wstring &failedBody,
-            const int inTokens, const int outTokens,
-            const int totalUsed) -> bool
-    {
-      const bool usageLimitReached =
-          failedStatus >= 400 && IsUsageLimitReachedPayload(failedBody);
-      std::wstring abnormalReason;
-      const bool abnormalDetected =
-          !usageLimitReached && g_ProxyAutoMarkAbnormalAccounts &&
-          failedStatus >= 400 &&
-          IsProxyAccountAbnormalPayload(failedBody, failedStatus, abnormalReason);
-      if (!usageLimitReached && !abnormalDetected)
-      {
-        return false;
-      }
-
-      appendFailoverFailureLog(accountName, failedBody, failedStatus, inTokens,
-                               outTokens, totalUsed);
-
-      if (usageLimitReached)
-      {
-        std::wstring markError;
-        MarkProxyAccountQuotaExhausted(accountName, groupName, failedBody,
-                                       markError);
-        const std::wstring baseMsg = TrFormat(
-            L"status_text.proxy_usage_limit_reached",
-            L"账号 {account} 已用尽额度（usage_limit_reached）",
-            {{L"account", accountName}});
-        if (!silentAutoSwitchInRoundRobin)
-        {
-          if (g_DebugWebHwnd != nullptr && IsWindow(g_DebugWebHwnd))
-          {
-            SendWebStatusThreadSafe(
-                g_DebugWebHwnd,
-                baseMsg + Tr(L"status_text.proxy_usage_limit_switching_retry",
-                             L"，正在切换并重试请求"),
-                L"warning", L"proxy_usage_limit_reached");
-          }
-          ShowProxyTrayBalloon(Tr(L"tray.notify_title", L"Codex额度提醒"),
-                               baseMsg + Tr(L"tray.proxy_auto_switching_suffix",
-                                            L"，正在自动切换账号"));
-        }
-      }
-      else
-      {
-        std::wstring markError;
-        if (!MarkProxyAccountAbnormal(accountName, groupName, abnormalReason,
-                                      failedBody, markError) &&
-            abnormalReason.empty())
-        {
-          abnormalReason = L"proxy_account_unavailable";
-        }
-        if (!silentAutoSwitchInRoundRobin)
-        {
-          const std::wstring baseMsg = TrFormat(
-              L"status_text.proxy_account_abnormal_marked",
-              L"账号 {account} 请求失败（{reason}），已标记为异常",
-              {{L"account", accountName},
-               {L"reason",
-                abnormalReason.empty() ? L"proxy_account_unavailable"
-                                       : abnormalReason}});
-          if (g_DebugWebHwnd != nullptr && IsWindow(g_DebugWebHwnd))
-          {
-            SendWebStatusThreadSafe(
-                g_DebugWebHwnd,
-                baseMsg + Tr(L"status_text.proxy_abnormal_switching_retry",
-                             L"，正在切换并重试请求"),
-                L"warning", L"proxy_account_abnormal");
-          }
-          ShowProxyTrayBalloon(Tr(L"tray.notify_title", L"Codex额度提醒"),
-                               baseMsg + Tr(L"tray.proxy_auto_switching_suffix",
-                                            L"，正在自动切换账号"));
-        }
-      }
-
-      fs::path retryAuthPath;
-      std::wstring retryName;
-      std::wstring retryGroup;
-      std::wstring retryError;
-      if (!ResolveBestUsableProxyCandidateExcluding(triedAccountKeys, retryAuthPath,
-                                                    retryName, retryGroup,
-                                                    retryError))
-      {
-        return false;
-      }
-      if (EqualsIgnoreCase(retryName, accountName) &&
-          NormalizeGroup(retryGroup) == NormalizeGroup(groupName))
-      {
-        return false;
-      }
-
-      std::wstring switchStatus;
-      std::wstring switchCode;
-      const bool switched =
-          SwitchToAccount(retryName, retryGroup, switchStatus, switchCode);
-      if (switched)
-      {
-        if (g_DebugWebHwnd != nullptr && IsWindow(g_DebugWebHwnd))
-        {
-          PostAsyncWebJson(g_DebugWebHwnd, BuildAccountsListJson(false, L"", L""));
-        }
-        if (!silentAutoSwitchInRoundRobin)
-        {
-          const std::wstring trayKey =
-              abnormalDetected ? L"tray.proxy_abnormal_auto_switched_retry"
-                               : L"tray.proxy_auto_switched_retry";
-          const std::wstring trayFallback =
-              abnormalDetected ? L"已跳过异常账号并切换到 {account} 重试"
-                               : L"已自动切换到账号 {account}，并继续重试当前请求";
-          ShowProxyTrayBalloon(
-              Tr(L"tray.notify_title", L"Codex额度提醒"),
-              TrFormat(trayKey, trayFallback,
-                       {{L"account", retryName}}));
-          if (g_DebugWebHwnd != nullptr && IsWindow(g_DebugWebHwnd))
-          {
-            const std::wstring statusKey =
-                abnormalDetected ? L"status_text.proxy_abnormal_auto_switched_retry"
-                                 : L"status_text.proxy_auto_switched_retry";
-            const std::wstring statusFallback =
-                abnormalDetected ? L"已自动切换到 {account}，因异常账号正在重试请求"
-                                 : L"已自动切换到 {account}，正在重试请求";
-            const std::wstring statusCode =
-                abnormalDetected ? L"proxy_abnormal_auto_switched"
-                                 : L"proxy_auto_switched";
-            SendWebStatusThreadSafe(
-                g_DebugWebHwnd,
-                TrFormat(statusKey, statusFallback, {{L"account", retryName}}),
-                L"warning", statusCode);
-          }
-        }
-      }
-      else if (!silentAutoSwitchInRoundRobin &&
-               g_DebugWebHwnd != nullptr && IsWindow(g_DebugWebHwnd))
-      {
-        SendWebStatusThreadSafe(
-            g_DebugWebHwnd,
-            TrFormat(L"status_text.proxy_auto_switch_failed",
-                     L"自动切换账号失败: {error}", {{L"error", switchStatus}}),
-            L"error", switchCode);
-      }
-
-      authPath = retryAuthPath;
-      accountName = retryName;
-      groupName = NormalizeGroup(retryGroup);
-      accountUsed = retryName;
-      triedAccountKeys.insert(BuildProxyAccountKey(accountName, groupName));
-      return true;
-    };
     if (lowerPath.rfind("/v1/models", 0) == 0 && methodLower == "get")
     {
       std::vector<std::wstring> models;
       if (!GetCachedModelIds(authPath, models, error))
       {
-        return false;
+        return finalizeReturn(false);
       }
       {
         AppConfig proxyCfg;
@@ -13070,47 +12438,33 @@ namespace
       // True streaming path: stream directly to client when possible
       if (requestStream && clientSock != INVALID_SOCKET)
       {
-        while (true)
+        WinHttpStreamContext ctx;
+        int innerStatus = 0;
+        std::wstring errorBody;
+        if (!SendCodexApiRequestStreaming(authPath, modelToUse, inputToUse,
+                                         ctx, innerStatus, errorBody, error))
         {
-          WinHttpStreamContext ctx;
-          int innerStatus = 0;
-          std::wstring errorBody;
-          if (!SendCodexApiRequestStreaming(authPath, modelToUse, inputToUse,
-                                           ctx, innerStatus, errorBody, error))
+          if (innerStatus >= 400)
           {
-            if (innerStatus >= 400)
-            {
-              ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
-                                   totalTokens);
-              std::lock_guard<std::mutex> lock(g_ProxyFailoverMutex);
-              if (handleRetryableProxyFailure(
-                      static_cast<DWORD>(innerStatus), errorBody, inputTokens,
-                      outputTokens, totalTokens))
-              {
-                continue; // retry with next account
-              }
-              // Not retryable — return error (HandleProxyClient will send it)
-              statusCode = static_cast<DWORD>(innerStatus);
-              contentType = L"application/json";
-              responseBody = errorBody.empty()
-                                 ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
-                                 : WideToUtf8(errorBody);
-              reqModel = modelToUse;
-              return finalizeReturn(true);
-            }
-            return false;
+            ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
+                                 totalTokens);
+            // Return upstream error before sending client streaming headers.
+            statusCode = static_cast<DWORD>(innerStatus);
+            contentType = L"application/json";
+            responseBody = errorBody.empty()
+                               ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
+                               : WideToUtf8(errorBody);
+            reqModel = modelToUse;
+            return finalizeReturn(true);
           }
-          // HTTP 200 — begin true streaming (no more retries possible)
-          if (alreadyStreamed != nullptr)
-          {
-            *alreadyStreamed = true;
-          }
-          statusCode = 200;
-          StreamCodexToClientAsOpenAiChat(ctx, clientSock, modelToUse,
-                                         inputTokens, outputTokens, totalTokens);
-          reqModel = modelToUse;
-          return finalizeReturn(true);
+          return finalizeReturn(false);
         }
+        // HTTP 200 — begin true streaming (no more retries possible)
+        statusCode = 200;
+        const bool streamOk = StreamCodexToClientAsOpenAiChat(ctx, clientSock, modelToUse,
+                                       inputTokens, outputTokens, totalTokens, alreadyStreamed);
+        reqModel = modelToUse;
+        return finalizeReturn(streamOk);
       }
 
       // Non-streaming or no client socket: use buffered path
@@ -13121,21 +12475,6 @@ namespace
                                          rawResponse, error, innerStatus))
       {
         ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
-        while (innerStatus > 0 &&
-               handleRetryableProxyFailure(static_cast<DWORD>(innerStatus),
-                                           rawResponse, inputTokens, outputTokens,
-                                           totalTokens))
-        {
-          if (SendCodexApiRequestByAuthFile(authPath, modelToUse, inputToUse,
-                                            outputText, rawResponse, error,
-                                            innerStatus))
-          {
-            accountUsed = accountName;
-            innerStatus = 0;
-            break;
-          }
-          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
-        }
         if (innerStatus > 0)
         {
           statusCode = static_cast<DWORD>(innerStatus);
@@ -13147,10 +12486,7 @@ namespace
           reqModel = modelToUse;
           return finalizeReturn(true);
         }
-        if (outputText.empty())
-        {
-          return false;
-        }
+        return finalizeReturn(false);
       }
 
       const long long created = static_cast<long long>(time(nullptr));
@@ -13234,46 +12570,32 @@ namespace
       // True streaming path
       if (requestStream && clientSock != INVALID_SOCKET)
       {
-        while (true)
+        WinHttpStreamContext ctx;
+        int innerStatus = 0;
+        std::wstring errorBody;
+        if (!SendCodexApiRequestStreaming(authPath, modelToUse, prompt,
+                                         ctx, innerStatus, errorBody, error))
         {
-          WinHttpStreamContext ctx;
-          int innerStatus = 0;
-          std::wstring errorBody;
-          if (!SendCodexApiRequestStreaming(authPath, modelToUse, prompt,
-                                           ctx, innerStatus, errorBody, error))
+          if (innerStatus >= 400)
           {
-            if (innerStatus >= 400)
-            {
-              ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
-                                   totalTokens);
-              std::lock_guard<std::mutex> lock(g_ProxyFailoverMutex);
-              if (handleRetryableProxyFailure(
-                      static_cast<DWORD>(innerStatus), errorBody, inputTokens,
-                      outputTokens, totalTokens))
-              {
-                continue;
-              }
-              statusCode = static_cast<DWORD>(innerStatus);
-              contentType = L"application/json";
-              responseBody = errorBody.empty()
-                                 ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
-                                 : WideToUtf8(errorBody);
-              reqModel = modelToUse;
-              return finalizeReturn(true);
-            }
-            return false;
+            ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
+                                 totalTokens);
+            statusCode = static_cast<DWORD>(innerStatus);
+            contentType = L"application/json";
+            responseBody = errorBody.empty()
+                               ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
+                               : WideToUtf8(errorBody);
+            reqModel = modelToUse;
+            return finalizeReturn(true);
           }
-          if (alreadyStreamed != nullptr)
-          {
-            *alreadyStreamed = true;
-          }
-          statusCode = 200;
-          StreamCodexToClientAsLegacyCompletion(ctx, clientSock, modelToUse,
-                                               inputTokens, outputTokens,
-                                               totalTokens);
-          reqModel = modelToUse;
-          return finalizeReturn(true);
+          return finalizeReturn(false);
         }
+        statusCode = 200;
+        const bool streamOk = StreamCodexToClientAsLegacyCompletion(ctx, clientSock, modelToUse,
+                                             inputTokens, outputTokens,
+                                             totalTokens, alreadyStreamed);
+        reqModel = modelToUse;
+        return finalizeReturn(streamOk);
       }
 
       // Non-streaming or no client socket: buffered path
@@ -13284,20 +12606,6 @@ namespace
                                          rawResponse, error, innerStatus))
       {
         ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
-        while (innerStatus > 0 &&
-               handleRetryableProxyFailure(static_cast<DWORD>(innerStatus),
-                                           rawResponse, inputTokens, outputTokens,
-                                           totalTokens))
-        {
-          if (SendCodexApiRequestByAuthFile(authPath, modelToUse, prompt, outputText,
-                                            rawResponse, error, innerStatus))
-          {
-            accountUsed = accountName;
-            innerStatus = 0;
-            break;
-          }
-          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
-        }
         if (innerStatus > 0)
         {
           statusCode = static_cast<DWORD>(innerStatus);
@@ -13309,10 +12617,7 @@ namespace
           reqModel = modelToUse;
           return finalizeReturn(true);
         }
-        if (outputText.empty())
-        {
-          return false;
-        }
+        return finalizeReturn(false);
       }
 
       const long long created = static_cast<long long>(time(nullptr));
@@ -13386,45 +12691,31 @@ namespace
       // True streaming path
       if (requestStream && clientSock != INVALID_SOCKET)
       {
-        while (true)
+        WinHttpStreamContext ctx;
+        int innerStatus = 0;
+        std::wstring errorBody;
+        if (!SendCodexApiRequestStreaming(authPath, modelToUse, prompt,
+                                         ctx, innerStatus, errorBody, error))
         {
-          WinHttpStreamContext ctx;
-          int innerStatus = 0;
-          std::wstring errorBody;
-          if (!SendCodexApiRequestStreaming(authPath, modelToUse, prompt,
-                                           ctx, innerStatus, errorBody, error))
+          if (innerStatus >= 400)
           {
-            if (innerStatus >= 400)
-            {
-              ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
-                                   totalTokens);
-              std::lock_guard<std::mutex> lock(g_ProxyFailoverMutex);
-              if (handleRetryableProxyFailure(
-                      static_cast<DWORD>(innerStatus), errorBody, inputTokens,
-                      outputTokens, totalTokens))
-              {
-                continue;
-              }
-              statusCode = static_cast<DWORD>(innerStatus);
-              contentType = L"application/json";
-              responseBody = errorBody.empty()
-                                 ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
-                                 : WideToUtf8(errorBody);
-              reqModel = modelToUse;
-              return finalizeReturn(true);
-            }
-            return false;
+            ParseTokenUsageSmart(errorBody, inputTokens, outputTokens,
+                                 totalTokens);
+            statusCode = static_cast<DWORD>(innerStatus);
+            contentType = L"application/json";
+            responseBody = errorBody.empty()
+                               ? "{\"error\":\"" + WideToUtf8(error) + "\"}"
+                               : WideToUtf8(errorBody);
+            reqModel = modelToUse;
+            return finalizeReturn(true);
           }
-          if (alreadyStreamed != nullptr)
-          {
-            *alreadyStreamed = true;
-          }
-          statusCode = 200;
-          StreamCodexToClientAsAnthropic(ctx, clientSock, modelToUse,
-                                        inputTokens, outputTokens, totalTokens);
-          reqModel = modelToUse;
-          return finalizeReturn(true);
+          return finalizeReturn(false);
         }
+        statusCode = 200;
+        const bool streamOk = StreamCodexToClientAsAnthropic(ctx, clientSock, modelToUse,
+                                      inputTokens, outputTokens, totalTokens, alreadyStreamed);
+        reqModel = modelToUse;
+        return finalizeReturn(streamOk);
       }
 
       // Non-streaming or no client socket: buffered path
@@ -13435,20 +12726,6 @@ namespace
                                          rawResponse, error, innerStatus))
       {
         ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
-        while (innerStatus > 0 &&
-               handleRetryableProxyFailure(static_cast<DWORD>(innerStatus),
-                                           rawResponse, inputTokens, outputTokens,
-                                           totalTokens))
-        {
-          if (SendCodexApiRequestByAuthFile(authPath, modelToUse, prompt, outputText,
-                                            rawResponse, error, innerStatus))
-          {
-            accountUsed = accountName;
-            innerStatus = 0;
-            break;
-          }
-          ParseTokenUsageSmart(rawResponse, inputTokens, outputTokens, totalTokens);
-        }
         if (innerStatus > 0)
         {
           statusCode = static_cast<DWORD>(innerStatus);
@@ -13460,10 +12737,7 @@ namespace
           reqModel = modelToUse;
           return finalizeReturn(true);
         }
-        if (outputText.empty())
-        {
-          return false;
-        }
+        return finalizeReturn(false);
       }
 
       const std::wstring msgId = L"msg_local_" + NewSessionId();
@@ -13542,8 +12816,7 @@ namespace
 
     if (passthroughStream)
     {
-      // Streaming passthrough: use streaming connection with failover
-      while (true)
+      // Streaming passthrough: one selected-account connection
       {
         WinHttpStreamContext ctx;
         int innerStatus = 0;
@@ -13558,54 +12831,37 @@ namespace
             const std::wstring errorWide = FromUtf8(errorBodyStr);
             ParseTokenUsageSmart(errorWide, inputTokens, outputTokens,
                                  totalTokens);
-            std::lock_guard<std::mutex> lock(g_ProxyFailoverMutex);
-            if (handleRetryableProxyFailure(
-                    static_cast<DWORD>(innerStatus), errorWide, inputTokens,
-                    outputTokens, totalTokens))
-            {
-              continue;
-            }
             statusCode = static_cast<DWORD>(innerStatus);
             contentType = L"application/json";
             responseBody = errorBodyStr;
             return finalizeReturn(true);
           }
-          return false;
+          return finalizeReturn(false);
         }
         // HTTP 200 — stream directly
-        if (alreadyStreamed != nullptr)
-        {
-          *alreadyStreamed = true;
-        }
         statusCode = 200;
         contentType = upstreamCt;
-        StreamProxyUpstreamToClient(ctx, clientSock, upstreamCt,
-                                    inputTokens, outputTokens, totalTokens);
+        const bool streamOk = StreamProxyUpstreamToClient(ctx, clientSock, upstreamCt,
+                                    inputTokens, outputTokens, totalTokens, alreadyStreamed);
         if (reqModel.empty())
         {
           reqModel = ExtractJsonField(FromUtf8(body), L"model");
         }
-        return finalizeReturn(true);
+        return finalizeReturn(streamOk);
       }
     }
 
     // Non-streaming passthrough: buffered path
-    while (true)
     {
       if (!SendProxyUpstreamRequestByAuth(authPath, methodLower, upstreamPath,
                                           headers, body, timeoutSec, statusCode,
                                           contentType, responseBody, error))
       {
-        return false;
+        return finalizeReturn(false);
       }
 
       const std::wstring responseWide = FromUtf8(responseBody);
       ParseTokenUsageSmart(responseWide, inputTokens, outputTokens, totalTokens);
-      if (!handleRetryableProxyFailure(statusCode, responseWide, inputTokens,
-                                       outputTokens, totalTokens))
-      {
-        break;
-      }
     }
     if (reqModel.empty())
     {
@@ -13613,6 +12869,9 @@ namespace
     }
     return finalizeReturn(true);
   }
+
+  #include "api_upstream.h"
+  #include "api_routing.h"
 
   void HandleProxyClient(SOCKET clientSock, const int timeoutSec)
   {
@@ -13679,6 +12938,7 @@ namespace
       failedMeta.totalTokens = -1;
       failedMeta.elapsedMs = -1;
       AppendTrafficLog(failedMeta);
+      if (alreadyStreamed) return;
       SendHttpTextResponse(clientSock, 502, "Bad Gateway",
                            "{\"error\":\"" + WideToUtf8(error) + "\"}");
       return;
@@ -14074,7 +13334,7 @@ namespace
          << item.quota5hResetAfterSeconds << L",\"quota7dResetAfterSeconds\":"
          << item.quota7dResetAfterSeconds << L",\"quota5hResetAt\":"
          << item.quota5hResetAt << L",\"quota7dResetAt\":" << item.quota7dResetAt
-         << L"}";
+         << L",\"quotaOtherWindows\":" << item.quotaOtherWindowsJson << L"}";
     }
     ss << L"]}";
     return ss.str();
@@ -14122,6 +13382,8 @@ namespace
       delete heapPayload;
     }
   }
+
+  #include "api_script_bridge.h"
 } // namespace
 
 void WebViewHost::ShowHr(HWND hwnd, const wchar_t *where, const HRESULT hr)
@@ -14758,6 +14020,7 @@ void WebViewHost::TriggerRefreshAll(const bool notifyStatus)
   }
   allRefreshRemainingSec_ = allRefreshIntervalSec_;
   SendRefreshTimerState();
+  SendWebJson(L"{\"type\":\"refresh_api_balances\"}");
 
   const HWND targetHwnd = hwnd_;
   const bool checkLowQuota = lowQuotaPromptEnabled_;
@@ -15043,6 +14306,7 @@ void WebViewHost::TriggerCloudAccountDownload(const bool notifyStatus)
 
 void WebViewHost::HandleAutoRefreshTick()
 {
+  SyncCurrentCodexConfigToApp(hwnd_, false);
   if (autoRefreshQuotaDisabled_)
   {
     allRefreshRemainingSec_ = allRefreshIntervalSec_;
@@ -15099,6 +14363,8 @@ void WebViewHost::SendWebJson(const std::wstring &json) const
 void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
                                   const std::wstring &rawMessage)
 {
+  #include "api_actions.h"
+  #include "codex_cli_actions.h"
   if (action == L"window_minimize")
   {
     ShowWindow(hwnd, SW_MINIMIZE);
@@ -15227,9 +14493,6 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     SendWebStatus(status, level, code);
     if (ok)
     {
-      std::wstring autoName;
-      std::wstring autoGroup;
-      AutoSelectProxyFixedAccountIfNeeded(autoName, autoGroup);
       SendAccountsList(false, L"", L"");
     }
     return;
@@ -15770,6 +15033,8 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         cfg.proxyTimeoutSec = timeoutSec;
         cfg.proxyAllowLan = allowLan;
         cfg.proxyDispatchMode = dispatchMode;
+        if (cfg.proxyFixedAccount != fixedAccount || cfg.proxyFixedGroup != fixedGroup)
+          cfg.proxyFixedApiAccount.clear();
         cfg.proxyFixedAccount = fixedAccount;
         cfg.proxyFixedGroup = fixedGroup;
         SaveConfig(cfg);
@@ -15782,7 +15047,7 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
         if (cfg.proxyStealthMode)
         {
           std::wstring stealthError;
-          if (!ApplyStealthProxyModeToCodexProfile(cfg, stealthError))
+          if (!SyncSelectedCodexProfile(cfg, false, stealthError))
           {
             DebugLogLine(L"proxy.stealth",
                          L"apply after start failed: " + stealthError);
@@ -16127,6 +15392,11 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
     }
     if (hasProxyFixedAccount)
     {
+      if (cfg.proxyFixedAccount != proxyFixedAccount)
+      {
+        cfg.proxyFixedApiAccount.clear();
+        if (cfg.proxyStealthMode) cfg.activeApiAccount.clear();
+      }
       cfg.proxyFixedAccount = proxyFixedAccount;
     }
     if (hasProxyFixedGroup)
@@ -16266,34 +15536,25 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
       if (cfg.proxyStealthMode || wasProxyStealthMode)
       {
         const HWND targetHwnd = hwnd_;
-        const AppConfig cfgCopy = cfg;
-        std::thread([targetHwnd, cfgCopy, wasProxyStealthMode]()
+        std::thread([targetHwnd]()
                     {
           std::wstring stealthError;
-          std::wstring restoreError;
           std::wstring envError;
-          if (cfgCopy.proxyStealthMode) {
-            if (!ApplyStealthProxyModeToCodexProfile(cfgCopy, stealthError)) {
-              DebugLogLine(L"proxy.stealth", L"apply failed: " + stealthError);
-            }
-          } else if (wasProxyStealthMode) {
-            if (!RestoreCodexProfileFromStealthBackup(restoreError)) {
-              DebugLogLine(L"proxy.stealth",
-                           L"restore failed: " + restoreError);
-            }
+          AppConfig currentCfg;
+          LoadConfig(currentCfg);
+          // Profile changes are driven only by an explicit account switch or
+          // by enabling the stealth proxy. Saving settings must not replay a
+          // stale API account selection into config.toml.
+          if (currentCfg.proxyStealthMode &&
+              !SyncSelectedCodexProfile(currentCfg, false, stealthError)) {
+            DebugLogLine(L"proxy.stealth", L"profile sync failed: " + stealthError);
           }
-          if (!SyncStealthProxyEnvironment(cfgCopy, envError)) {
+          if (!SyncStealthProxyEnvironment(currentCfg, envError)) {
             DebugLogLine(L"proxy.stealth", L"sync env failed: " + envError);
           }
           std::wstring warnText;
           if (!stealthError.empty()) {
             warnText += L"无痕换号配置失败: " + stealthError;
-          }
-          if (!restoreError.empty()) {
-            if (!warnText.empty()) {
-              warnText += L"；";
-            }
-            warnText += L"无痕换号恢复失败: " + restoreError;
           }
           if (!envError.empty()) {
             if (!warnText.empty()) {
@@ -16635,9 +15896,6 @@ void WebViewHost::HandleWebAction(HWND hwnd, const std::wstring &action,
           L",\"abnormal\":" + std::to_wstring(abnormalCount) +
           L",\"lastError\":\"" + EscapeJsonString(lastError) + L"\"}";
 
-      std::wstring autoName;
-      std::wstring autoGroup;
-      AutoSelectProxyFixedAccountIfNeeded(autoName, autoGroup);
       PostAsyncWebJson(targetHwnd, statusJson);
       PostAsyncWebJson(targetHwnd, BuildAccountsListJson(false, L"", L"")); })
         .detach();
@@ -16897,13 +16155,12 @@ void WebViewHost::Initialize(HWND hwnd)
       LoadConfig(startCfg);
     }
   }
+  SyncCurrentCodexConfigToApp(hwnd_, true);
+  LoadConfig(startCfg);
   if (startCfg.proxyApiKey.empty())
   {
     startCfg.proxyApiKey = GenerateProxyApiKey();
-    const AppConfig saveCfg = startCfg;
-    std::thread([saveCfg]()
-                { SaveConfig(saveCfg); })
-        .detach();
+    SaveConfig(startCfg);
   }
   ApplyWindowTitleTheme(hwnd_, startCfg.theme);
   autoRefreshQuotaDisabled_ = !startCfg.enableAutoRefreshQuota;
@@ -17078,15 +16335,8 @@ void WebViewHost::Initialize(HWND hwnd)
                       const HWND targetHwnd = hwnd_;
                       std::thread([startCfg, targetHwnd]()
                                   {
-                        if (startCfg.proxyStealthMode) {
-                          std::wstring stealthError;
-                          if (!ApplyStealthProxyModeToCodexProfile(startCfg,
-                                                                   stealthError)) {
-                            DebugLogLine(L"proxy.stealth",
-                                         L"apply on startup failed: " +
-                                             stealthError);
-                          }
-                        }
+                        // Startup observes the current local profile; applying an
+                        // account is an explicit action, not a stale-config replay.
                         std::wstring envError;
                         if (!SyncStealthProxyEnvironment(startCfg, envError)) {
                           DebugLogLine(L"proxy.stealth",
@@ -17126,11 +16376,23 @@ void WebViewHost::Resize(HWND hwnd) const
 
   RECT bounds{};
   GetClientRect(hwnd, &bounds);
+  if (bounds.right > 0 && bounds.bottom > 0)
+  {
+    const double scale = static_cast<double>(USER_DEFAULT_SCREEN_DPI) / GetDpiForWindow(hwnd);
+    const double widthRatio = bounds.right * scale / WindowSettings::initialWidth;
+    const double heightRatio = bounds.bottom * scale / WindowSettings::initialHeight;
+    controller_->put_ZoomFactor((std::min)(1.0, (std::min)(widthRatio, heightRatio)));
+  }
   controller_->put_Bounds(bounds);
 }
 
 void WebViewHost::Cleanup()
 {
+  SyncCurrentCodexConfigToApp(hwnd_, true);
+  {
+    std::lock_guard<std::recursive_mutex> profileLock(g_CodexProfileMutex);
+    g_CodexProfileClosing = true;
+  }
   if (g_ProxyRunning.load())
   {
     std::wstring proxyStatus;
@@ -17142,6 +16404,8 @@ void WebViewHost::Cleanup()
     KillTimer(hwnd_, kTimerAutoRefresh);
     timerInitialized_ = false;
   }
+  // Account switches are persistent. Do not restore a pre-switch snapshot on
+  // exit; the selected account owns the Codex profile until the next switch.
   RemoveTrayIcon();
 
   if (webview_ != nullptr)

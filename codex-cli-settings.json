@@ -1,0 +1,3 @@
+{
+  "installCommand": "npm.cmd install --global @openai/codex@latest"
+}

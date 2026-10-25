@@ -70,6 +70,8 @@ Source: "..\Release\{#BinarySubDir}\WebView2Loader.dll"; DestDir: "{app}"; Flags
 
 ; Web UI
 Source: "..\webui\*"; DestDir: "{app}\webui"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\api-settings.json"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\codex-cli-settings.json"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
